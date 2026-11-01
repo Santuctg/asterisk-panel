@@ -1,0 +1,305 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Controllers;
+
+use App\Core\Flash;
+use App\Core\Request;
+use App\Core\Response;
+use App\Core\Validator;
+
+/**
+ * Extensions (PJSIP endpoints). The core building block every other feature
+ * references — voicemail boxes, ring groups, queues, devices all point here.
+ */
+final class ExtensionController extends BaseController
+{
+    private const FILLABLE = [
+        'extension', 'name', 'secret', 'cid_name', 'cid_number',
+        'vm_enabled', 'vm_on_busy', 'vm_on_noanswer', 'ring_timeout',
+        'max_registrations', 'follow_me', 'enabled', 'description',
+    ];
+
+    /** GET /extensions */
+    public function index(Request $request): Response
+    {
+        $tid   = $this->requireTenant();
+        $q     = $request->str('q');
+        $page  = $request->page();
+        $perPage = $request->perPage();
+
+        $where  = 'e.tenant_id = ?';
+        $params = [$tid];
+
+        if ($q !== '') {
+            $where .= ' AND (e.extension LIKE :q OR e.name LIKE :q OR e.cid_name LIKE :q)';
+            $params[] = $q;
+        }
+
+        $db     = $this->db();
+        $total  = (int) $db->scalar("SELECT COUNT(*) FROM extensions e WHERE {$where}", $params);
+        $pages  = max(1, (int) ceil($total / $perPage));
+        $page   = min($page, $pages);
+        $offset = ($page - 1) * $perPage;
+
+        $rows = $db->all(
+            "SELECT e.*, v.id AS vm_id, v.email AS vm_email, v.attach AS vm_attach,
+                    d.mac AS device_mac, d.vendor AS device_vendor
+             FROM extensions e
+             LEFT JOIN voicemail v ON v.extension_id = e.id
+             LEFT JOIN devices d ON d.extension_id = e.id
+             WHERE {$where}
+             ORDER BY e.extension
+             LIMIT {$perPage} OFFSET {$offset}",
+            $params
+        );
+
+        return $this->view('extensions/index', [
+            'rows' => $rows, 'q' => $q, 'page' => $page, 'pages' => $pages, 'total' => $total,
+        ]);
+    }
+
+    /** GET /extensions/create */
+    public function create(Request $request): Response
+    {
+        $defaults = $this->suggestNext();
+
+        return $this->view('extensions/form', [
+            'row'       => null,
+            'defaults'  => $defaults,
+            'tenants'   => $this->tenantOptions(),
+        ]);
+    }
+
+    /** POST /extensions */
+    public function store(Request $request): Response
+    {
+        $tid = $this->requireTenant();
+        if (!$tid) {
+            return Response::redirect('/extensions');
+        }
+
+        $data = $this->collect($request, $tid);
+
+        $v = Validator::make($data, [
+            'extension' => 'required|digits_between:2,6|unique:extensions,extension,,tenant_id',
+            'name'      => 'required|max:120',
+            'secret'    => 'required|min:8|max:128',
+            'cid_number'=> 'nullable|digits_between:3,16',
+            'ring_timeout' => 'nullable|integer',
+        ]);
+        $data['tenant_id'] = $tid;
+
+        if ($v->fails()) {
+            $this->stashOld($request);
+            Flash::error($v->firstError());
+            return Response::redirect('/extensions/create');
+        }
+
+        // Unique check scoped by tenant (Validator's unique rule is generic).
+        $dup = $this->db()->scalar(
+            'SELECT COUNT(*) FROM extensions WHERE tenant_id = ? AND extension = ?',
+            [$tid, $data['extension']]
+        );
+        if ($dup) {
+            $this->stashOld($request);
+            Flash::error('That extension number is already in use in this tenant.');
+            return Response::redirect('/extensions/create');
+        }
+
+        $id = $this->db()->insert('extensions', $data);
+
+        // Auto-create a matching voicemail box if the caller asked for it.
+        if (!empty($data['vm_enabled']) && $request->bool('create_voicemail')) {
+            $this->db()->insert('voicemail', [
+                'tenant_id'    => $tid,
+                'extension_id' => $id,
+                'pin'          => $request->str('vm_pin') ?: random_pin(6),
+                'name'         => $data['name'],
+                'email'        => $request->str('vm_email'),
+                'attach'       => 1,
+                'enabled'      => 1,
+                'created_at'   => date('Y-m-d H:i:s'),
+            ]);
+        }
+
+        $this->clearOld();
+        $this->audit('extension.create', 'extension', $id, ['extension' => $data['extension']]);
+        $this->applyToAsterisk('extension');
+
+        Flash::success("Extension {$data['extension']} created.");
+        return Response::redirect('/extensions');
+    }
+
+    /** GET /extensions/{id}/edit */
+    public function edit(Request $request): Response
+    {
+        $row = $this->findScoped((int) $request->params['id']);
+        if (!$row) {
+            Flash::error('Extension not found.');
+            return Response::redirect('/extensions');
+        }
+
+        return $this->view('extensions/form', [
+            'row'      => $row,
+            'defaults' => [],
+            'tenants'  => $this->tenantOptions(),
+        ]);
+    }
+
+    /** POST /extensions/{id} */
+    public function update(Request $request): Response
+    {
+        $row = $this->findScoped((int) $request->params['id']);
+        if (!$row) {
+            Flash::error('Extension not found.');
+            return Response::redirect('/extensions');
+        }
+
+        $data = $this->collect($request, (int) $row['tenant_id']);
+
+        $v = Validator::make($data + ['id' => $row['id']], [
+            'extension' => 'required|digits_between:2,6',
+            'name'      => 'required|max:120',
+            'secret'    => 'required|min:8|max:128',
+        ]);
+
+        if ($v->fails()) {
+            $this->stashOld($request);
+            Flash::error($v->firstError());
+            return Response::redirect("/extensions/{$row['id']}/edit");
+        }
+
+        $dup = $this->db()->scalar(
+            'SELECT COUNT(*) FROM extensions WHERE tenant_id = ? AND extension = ? AND id != ?',
+            [(int) $row['tenant_id'], $data['extension'], (int) $row['id']]
+        );
+        if ($dup) {
+            $this->stashOld($request);
+            Flash::error('That extension number is already in use in this tenant.');
+            return Response::redirect("/extensions/{$row['id']}/edit");
+        }
+
+        $this->db()->update('extensions', (int) $row['id'], $data);
+
+        // Keep the voicemail mailbox name/number in sync.
+        $this->db()->update('voicemail', (int) $row['id'], [
+            'name' => $data['name'],
+        ], 'extension_id');
+
+        $this->clearOld();
+        $this->audit('extension.update', 'extension', (int) $row['id'], ['extension' => $data['extension']]);
+        $this->applyToAsterisk('extension');
+
+        Flash::success("Extension {$data['extension']} updated.");
+        return Response::redirect('/extensions');
+    }
+
+    /** DELETE /extensions/{id} */
+    public function destroy(Request $request): Response
+    {
+        $row = $this->findScoped((int) $request->params['id']);
+        if (!$row) {
+            Flash::error('Extension not found.');
+            return Response::redirect('/extensions');
+        }
+
+        $this->db()->delete('extensions', (int) $row['id']);
+        // Clean up dependent rows that cascade didn't cover (MySQL).
+        $this->db()->delete('voicemail', (int) $row['id'], 'extension_id');
+        $this->db()->delete('queue_agents', (int) $row['id'], 'extension_id');
+        $this->db()->delete('ring_group_members', (int) $row['id'], 'extension_id');
+
+        $this->audit('extension.delete', 'extension', (int) $row['id'], ['extension' => $row['extension']]);
+        $this->applyToAsterisk('extension');
+
+        Flash::success("Extension {$row['extension']} deleted.");
+        return Response::redirect('/extensions');
+    }
+
+    /** POST /extensions/{id}/regenerate-secret */
+    public function regenerateSecret(Request $request): Response
+    {
+        $row = $this->findScoped((int) $request->params['id']);
+        if (!$row) {
+            return Response::redirect('/extensions');
+        }
+
+        $secret = random_secret(14);
+        $this->db()->update('extensions', (int) $row['id'], ['secret' => $secret]);
+
+        $this->audit('extension.secret.regenerate', 'extension', (int) $row['id']);
+        $this->applyToAsterisk('extension');
+
+        Flash::success("SIP password regenerated for {$row['extension']}.");
+        return Response::redirect('/extensions');
+    }
+
+    // ----- helpers -------------------------------------------------------
+
+    private function collect(Request $request, int $tid): array
+    {
+        return [
+            'extension'         => $request->str('extension'),
+            'name'              => $request->str('name'),
+            'secret'            => $request->str('secret') ?: random_secret(14),
+            'cid_name'          => $request->str('cid_name'),
+            'cid_number'        => $request->str('cid_number'),
+            'vm_enabled'        => $request->bool('vm_enabled') ? 1 : 0,
+            'vm_on_busy'        => $request->bool('vm_on_busy') ? 1 : 0,
+            'vm_on_noanswer'    => $request->bool('vm_on_noanswer') ? 1 : 0,
+            'ring_timeout'      => $request->int('ring_timeout', 25),
+            'max_registrations' => max(1, $request->int('max_registrations', 1)),
+            'follow_me'         => $request->bool('follow_me') ? 1 : 0,
+            'enabled'           => $request->bool('enabled', true) ? 1 : 0,
+            'description'       => $request->str('description'),
+        ];
+    }
+
+    /** Fetch an extension, scoped to the caller's tenant (or any if super). */
+    private function findScoped(int $id): ?array
+    {
+        $tid = $this->tenantId();
+        if (!$tid) {
+            return null;
+        }
+
+        if (auth()->isSuperAdmin()) {
+            return $this->db()->one('SELECT * FROM extensions WHERE id = ?', [$id]);
+        }
+
+        return $this->db()->one('SELECT * FROM extensions WHERE id = ? AND tenant_id = ?', [$id, $tid]);
+    }
+
+    /** Suggest the next free extension number in the configured range. */
+    private function suggestNext(): array
+    {
+        $tid  = $this->tenantId();
+        $min  = (int) config('app.defaults.extension_range.1000', 1000);
+        $max  = (int) config('app.defaults.extension_range.1', 1999);
+
+        $used = $this->db()->all(
+            'SELECT extension FROM extensions WHERE tenant_id = ?',
+            [$tid]
+        );
+        $used = array_flip(array_map('intval', array_column($used, 'extension')));
+
+        for ($n = $min; $n <= $max; $n++) {
+            if (!isset($used[$n])) {
+                return ['extension' => (string) $n, 'ring_timeout' => (int) config('app.defaults.ring_timeout', 25)];
+            }
+        }
+
+        return ['extension' => '', 'ring_timeout' => 25];
+    }
+
+    private function tenantOptions(): array
+    {
+        if (auth()->isSuperAdmin()) {
+            return $this->db()->all('SELECT id, name FROM tenants WHERE enabled = 1 ORDER BY name');
+        }
+        $tid = $this->tenantId();
+        return $tid ? $this->db()->all('SELECT id, name FROM tenants WHERE id = ?', [$tid]) : [];
+    }
+}

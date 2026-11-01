@@ -1,0 +1,288 @@
+# Wiring the panel to a real Asterisk server
+
+This panel is the control plane; Asterisk is the media plane. The panel keeps
+its own database and **renders** it into Asterisk config files, then asks a
+live Asterisk to reload. Nothing here touches distro-owned config files
+directly — you add a single `#include` line once, and the panel owns everything
+under a dedicated subdirectory.
+
+```
+┌─────────────┐   AMI (TCP 5038)   ┌──────────────────┐
+│   Panel     │ ─────────────────► │    Asterisk       │
+│  (PHP)      │                    │  (PJSIP, etc.)   │
+│             │  writes files ───► │ /etc/asterisk/    │
+└─────────────┘                    │   asterisk_panel/ │
+       ▲                           └──────────────────┘
+       │ HTTP /prov/<mac>.cfg
+┌──────┴──────┐
+│  IP phones  │
+└─────────────┘
+```
+
+---
+
+## 1. Prerequisites
+
+* Asterisk **20 LTS / 22 LTS / 24** with `res_pjsip` (PJSIP is the default
+  channel driver in all supported releases; the old `chan_sip` is deprecated
+  and removed in newer versions).
+* PHP **8.2+** with `pdo_sqlite` (or `pdo_mysql`), `mbstring`, `openssl`, and `fileinfo`.
+* Network reach from the panel host to the Asterisk host on **TCP 5038** (AMI).
+
+---
+
+## 2. Enable the Manager Interface (AMI)
+
+Edit `/etc/asterisk/manager.conf`:
+
+```ini
+[general]
+enabled = yes
+webenabled = no
+bindaddr = 0.0.0.0
+port = 5038
+
+[admin]
+secret = choose-a-strong-secret
+read    = system,call,log,verbose,command,agent,user,config,dtmf
+write   = system,call,log,verbose,command,agent,user,config,dtmf
+; Restrict to the panel host where possible:
+permit  = 10.0.0.0/24
+```
+
+Reload with `asterisk -rx "manager reload"`.
+
+Then tell the panel how to connect (environment variables):
+
+```bash
+AMI_HOST=127.0.0.1
+AMI_PORT=5038
+AMI_USER=admin
+AMI_SECRET=choose-a-strong-secret
+```
+
+---
+
+## 3. Let Asterisk load the generated config
+
+Create the include directory and add **one** `#include` line to each relevant
+file. The panel writes into `/etc/asterisk/asterisk_panel/` by default
+(`ASTERISK_CONFIG_DIR` overrides it).
+
+**`/etc/asterisk/extensions.conf`** — add near the top:
+
+```ini
+; --- Asterisk Panel ---
+#include asterisk_panel/dialplan.conf
+```
+
+**`/etc/asterisk/pjsip.conf`** — add near the top:
+
+```ini
+; --- Asterisk Panel ---
+#include asterisk_panel/pjsip_endpoints.conf
+#include asterisk_panel/pjsip_trunks.conf
+
+; Template sections the generated files reference. If your pjsip.conf does
+; not already define these, copy them in (they are safe defaults):
+[endpoint_basic](endpoint)
+allow = !all,ulaw,alaw,g722,opus
+dtmf_mode = rfc4733
+trust_id_inbound = yes
+direct_media = no
+rtp_symmetric = yes
+force_rtp_codec = yes
+
+[auth]
+type = auth
+
+[aor]
+type = aor
+qualify_frequency = 60
+
+[trunk-basic](endpoint)
+allow = !all,ulaw,alaw,g722
+dtmf_mode = rfc4733
+direct_media = no
+rtp_symmetric = yes
+
+[registration](registration)
+; generic outbound registration template
+```
+
+**`/etc/asterisk/voicemail.conf`** — add at the very top of the file:
+
+```ini
+; --- Asterisk Panel ---
+#include asterisk_panel/voicemail.conf
+```
+
+**`/etc/asterisk/queues.conf`**:
+
+```ini
+#include asterisk_panel/queues.conf
+```
+
+**`/etc/asterisk/features.conf`** (parking) — the panel writes
+`parking.conf`, so include it from a file that is loaded:
+
+```ini
+#include asterisk_panel/parking.conf
+```
+
+> If your build uses `res_parking` with its own `parking.conf`, add the
+> `#include` there instead.
+
+**`/etc/asterisk/musiconhold.conf`**:
+
+```ini
+#include asterisk_panel/musiconhold.conf
+```
+
+**`/etc/asterisk/confbridge.conf`**:
+
+```ini
+#include asterisk_panel/confbridge.conf
+```
+
+Then reload everything: `asterisk -rx "core reload"`.
+
+---
+
+## 4. Voicemail to email
+
+app_voicemail shells out to `mailcmd` for every new message. Point it at the
+relay script, which reads the full RFC-822 message (including the audio
+attachment) from STDIN and hands it to your MTA or an SMTP relay:
+
+```ini
+; voicemail.conf [general]
+mailcmd = /usr/bin/php /opt/asterisk-panel/scripts/asterisk-mail.php
+```
+
+The relay tries, in order:
+
+1. **Local MTA** — `sendmail`/`postfix`/`exim` at `SENDMAIL_PATH`
+   (default `/usr/sbin/sendmail`), invoked as `sendmail -t -i`.
+2. **SMTP relay** — set these to skip the local MTA:
+
+   ```bash
+   VM_SMTP_HOST=smtp.example.com
+   VM_SMTP_PORT=587
+   VM_SMTP_USER=pbx@example.com
+   VM_SMTP_PASS=...
+   VM_SMTP_ENCRYPTION=tls     # tls | ssl | none
+   ```
+
+Per-mailbox `email`, `attach` and `saycid` come from the panel's Voicemail page
+and are written into `voicemail.conf`.
+
+Restart Asterisk (`core restart`) after changing `mailcmd` — it is read at
+module load.
+
+---
+
+## 5. Device provisioning
+
+Phones poll `http://<panel>/prov/<mac>.cfg` (or `.xml` for Fanvil). The panel
+renders a vendor template (`resources/templates/provisioning/`) with the linked
+extension's credentials.
+
+* **Yealink** — set the provisioning server to
+  `http://<panel>/prov/<mac>.cfg` in the phone UI, or use DHCP option 66 /
+  Yealink's RPS redirect.
+* **Grandstream** — `http://<panel>/prov/<mac>.cfg` (their XML format).
+* **Polycom** — `http://<panel>/prov/<mac>.cfg`.
+* **Fanvil** — `http://<panel>/prov/<mac>.xml`.
+
+This endpoint is intentionally **unauthenticated** (the MAC is the secret) and
+fails closed with a 404 for unknown/disabled MACs. Because it is on your LAN or
+behind TLS, put it behind HTTPS and restrict access at the firewall.
+
+---
+
+## 6. CDR collection
+
+The panel reads from its `cdr` table. Populate it either way:
+
+### Option A — HTTP backend (recommended)
+
+Create `/etc/asterisk/cdr.conf`:
+
+```ini
+[general]
+enable = yes
+
+[cdr_csv]
+enable = yes
+header = yes
+accountcols = accountcode
+```
+
+Or stream CDRs over HTTP to the panel with `func_curl` in the dialplan, or the
+`cdr_http` module pointed at an ingest endpoint you add. Adjust to taste.
+
+### Option B — periodic CSV import
+
+Asterisk writes `/var/log/asterisk/cdr-csv/Master.csv`. Import it on a cron:
+
+```cron
+*/5 * * * * /usr/bin/php /opt/asterisk-panel/scripts/import-cdr.php
+```
+
+The importer appends only rows it has not seen before (keyed on `uniqueid`).
+Remember to set the tenant mapping — see the script header.
+
+---
+
+## 7. Multi-tenancy model
+
+Each tenant gets a unique Asterisk **context** (the `context` column on
+`tenants`). The panel namespaces every generated section by that context, so
+two tenants can both use extension `1001` with no collision:
+
+* PJSIP endpoint names become `<context>_<extension>` (e.g. `acme_1001`).
+* Dialplan contexts are `<tenant-context>` plus derived contexts
+  (`-inbound`, `-outbound`, `-ivr-<n>`, `-<timecond>`).
+* Voicemail mailboxes are grouped under `[<tenant-context>]`.
+* Conferences use `[<pin>]` bridge profiles scoped per tenant context.
+
+A tenant's `context` is **immutable after creation** — renaming it would orphan
+every dialplan reference. Delete and recreate instead if you must change it.
+
+---
+
+## 8. Security checklist
+
+- [ ] AMI `permit` restricted to the panel host's IP.
+- [ ] AMI secret is strong and not the `ClueCon` default.
+- [ ] `APP_URL` uses **HTTPS** in production.
+- [ ] `APP_DEBUG=0` in production.
+- [ ] The `storage/` directory is **not** web-accessible (it sits outside
+      `public/`, keep it that way).
+- [ ] Device provisioning endpoint restricted by firewall / reverse proxy.
+- [ ] Panel database file permissions restricted to the web user.
+
+---
+
+## 9. Troubleshooting
+
+| Symptom | Check |
+|---|---|
+| Dashboard says "Asterisk is not reachable" | AMI host/port/secret, `permit` rules, firewall on 5038. |
+| Phones can't register | `pjsip show endpoints`, generated `pjsip_endpoints.conf` exists, `#include` present, endpoint name matches. |
+| Inbound calls do nothing | `dialplan show <tenant-context>-inbound`, DID pattern format (`_` prefix for wildcards). |
+| Voicemail email never arrives | `mailcmd` set + executable, script readable by the `asterisk` user, `core restart` after editing. |
+| Config changes have no effect | Confirm the `#include` lines exist and `core reload` succeeded — see `/system/status`. |
+| Provisioning returns 404 | MAC unknown/disabled, or the phone requested a different filename (`.xml` vs `.cfg`). Check `storage/logs/`. |
+
+Live diagnosis:
+
+```bash
+asterisk -rvvv
+> pjsip show endpoints
+> pjsip show contacts
+> dialplan show default
+> queue show
+> core show channels
+```

@@ -1,0 +1,23 @@
+# Runtime environment and credentials
+.env
+.env.*
+!.env.example
+
+# Runtime data
+/storage/database/*
+/storage/logs/*
+/storage/cache/*
+/storage/provision/*
+/storage/asterisk/*
+
+# Local tooling / operating system
+/.idea/
+/.vscode/
+Thumbs.db
+.DS_Store
+
+# Temporary files
+*.tmp
+*.log
+*.sqlite
+*.sqlite3
