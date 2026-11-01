@@ -395,9 +395,8 @@ $activeTab = $_GET['tab'] ?? 'inbound';
         var submit = document.getElementById(cfg.submit);
         if (!modal || !form) return;
 
-        modal.addEventListener('click', function (e) {
-            var btn = e.target.closest('[data-edit]');
-            if (!btn) return;
+        document.querySelectorAll('[data-modal-open="' + cfg.modal + '"][data-edit]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
             var data = JSON.parse(btn.getAttribute('data-edit'));
             form.action = cfg.editAction(data.id);
             title.textContent = 'Edit ' + cfg.label;
@@ -410,6 +409,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
             cfg.checks.forEach(function (pair) {
                 var el = form.elements[pair[0]];
                 if (el) el.checked = Number(data[pair[0]]) === pair[1];
+            });
             });
         });
 

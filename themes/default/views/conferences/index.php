@@ -125,9 +125,8 @@ foreach ((array) $mohClasses as $c) { $mohOpts[$c['name']] = $c['name']; }
     var title  = document.getElementById('confTitle');
     var submit = document.getElementById('confSubmit');
 
-    modal.addEventListener('click', function (e) {
-        var btn = e.target.closest('[data-edit]');
-        if (!btn) return;
+    document.querySelectorAll('[data-modal-open="confModal"][data-edit]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
         var d = JSON.parse(btn.getAttribute('data-edit'));
         form.action = '/conferences/' + d.id;
         title.textContent = 'Edit conference';
@@ -138,6 +137,7 @@ foreach ((array) $mohClasses as $c) { $mohOpts[$c['name']] = $c['name']; }
         });
         form.elements['record'].checked = Number(d.record) === 1;
         form.elements['enabled'].checked = Number(d.enabled) === 1;
+        });
     });
 
     document.querySelectorAll('[data-modal-open="confModal"]').forEach(function (opener) {

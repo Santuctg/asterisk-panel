@@ -166,9 +166,8 @@ foreach ((array) $live as $lq) {
     var title  = document.getElementById('queueTitle');
     var submit = document.getElementById('queueSubmit');
 
-    modal.addEventListener('click', function (e) {
-        var btn = e.target.closest('[data-edit]');
-        if (!btn) return;
+    document.querySelectorAll('[data-modal-open="queueModal"][data-edit]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
         var d = JSON.parse(btn.getAttribute('data-edit'));
         form.action = '/call-center/' + d.id;
         title.textContent = 'Edit queue';
@@ -180,6 +179,7 @@ foreach ((array) $live as $lq) {
             if (el && d[k] !== undefined && d[k] !== null) el.value = d[k];
         });
         form.elements['enabled'].checked = Number(d.enabled) === 1;
+        });
     });
 
     document.querySelectorAll('[data-modal-open="queueModal"]').forEach(function (opener) {

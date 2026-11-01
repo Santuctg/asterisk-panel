@@ -142,9 +142,8 @@ foreach ((array) $tenants as $t) { $tenantOpts[$t['id']] = $t['name']; }
     var title  = document.getElementById('userTitle');
     var submit = document.getElementById('userSubmit');
 
-    modal.addEventListener('click', function (e) {
-        var btn = e.target.closest('[data-edit]');
-        if (!btn) return;
+    document.querySelectorAll('[data-modal-open="userModal"][data-edit]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
         var d = JSON.parse(btn.getAttribute('data-edit'));
         form.action = '/users/' + d.id;
         title.textContent = 'Edit user';
@@ -155,6 +154,7 @@ foreach ((array) $tenants as $t) { $tenantOpts[$t['id']] = $t['name']; }
         if (form.elements['tenant_id']) form.elements['tenant_id'].value = d.tenant_id || '';
         form.elements['password'].value = '';
         form.elements['enabled'].checked = Number(d.active) === 1;
+        });
     });
 
     document.querySelectorAll('[data-modal-open="userModal"]').forEach(function (opener) {

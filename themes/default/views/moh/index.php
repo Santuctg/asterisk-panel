@@ -109,9 +109,8 @@ require dirname(__DIR__) . '/partials/fields.php';
     var title  = document.getElementById('mohTitle');
     var submit = document.getElementById('mohSubmit');
 
-    modal.addEventListener('click', function (e) {
-        var btn = e.target.closest('[data-edit]');
-        if (!btn) return;
+    document.querySelectorAll('[data-modal-open="mohModal"][data-edit]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
         var d = JSON.parse(btn.getAttribute('data-edit'));
         form.action = '/moh/' + d.id;
         title.textContent = 'Edit music class';
@@ -120,6 +119,7 @@ require dirname(__DIR__) . '/partials/fields.php';
         form.elements['directory'].value = d.directory || '';
         form.elements['random'].checked = Number(d.random) === 1;
         form.elements['shuffle'].checked = Number(d.shuffle) === 1;
+        });
     });
 
     document.querySelectorAll('[data-modal-open="mohModal"]').forEach(function (opener) {

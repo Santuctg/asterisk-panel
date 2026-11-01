@@ -154,10 +154,8 @@ $toneOpts = ['beep' => 'Beep', 'ring' => 'Ring', 'vertex' => 'Vertex', 'none' =>
     var method = document.getElementById('parkMethod');
 
     // Populate the modal for editing when a row's Edit button is clicked.
-    modal.addEventListener('click', function (e) {
-        var btn = e.target.closest('[data-edit]');
-        if (!btn) return;
-
+    document.querySelectorAll('[data-modal-open="parkModal"][data-edit]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
         var data = JSON.parse(btn.getAttribute('data-edit'));
         form.action = '/parking/' + data.id;
         method.value = 'POST';
@@ -173,6 +171,7 @@ $toneOpts = ['beep' => 'Beep', 'ring' => 'Ring', 'vertex' => 'Vertex', 'none' =>
          ['play_sounds', 1], ['record', 0], ['enabled', 1]].forEach(function (pair) {
             var el = form.elements[pair[0]];
             if (el) el.checked = Number(data[pair[0]]) === pair[1];
+        });
         });
     });
 

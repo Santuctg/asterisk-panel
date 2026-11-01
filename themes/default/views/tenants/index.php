@@ -125,9 +125,8 @@ $timezoneOpts = [
     var title  = document.getElementById('tenantTitle');
     var submit = document.getElementById('tenantSubmit');
 
-    modal.addEventListener('click', function (e) {
-        var btn = e.target.closest('[data-edit]');
-        if (!btn) return;
+    document.querySelectorAll('[data-modal-open="tenantModal"][data-edit]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
         var d = JSON.parse(btn.getAttribute('data-edit'));
         form.action = '/tenants/' + d.id;
         title.textContent = 'Edit tenant';
@@ -139,6 +138,7 @@ $timezoneOpts = [
         form.elements['contact_phone'].value = d.contact_phone || '';
         form.elements['notes'].value = d.notes || '';
         form.elements['enabled'].checked = Number(d.enabled) === 1;
+        });
     });
 
     document.querySelectorAll('[data-modal-open="tenantModal"]').forEach(function (opener) {
