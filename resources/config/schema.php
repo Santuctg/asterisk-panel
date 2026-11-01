@@ -84,7 +84,7 @@ return [
             say_cid           INTEGER DEFAULT 1,
             envelope          INTEGER DEFAULT 1,
             skip_instructions INTEGER DEFAULT 0,
-            timezone          VARCHAR(40) DEFAULT "central",
+            timezone          VARCHAR(60) DEFAULT "America/New_York",
             enabled           INTEGER DEFAULT 1,
             created_at        DATETIME,
             updated_at        DATETIME

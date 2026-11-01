@@ -53,6 +53,22 @@ For Apache, point the document root at `public/` (the included `.htaccess`
 handles rewriting). For nginx, use the standard `try_files $uri $uri/ /index.php?$query_string;`
 and set the root to `public/`.
 
+### Production HTTPS
+
+On Debian/Ubuntu, point the domain's DNS at the server, open TCP 80/443, and run:
+
+```bash
+sudo bash scripts/setup-https.sh \
+  --domain pbx.example.com \
+  --email admin@example.com
+```
+
+The idempotent installer configures Nginx, obtains a Let's Encrypt certificate,
+redirects HTTP to HTTPS, enables renewal, and passes `APP_URL=https://...` plus
+`APP_SECURE_COOKIES=1` to PHP-FPM. See
+**[docs/asterisk-setup.md](docs/asterisk-setup.md#production-https--lets-encrypt)**
+for manual setup and verification.
+
 ---
 
 ## Project layout
@@ -102,6 +118,8 @@ All settings read from environment variables (or edit `resources/config/*.php`).
 |---|---|---|
 | `APP_URL` | `http://localhost:8080` | Absolute URL; used to build provisioning links |
 | `APP_DEBUG` | `false` | Show stack traces |
+| `APP_TIMEZONE` | `UTC` | Application log/display timezone (IANA identifier) |
+| `APP_SECURE_COOKIES` | auto | Force secure session cookies; automatically enabled for an HTTPS `APP_URL` |
 | `APP_THEME` | `default` | Theme folder under `themes/` |
 | `DB_DRIVER` | `sqlite` | `sqlite` or `mysql` |
 | `AMI_HOST` / `AMI_PORT` | `127.0.0.1` / `5038` | Asterisk Manager Interface |
@@ -132,6 +150,7 @@ showing an "offline" state instead of erroring.
 * Everything outside `public/` is intentionally not web-servable.
 * Passwords use `password_hash()` / `password_verify()` with rehashing.
 * CSRF tokens on every unsafe request; sessions are `HttpOnly` + `SameSite=Lax`.
+* HTTPS deployments use secure session cookies and HSTS through the supplied Nginx config.
 * Login is throttled per-IP.
 * Roles: `user` (read/CDR), `admin` (own tenant), `superadmin` (everything).
 * Device provisioning is keyed by MAC and fails closed with a 404.

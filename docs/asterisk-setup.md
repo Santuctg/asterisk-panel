@@ -13,7 +13,7 @@ under a dedicated subdirectory.
 │             │  writes files ───► │ /etc/asterisk/    │
 └─────────────┘                    │   asterisk_panel/ │
        ▲                           └──────────────────┘
-       │ HTTP /prov/<mac>.cfg
+       │ HTTPS /prov/<mac>.cfg
 ┌──────┴──────┐
 │  IP phones  │
 └─────────────┘
@@ -184,20 +184,68 @@ module load.
 
 ## 5. Device provisioning
 
-Phones poll `http://<panel>/prov/<mac>.cfg` (or `.xml` for Fanvil). The panel
+Phones poll `https://<panel>/prov/<mac>.cfg` (or `.xml` for Fanvil). The panel
 renders a vendor template (`resources/templates/provisioning/`) with the linked
 extension's credentials.
 
 * **Yealink** — set the provisioning server to
-  `http://<panel>/prov/<mac>.cfg` in the phone UI, or use DHCP option 66 /
+  `https://<panel>/prov/<mac>.cfg` in the phone UI, or use DHCP option 66 /
   Yealink's RPS redirect.
-* **Grandstream** — `http://<panel>/prov/<mac>.cfg` (their XML format).
-* **Polycom** — `http://<panel>/prov/<mac>.cfg`.
-* **Fanvil** — `http://<panel>/prov/<mac>.xml`.
+* **Grandstream** — `https://<panel>/prov/<mac>.cfg` (their XML format).
+* **Polycom** — `https://<panel>/prov/<mac>.cfg`.
+* **Fanvil** — `https://<panel>/prov/<mac>.xml`.
 
 This endpoint is intentionally **unauthenticated** (the MAC is the secret) and
 fails closed with a 404 for unknown/disabled MACs. Because it is on your LAN or
 behind TLS, put it behind HTTPS and restrict access at the firewall.
+
+### Production HTTPS / Let's Encrypt
+
+Before requesting a certificate, create an `A`/`AAAA` DNS record for the panel
+and allow inbound TCP **80** and **443**. On Debian or Ubuntu, run from the
+project root:
+
+```bash
+sudo bash scripts/setup-https.sh \
+  --domain pbx.example.com \
+  --email admin@example.com
+```
+
+The script:
+
+1. Installs Nginx and Certbot when missing.
+2. Detects the PHP-FPM Unix socket (or accepts `--php-socket`).
+3. Uses the ACME webroot challenge to obtain the certificate.
+4. Installs `resources/deploy/nginx-https.conf.template`, redirects HTTP to
+   HTTPS, and enables HSTS and standard security headers.
+5. Passes `APP_URL=https://pbx.example.com` and `APP_SECURE_COOKIES=1` to PHP.
+
+For a custom deployment, use the template manually and set these variables in
+the PHP-FPM environment:
+
+```bash
+APP_URL=https://pbx.example.com
+APP_SECURE_COOKIES=1
+APP_DEBUG=0
+```
+
+`APP_URL` is authoritative for generated provisioning links. The app also
+enables secure cookies automatically whenever that URL begins with `https://`.
+If another reverse proxy terminates TLS, forward `X-Forwarded-Proto: https`,
+keep the external `APP_URL` set to HTTPS, and never expose PHP-FPM publicly.
+
+Verify redirects, TLS, and automatic renewal:
+
+```bash
+curl -I http://pbx.example.com
+curl -I https://pbx.example.com/login
+sudo certbot renew --dry-run
+systemctl status certbot.timer
+```
+
+Use a publicly trusted certificate for phone provisioning; many desk phones do
+not accept private CAs. After switching an existing installation to HTTPS,
+re-copy the provisioning URL from the Devices page or reprovision the phones.
 
 ---
 

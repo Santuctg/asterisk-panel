@@ -20,9 +20,13 @@ final class Config
         self::$path = rtrim($dir, '/\\');
 
         foreach (glob(self::$path . '/*.php') ?: [] as $file) {
-            $key                = basename($file, '.php');
-            $value              = require $file;
-            self::$items[$key] = is_array($value) ? self::dot($value, $key) : $value;
+            $key   = basename($file, '.php');
+            $value = require $file;
+            if (is_array($value)) {
+                self::$items = array_replace(self::$items, self::dot($value, $key));
+            } else {
+                self::$items[$key] = $value;
+            }
         }
     }
 

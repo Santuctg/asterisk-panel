@@ -58,9 +58,9 @@ final class TenantController extends BaseController
             'domain'  => 'nullable|max:160',
         ]);
 
-        if ($v->fails()) {
+        if ($v->fails() || !is_valid_timezone($data['timezone'])) {
             $this->stashOld($request);
-            Flash::error($v->firstError());
+            Flash::error($v->firstError() ?? 'The selected timezone is invalid.');
             return Response::redirect('/tenants');
         }
 
@@ -93,8 +93,8 @@ final class TenantController extends BaseController
         ];
 
         $v = Validator::make($data, ['name' => 'required|max:120']);
-        if ($v->fails()) {
-            Flash::error($v->firstError());
+        if ($v->fails() || !is_valid_timezone($data['timezone'])) {
+            Flash::error($v->firstError() ?? 'The selected timezone is invalid.');
             return Response::redirect('/tenants');
         }
 

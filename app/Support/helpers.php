@@ -155,6 +155,65 @@ if (!function_exists('format_date')) {
     }
 }
 
+if (!function_exists('timezone_options')) {
+    /**
+     * Every timezone known to this PHP build, grouped for readable selects.
+     * ALL_WITH_BC keeps backwards-compatible IANA aliases available too.
+     *
+     * @return array<string, array<int, array{id:string,label:string}>>
+     */
+    function timezone_options(): array
+    {
+        static $options = null;
+        if ($options !== null) {
+            return $options;
+        }
+
+        $groups = [];
+        foreach (DateTimeZone::listIdentifiers(DateTimeZone::ALL_WITH_BC) as $identifier) {
+            $parts = explode('/', $identifier, 2);
+            $group = count($parts) === 2 ? $parts[0] : 'General';
+            $place = count($parts) === 2 ? $parts[1] : $identifier;
+            $label = str_replace(['_', '/'], [' ', ' / '], $place);
+
+            $groups[$group][] = [
+                'id'    => $identifier,
+                'label' => $label . ' (' . $identifier . ')',
+            ];
+        }
+
+        ksort($groups, SORT_NATURAL | SORT_FLAG_CASE);
+        return $options = $groups;
+    }
+}
+
+if (!function_exists('is_valid_timezone')) {
+    function is_valid_timezone(string $timezone): bool
+    {
+        static $valid = null;
+        $valid ??= array_fill_keys(DateTimeZone::listIdentifiers(DateTimeZone::ALL_WITH_BC), true);
+        return isset($valid[$timezone]);
+    }
+}
+
+if (!function_exists('normalize_timezone')) {
+    /** Convert old Asterisk UI aliases and reject unknown timezone values. */
+    function normalize_timezone(?string $timezone, string $default = 'UTC'): string
+    {
+        $legacy = [
+            'eastern'  => 'America/New_York',
+            'central'  => 'America/Chicago',
+            'central2' => 'America/Chicago',
+            'mountain' => 'America/Denver',
+            'pacific'  => 'America/Los_Angeles',
+        ];
+
+        $timezone = trim((string) $timezone);
+        $timezone = $legacy[strtolower($timezone)] ?? $timezone;
+        return is_valid_timezone($timezone) ? $timezone : $default;
+    }
+}
+
 if (!function_exists('random_secret')) {
     function random_secret(int $length = 12): string
     {

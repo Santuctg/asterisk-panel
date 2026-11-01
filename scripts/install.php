@@ -143,3 +143,4 @@ echo "  1. Start the app:  php -S 0.0.0.0:8080 -t public public/router.php\n";
 echo "  2. Sign in at      http://localhost:8080/login\n";
 echo "  3. Wire up Asterisk (AMI + config #include): see docs/asterisk-setup.md\n";
 echo "  4. Set APP_URL and AMI_* in your environment before production use.\n";
+echo "  5. Enable HTTPS: sudo bash scripts/setup-https.sh --domain pbx.example.com --email admin@example.com\n";

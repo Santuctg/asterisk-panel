@@ -13,7 +13,10 @@ require __DIR__ . '/Support/helpers.php';
 // ---------------------------------------------------------------------
 // Error / exception handling
 // ---------------------------------------------------------------------
-$debug = (bool) (getenv('APP_DEBUG') ?: false);
+$debugValue = getenv('APP_DEBUG');
+$debug = $debugValue !== false
+    ? (filter_var($debugValue, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE) ?? false)
+    : false;
 
 error_reporting(E_ALL);
 ini_set('display_errors', $debug ? '1' : '0');

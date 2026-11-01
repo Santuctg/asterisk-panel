@@ -8,6 +8,7 @@ require dirname(__DIR__) . '/partials/fields.php';
 $isNew  = empty($row);
 $action = $isNew ? '/voicemail' : '/voicemail/' . (int) $row['id'];
 $val    = static fn (string $key, $default = '') => $row[$key] ?? old($key, $default);
+$selectedTimezone = normalize_timezone((string) $val('timezone', 'America/New_York'), 'America/New_York');
 ?>
 
 <div class="page-head">
@@ -97,8 +98,7 @@ $val    = static fn (string $key, $default = '') => $row[$key] ?? old($key, $def
                 </div>
 
                 <?php
-                $zones = ['central' => 'Central', 'eastern' => 'Eastern', 'mountain' => 'Mountain', 'pacific' => 'Pacific'];
-                echo field_select('timezone', 'Timezone', $zones, $val('timezone', 'central'), [
+                echo field_select('timezone', 'Timezone', timezone_options(), $selectedTimezone, [
                     'hint' => 'Used when reading the message timestamp.',
                 ]);
                 ?>

@@ -234,12 +234,22 @@ final class ConfigGenerator
         $out .= "moveheard = no\n";
         $out .= "delete = no\n\n";
 
+        // Asterisk's mailbox `tz` option references a key in [zonemessages],
+        // not an IANA identifier directly. Generate a stable, safe key for
+        // every IANA zone currently used by an enabled mailbox.
+        $zoneRows = $this->db->all('SELECT DISTINCT timezone FROM voicemail WHERE enabled = 1');
+        $zones = [];
+        foreach ($zoneRows as $zoneRow) {
+            $zone = \normalize_timezone((string) ($zoneRow['timezone'] ?? ''), 'UTC');
+            $zones[$zone] = 'iana_' . substr(hash('sha256', $zone), 0, 16);
+        }
+        ksort($zones);
+
         $out .= "[zonemessages]\n";
-        $out .= "central=America/New_York|vm-time-recent\n";
-        $out .= "eastern=America/New_York|'vm-recent' time 'at' E.64\n";
-        $out .= "central2=America/Chicago|'vm-recent' time 'at' E.64\n";
-        $out .= "mountain=America/Denver|'vm-recent' time 'at' E.64\n";
-        $out .= "pacific=America/Los_Angeles|'vm-recent' time 'at' E.64\n\n";
+        foreach ($zones as $zone => $name) {
+            $out .= "{$name}={$zone}|'vm-received' Q 'digits/at' IMp\n";
+        }
+        $out .= "\n";
 
         // Mailboxes grouped by tenant context so multi-tenant stays isolated.
         $tenants = $this->db->all('SELECT id, context, name FROM tenants ORDER BY id');
@@ -270,7 +280,8 @@ final class ConfigGenerator
                 if ($b['vm_password'] !== '') {
                     $opts[] = 'vm-secret=' . $b['vm_password'];
                 }
-                $opts[] = 'tz=' . ($b['timezone'] ?: 'central');
+                $zone = \normalize_timezone((string) ($b['timezone'] ?? ''), 'UTC');
+                $opts[] = 'tz=' . ($zones[$zone] ?? ('iana_' . substr(hash('sha256', $zone), 0, 16)));
 
                 $out .= sprintf(
                     "%s => %s,%s,%s,%s,,,%s\n",

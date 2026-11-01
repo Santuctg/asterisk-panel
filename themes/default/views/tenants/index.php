@@ -4,13 +4,7 @@
  */
 require dirname(__DIR__) . '/partials/fields.php';
 
-$timezoneOpts = [
-    'America/New_York' => 'Eastern (America/New_York)',
-    'America/Chicago'  => 'Central (America/Chicago)',
-    'America/Denver'   => 'Mountain (America/Denver)',
-    'America/Los_Angeles' => 'Pacific (America/Los_Angeles)',
-    'UTC'              => 'UTC',
-];
+$timezoneOpts = timezone_options();
 ?>
 
 <div class="page-head">

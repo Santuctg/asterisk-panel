@@ -67,13 +67,13 @@ final class VoicemailController extends BaseController
             'pin'          => 'required|digits_between:4,10',
             'name'         => 'required|max:120',
             'email'        => 'nullable|email',
-            'timezone'     => 'nullable',
+            'timezone'     => 'required',
         ]);
         $data['tenant_id'] = $tid;
 
-        if ($v->fails()) {
+        if ($v->fails() || !is_valid_timezone($data['timezone'])) {
             $this->stashOld($request);
-            Flash::error($v->firstError());
+            Flash::error($v->firstError() ?? 'The selected timezone is invalid.');
             return Response::redirect('/voicemail/create');
         }
 
@@ -130,11 +130,12 @@ final class VoicemailController extends BaseController
             'pin'   => 'required|digits_between:4,10',
             'name'  => 'required|max:120',
             'email' => 'nullable|email',
+            'timezone' => 'required',
         ]);
 
-        if ($v->fails()) {
+        if ($v->fails() || !is_valid_timezone($data['timezone'])) {
             $this->stashOld($request);
-            Flash::error($v->firstError());
+            Flash::error($v->firstError() ?? 'The selected timezone is invalid.');
             return Response::redirect("/voicemail/{$row['id']}/edit");
         }
 
@@ -180,7 +181,7 @@ final class VoicemailController extends BaseController
             'say_cid'           => $request->bool('say_cid', true) ? 1 : 0,
             'envelope'          => $request->bool('envelope', true) ? 1 : 0,
             'skip_instructions' => $request->bool('skip_instructions') ? 1 : 0,
-            'timezone'          => $request->str('timezone', 'central'),
+            'timezone'          => $request->str('timezone', 'America/New_York'),
             'enabled'           => $request->bool('enabled', true) ? 1 : 0,
         ];
     }

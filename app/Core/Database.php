@@ -37,7 +37,7 @@ final class Database
             $port = Config::get('database.port', 3306);
             $name = Config::get('database.database', 'asterisk_panel');
             $dsn  = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
-            $this->pdo = new \PDO($dsn, Config::get('database.username'), Config::get('password', ''), $options);
+            $this->pdo = new \PDO($dsn, Config::get('database.username'), Config::get('database.password', ''), $options);
         }
 
         return $this->pdo;
