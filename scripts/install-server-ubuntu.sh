@@ -74,17 +74,18 @@ fi
 
 trap 'echo "Installation failed at line ${LINENO}. Review the command output above." >&2' ERR
 
-echo "[1/10] Installing Ubuntu packages..."
+echo "[1/11] Installing Ubuntu packages..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y software-properties-common
 add-apt-repository -y universe
 apt-get update
 apt-get install -y \
-    asterisk nginx rsync openssl sudo curl dnsutils certbot python3 ufw \
+    asterisk nginx fail2ban rsync openssl sudo curl dnsutils certbot python3 ufw \
     php8.3-cli php8.3-fpm php8.3-sqlite3 php8.3-mbstring php8.3-curl php8.3-xml php8.3-opcache
+usermod -a -G asterisk www-data
 
-echo "[2/10] Deploying the panel to ${INSTALL_DIR}..."
+echo "[2/11] Deploying the panel to ${INSTALL_DIR}..."
 install -d -o root -g root -m 0755 "$INSTALL_DIR"
 if [[ "$(realpath "$SOURCE_ROOT")" != "$(realpath "$INSTALL_DIR")" ]]; then
     rsync -a \
@@ -104,7 +105,7 @@ for dir in database logs cache provision asterisk acme; do
 done
 chown -R www-data:www-data "$INSTALL_DIR/storage"
 
-echo "[3/10] Creating persistent server credentials..."
+echo "[3/11] Creating persistent server credentials..."
 install -d -o root -g root -m 0750 /etc/asterisk-panel
 SERVER_ENV=/etc/asterisk-panel/server.env
 if [[ -f "$SERVER_ENV" ]]; then
@@ -145,7 +146,7 @@ PHP_SOCKET=/run/php/asterisk-panel.sock
 } >"$SERVER_ENV"
 chmod 0600 "$SERVER_ENV"
 
-echo "[4/10] Configuring the dedicated PHP-FPM pool..."
+echo "[4/11] Configuring the dedicated PHP-FPM pool..."
 POOL_FILE="/etc/php/${PHP_VERSION}/fpm/pool.d/asterisk-panel.conf"
 cat >"$POOL_FILE" <<EOF
 [asterisk-panel]
@@ -172,6 +173,7 @@ env[AMI_USER] = asterisk-panel
 env[AMI_SECRET] = ${AMI_SECRET}
 env[ASTERISK_CONFIG_DIR] = /etc/asterisk/asterisk_panel
 env[ASTERISK_SIP_HOST] = ${SIP_HOST}
+env[ASTERISK_RECORDING_DIR] = /var/spool/asterisk/monitor/asterisk-panel
 env[VM_MAILCMD] = /usr/bin/php ${INSTALL_DIR}/scripts/asterisk-mail.php
 EOF
 chmod 0640 "$POOL_FILE"
@@ -182,7 +184,7 @@ for extension in pdo_sqlite mbstring openssl fileinfo; do
     php -m | grep -Fxiq "$extension" || { echo "Required PHP extension is missing: $extension" >&2; exit 1; }
 done
 
-echo "[5/10] Initializing the panel database..."
+echo "[5/11] Initializing the panel database..."
 INSTALL_ARGS=("--username=$ADMIN_USER" "--tenant=$TENANT_NAME")
 if [[ -n "$ADMIN_EMAIL" ]]; then
     INSTALL_ARGS+=("--email=$ADMIN_EMAIL")
@@ -197,8 +199,9 @@ runuser -u www-data -- env \
     APP_URL="$APP_URL" DB_DRIVER=sqlite DB_NAME="$DB_PATH" \
     php "$INSTALL_DIR/scripts/install.php" "${INSTALL_ARGS[@]}"
 
-echo "[6/10] Configuring Asterisk AMI and managed includes..."
+echo "[6/11] Configuring Asterisk AMI and managed includes..."
 install -d -o www-data -g asterisk -m 2775 /etc/asterisk/asterisk_panel
+install -d -o asterisk -g asterisk -m 0750 /var/spool/asterisk/monitor/asterisk-panel
 install -o root -g asterisk -m 0644 "$INSTALL_DIR/resources/deploy/asterisk/pjsip-base.conf" /etc/asterisk/asterisk_panel/pjsip_base.conf
 install -d -o root -g asterisk -m 0750 /etc/asterisk/manager.d
 cat >/etc/asterisk/manager.d/asterisk-panel.conf <<EOF
@@ -235,12 +238,35 @@ ensure_include /etc/asterisk/queues.conf '#include asterisk_panel/queues.conf'
 ensure_include /etc/asterisk/res_parking.conf '#include asterisk_panel/parking.conf'
 ensure_include /etc/asterisk/musiconhold.conf '#include asterisk_panel/musiconhold.conf'
 ensure_include /etc/asterisk/confbridge.conf '#include asterisk_panel/confbridge.conf'
+cat >/etc/asterisk/asterisk_panel/cdr.conf <<'EOF'
+[general]
+enable = yes
+unanswered = yes
+congestion = yes
+EOF
+cat >/etc/asterisk/asterisk_panel/cdr_csv.conf <<'EOF'
+[general]
+usegmtime = no
+loguniqueid = yes
+loguserfield = yes
+accountlogs = no
+EOF
+ensure_include /etc/asterisk/cdr.conf '#include asterisk_panel/cdr.conf'
+ensure_include /etc/asterisk/cdr_csv.conf '#include asterisk_panel/cdr_csv.conf'
+install -d -o root -g asterisk -m 0750 /etc/asterisk/logger.d
+cat >/etc/asterisk/logger.d/asterisk-panel.conf <<'EOF'
+[logfiles]
+security => security
+EOF
+chmod 0640 /etc/asterisk/logger.d/asterisk-panel.conf
+ensure_include /etc/asterisk/logger.conf '#include logger.d/asterisk-panel.conf'
 
-echo "[7/10] Generating initial Asterisk configuration..."
+echo "[7/11] Generating initial Asterisk configuration..."
 runuser -u www-data -- env \
     DB_DRIVER=sqlite DB_NAME="$INSTALL_DIR/storage/database/asterisk_panel.sqlite" \
     AMI_HOST=127.0.0.1 AMI_PORT=5038 AMI_USER=asterisk-panel AMI_SECRET="$AMI_SECRET" \
     ASTERISK_CONFIG_DIR=/etc/asterisk/asterisk_panel \
+    ASTERISK_RECORDING_DIR=/var/spool/asterisk/monitor/asterisk-panel \
     VM_MAILCMD="/usr/bin/php $INSTALL_DIR/scripts/asterisk-mail.php" \
     php "$INSTALL_DIR/scripts/apply-config.php"
 for generated in pjsip_endpoints.conf pjsip_trunks.conf dialplan.conf voicemail.conf queues.conf parking.conf musiconhold.conf confbridge.conf; do
@@ -249,7 +275,7 @@ done
 chgrp -R asterisk /etc/asterisk/asterisk_panel
 find /etc/asterisk/asterisk_panel -type f -exec chmod 0640 {} +
 
-echo "[8/10] Starting Asterisk..."
+echo "[8/11] Starting Asterisk..."
 systemctl enable asterisk
 systemctl restart asterisk
 sleep 2
@@ -257,7 +283,41 @@ systemctl is-active --quiet asterisk || { journalctl -u asterisk -n 80 --no-page
 asterisk -rx 'core show version'
 asterisk -rx 'manager show settings' >/dev/null
 
-echo "[9/10] Configuring the initial Nginx site..."
+install -d -o asterisk -g asterisk -m 0750 /var/log/asterisk/cdr-csv
+touch /var/log/asterisk/cdr-csv/Master.csv
+chown asterisk:asterisk /var/log/asterisk/cdr-csv/Master.csv
+chmod 0640 /var/log/asterisk/cdr-csv/Master.csv
+cat >/etc/systemd/system/asterisk-panel-cdr.service <<EOF
+[Unit]
+Description=Import Asterisk CDR into Asterisk Panel
+After=asterisk.service
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+SupplementaryGroups=asterisk
+Environment=DB_DRIVER=sqlite
+Environment=DB_NAME=${DB_PATH}
+Environment=CDR_CSV_PATH=/var/log/asterisk/cdr-csv/Master.csv
+ExecStart=/usr/bin/php ${INSTALL_DIR}/scripts/import-cdr.php
+EOF
+cat >/etc/systemd/system/asterisk-panel-cdr.timer <<'EOF'
+[Unit]
+Description=Import Asterisk CDR every minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+systemctl daemon-reload
+systemctl enable --now asterisk-panel-cdr.timer
+
+echo "[9/11] Configuring the initial Nginx site..."
 SITE=/etc/nginx/sites-available/asterisk-panel
 if [[ ! -f "$SITE" ]] || ! grep -qE 'listen[[:space:]]+443' "$SITE"; then
     cat >"$SITE" <<EOF
@@ -270,6 +330,7 @@ server {
     client_max_body_size 20m;
 
     location / { try_files \$uri \$uri/ /index.php?\$query_string; }
+    include /etc/nginx/snippets/asterisk-panel-recordings.conf;
     location = /index.php {
         include fastcgi_params;
         fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
@@ -282,6 +343,11 @@ server {
 }
 EOF
 fi
+install -d -m 0755 /etc/nginx/snippets
+install -o root -g root -m 0644 "$INSTALL_DIR/resources/deploy/nginx-recordings.conf" /etc/nginx/snippets/asterisk-panel-recordings.conf
+if ! grep -Fq 'asterisk-panel-recordings.conf' "$SITE"; then
+    sed -i '/^[[:space:]]*location = \/index\.php {/i\    include /etc/nginx/snippets/asterisk-panel-recordings.conf;\n' "$SITE"
+fi
 ln -sfn "$SITE" /etc/nginx/sites-enabled/asterisk-panel
 if [[ -L /etc/nginx/sites-enabled/default ]] \
     && [[ "$(readlink -f /etc/nginx/sites-enabled/default)" == /etc/nginx/sites-available/default ]]; then
@@ -291,7 +357,43 @@ nginx -t
 systemctl enable --now nginx
 systemctl reload nginx
 
-echo "[10/10] Installing the web SSL helper..."
+echo "[10/11] Configuring Fail2ban..."
+install -o root -g root -m 0644 \
+    "$INSTALL_DIR/resources/deploy/fail2ban/asterisk-panel-login.conf" \
+    /etc/fail2ban/filter.d/asterisk-panel-login.conf
+touch /var/log/asterisk/security
+chown asterisk:asterisk /var/log/asterisk/security
+touch "$INSTALL_DIR/storage/logs/app-$(date +%F).log"
+chown www-data:www-data "$INSTALL_DIR/storage/logs/app-$(date +%F).log"
+cat >/etc/fail2ban/jail.d/asterisk-panel.local <<EOF
+[asterisk]
+enabled = true
+filter = asterisk
+port = 5060,5061
+protocol = all
+logpath = /var/log/asterisk/security
+maxretry = 5
+findtime = 10m
+bantime = 1h
+ignoreip = 127.0.0.1/8 ::1
+
+[asterisk-panel-login]
+enabled = true
+filter = asterisk-panel-login
+port = http,https
+protocol = tcp
+logpath = ${INSTALL_DIR}/storage/logs/app-*.log
+maxretry = 5
+findtime = 10m
+bantime = 1h
+ignoreip = 127.0.0.1/8 ::1
+EOF
+systemctl enable --now fail2ban
+systemctl restart fail2ban
+fail2ban-client status asterisk >/dev/null
+fail2ban-client status asterisk-panel-login >/dev/null
+
+echo "[11/11] Installing the web SSL helper..."
 bash "$INSTALL_DIR/scripts/install-web-ssl-helper.sh" --web-user www-data --php-socket "$PHP_SOCKET"
 
 if ((FIREWALL_RULES)) && ufw status | grep -q '^Status: active'; then
@@ -312,6 +414,8 @@ Username:     ${ADMIN_USER}
 Password:     ${ADMIN_PASSWORD:-unchanged (existing installation)}
 Asterisk:     $(asterisk -rx 'core show version' | head -n 1)
 AMI:          listening on 127.0.0.1:5038
+Fail2ban:     Asterisk SIP + panel login jails active
+Recordings:   /var/spool/asterisk/monitor/asterisk-panel
 
 Next:
   1. Sign in and change the generated password if applicable.

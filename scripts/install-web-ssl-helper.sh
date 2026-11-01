@@ -49,11 +49,19 @@ if [[ -z "$PHP_SOCKET" || ! -S "$PHP_SOCKET" ]]; then
 fi
 
 install -d -m 0755 /etc/asterisk-panel /usr/local/lib/asterisk-panel
+install -d -m 0755 /etc/nginx/snippets
 install -d -o "$WEB_USER" -g "$(id -gn "$WEB_USER")" -m 0700 "$APP_ROOT/storage/acme"
 install -o root -g root -m 0755 "$SCRIPT_DIR/acme-dns-ssl-helper.sh" /usr/local/sbin/asterisk-panel-ssl
 install -o root -g root -m 0755 "$SCRIPT_DIR/acme-dns-auth-hook.sh" /usr/local/lib/asterisk-panel/acme-dns-auth
 install -o root -g root -m 0755 "$SCRIPT_DIR/acme-dns-cleanup-hook.sh" /usr/local/lib/asterisk-panel/acme-dns-cleanup
 install -o root -g root -m 0644 "$APP_ROOT/resources/deploy/nginx-https.conf.template" /usr/local/lib/asterisk-panel/nginx-https.conf.template
+install -o root -g root -m 0644 "$APP_ROOT/resources/deploy/nginx-recordings.conf" /etc/nginx/snippets/asterisk-panel-recordings.conf
+
+# Upgrade an older panel-generated site without replacing its certificate paths.
+SITE=/etc/nginx/sites-available/asterisk-panel
+if [[ -f "$SITE" ]] && ! grep -Fq 'asterisk-panel-recordings.conf' "$SITE"; then
+    sed -i '/^[[:space:]]*location = \/index\.php {/i\    include /etc/nginx/snippets/asterisk-panel-recordings.conf;\n' "$SITE"
+fi
 
 {
     printf 'APP_ROOT=%q\n' "$APP_ROOT"
@@ -72,6 +80,8 @@ chmod 0440 "$SUDOERS"
 visudo -cf "$SUDOERS"
 
 systemctl enable --now nginx
+nginx -t
+systemctl reload nginx
 systemctl enable --now certbot.timer 2>/dev/null || true
 
 cat <<EOF

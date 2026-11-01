@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Core\Auth;
 use App\Core\Flash;
+use App\Core\Logger;
 use App\Core\Request;
 use App\Core\Response;
 use App\Core\Session;
@@ -51,6 +52,10 @@ final class AuthController extends BaseController
 
         if (!auth()->attempt($username, $password)) {
             Session::throttleHit($throttleKey);
+            Logger::warning('Authentication failed', [
+                'ip' => $request->ip(),
+                'username' => mb_substr($username, 0, 80),
+            ]);
             Flash::error('Those credentials do not match our records.');
             $this->stashOld($request);
             return Response::redirect('/login');

@@ -68,6 +68,24 @@ $s = static fn (string $k, string $d = '') => $settings[$k] ?? $d;
     </div>
 
     <div class="card">
+        <div class="card-head"><h2>Automatic call recording</h2></div>
+        <div class="card-body">
+            <div class="form-grid">
+                <?php echo field_select('recording_mode', 'Recording mode', [
+                    'off'      => 'Off',
+                    'all'      => 'All calls (inbound, outbound and internal)',
+                    'inbound'  => 'Inbound calls only',
+                    'outbound' => 'Outbound calls only',
+                ], $s('recording_mode', 'off'), [
+                    'span' => true,
+                    'hint' => 'Recordings are WAV files under the protected Asterisk recording directory.',
+                ]); ?>
+            </div>
+            <p class="hint mb-0">Call recording laws vary. Enable this only after confirming consent, disclosure and retention requirements for every location involved.</p>
+        </div>
+    </div>
+
+    <div class="card">
         <div class="card-head"><h2>Connection</h2></div>
         <div class="card-body">
             <div class="form-grid">

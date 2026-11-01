@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Core\Request;
 use App\Core\Response;
+use App\Core\Config;
 
 /**
  * Call detail records. Reads from the `cdr` table populated by Asterisk's
@@ -60,5 +61,37 @@ final class CdrController extends BaseController
             'total' => $total, 'q' => $q, 'disposition' => $disp,
             'stats' => $stats ?: ['total' => 0, 'answered' => 0, 'talktime' => 0],
         ]);
+    }
+
+    /** GET /cdr/{id}/recording — authorize, then delegate the file to Nginx. */
+    public function recording(Request $request): Response
+    {
+        $row = $this->db()->one(
+            'SELECT id, userfield FROM cdr WHERE id = ? AND tenant_id = ?',
+            [(int) $request->params['id'], $this->tenantId()]
+        );
+        if (!$row || !str_starts_with((string) $row['userfield'], 'recording:')) {
+            return Response::text('Recording not found.', 404);
+        }
+
+        $filename = substr((string) $row['userfield'], strlen('recording:'));
+        if ($filename !== basename($filename)
+            || str_contains($filename, '..')
+            || !preg_match('/^[A-Za-z0-9_.-]+\.wav$/', $filename)) {
+            return Response::text('Recording not found.', 404);
+        }
+
+        $dir = rtrim((string) Config::get('asterisk.recording_dir', '/var/spool/asterisk/monitor/asterisk-panel'), '/');
+        $file = $dir . '/' . $filename;
+        if (!is_file($file) || !is_readable($file)) {
+            return Response::text('Recording not found.', 404);
+        }
+
+        return (new Response('', 200, [
+            'Content-Type'        => 'audio/wav',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'X-Accel-Redirect'    => '/_protected/recordings/' . rawurlencode($filename),
+            'X-Content-Type-Options' => 'nosniff',
+        ]));
     }
 }

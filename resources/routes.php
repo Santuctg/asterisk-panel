@@ -127,6 +127,7 @@ $router->delete('/conferences/{id}', [ConferenceController::class, 'destroy'], a
 
 // CDR / call history
 $router->get('/cdr', [CdrController::class, 'index'], $read);
+$router->get('/cdr/{id}/recording', [CdrController::class, 'recording'], $read);
 
 // Tenants (superadmin)
 $router->get('/tenants', [TenantController::class, 'index'], [Auth::require('tenant.view')]);

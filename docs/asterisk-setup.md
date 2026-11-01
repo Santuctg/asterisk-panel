@@ -46,6 +46,11 @@ adds every managed include; initializes SQLite and the superadmin; starts and
 verifies Asterisk; and installs the restricted web SSL helper. The generated
 panel password is printed once at completion.
 
+The installer also enables two Fail2ban jails (`asterisk` and
+`asterisk-panel-login`), imports CDR every minute with a systemd timer, and
+creates the protected recording directory at
+`/var/spool/asterisk/monitor/asterisk-panel`.
+
 Useful optional arguments:
 
 ```text
@@ -58,6 +63,38 @@ Useful optional arguments:
 
 The remaining sections document the equivalent manual setup and are useful for
 split panel/Asterisk deployments or troubleshooting.
+
+### Fail2ban and automatic recording
+
+Check the installed protections with:
+
+```bash
+sudo fail2ban-client status asterisk
+sudo fail2ban-client status asterisk-panel-login
+```
+
+The SIP jail reads `/var/log/asterisk/security`. Failed panel logins are written
+to `storage/logs/app-*.log` and banned after five failures within ten minutes.
+Both jails ban for one hour by default; edit
+`/etc/fail2ban/jail.d/asterisk-panel.local` to change that policy.
+
+For each tenant, open **System → Settings → Automatic call recording** and
+choose **All**, **Inbound only**, **Outbound only**, or **Off**. Asterisk uses
+`MixMonitor(...,b)`, so audio is written only while a call is bridged. Files are
+named with tenant context, direction, timestamp and unique ID, and stored under:
+
+```text
+/var/spool/asterisk/monitor/asterisk-panel/
+```
+
+The CDR importer associates the filename through `CDR(userfield)`. Authorized
+users can download a WAV from **Call History**; direct web access to the
+recording directory is blocked and Nginx serves a file only after PHP performs
+the tenant authorization check.
+
+Recordings can consume substantial disk space and may be legally regulated.
+Configure external retention/archival appropriate to your jurisdiction before
+enabling recording in production.
 
 ---
 

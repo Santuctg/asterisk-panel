@@ -33,6 +33,7 @@ return [
 
     // Root of music-on-hold class directories.
     'moh_path'   => $env('ASTERISK_MOH_PATH', '/var/lib/asterisk/moh'),
+    'recording_dir' => $env('ASTERISK_RECORDING_DIR', '/var/spool/asterisk/monitor/asterisk-panel'),
 
     'voicemail' => [
         'serveremail' => $env('VM_SERVEREMAIL', 'asterisk@localhost'),

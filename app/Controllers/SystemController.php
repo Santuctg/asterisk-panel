@@ -107,10 +107,15 @@ final class SystemController extends BaseController
     public function saveSettings(Request $request): Response
     {
         $tid = $this->tenantId();
+        $recordingMode = $request->str('recording_mode', 'off');
+        if (!in_array($recordingMode, ['off', 'all', 'inbound', 'outbound'], true)) {
+            Flash::error('The selected automatic recording mode is invalid.');
+            return Response::redirect('/system/settings');
+        }
 
         $keys = ['company_name', 'company_email', 'company_phone', 'outbound_cid_name',
-                 'outbound_cid_number', 'voicemail_email_subject', 'voicemail_email_body',
-                 'provision_base_url', 'time_format'];
+                  'outbound_cid_number', 'voicemail_email_subject', 'voicemail_email_body',
+                  'provision_base_url', 'time_format', 'recording_mode'];
 
         foreach ($keys as $key) {
             $value = $request->str($key);
@@ -136,6 +141,7 @@ final class SystemController extends BaseController
         }
 
         $this->audit('settings.update', 'settings', $tid);
+        $this->applyToAsterisk('route');
         Flash::success('Settings saved.');
         return Response::redirect('/system/settings');
     }

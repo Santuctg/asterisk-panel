@@ -80,6 +80,8 @@ TEMPLATE="${APP_ROOT%/}/resources/deploy/nginx-https.conf.template"
 SITE="/etc/nginx/sites-available/asterisk-panel"
 ACME_ROOT="/var/www/letsencrypt"
 mkdir -p "$ACME_ROOT/.well-known/acme-challenge" /etc/nginx/sites-available /etc/nginx/sites-enabled
+install -d -m 0755 /etc/nginx/snippets
+install -o root -g root -m 0644 "$APP_ROOT/resources/deploy/nginx-recordings.conf" /etc/nginx/snippets/asterisk-panel-recordings.conf
 
 # Bootstrap HTTP so Certbot can complete the first ACME challenge.
 cat >"$SITE" <<EOF

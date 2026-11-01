@@ -19,7 +19,7 @@ Required PHP extensions: `pdo_sqlite` (or `pdo_mysql`), `mbstring`,
 
 | Area | What you can do |
 |---|---|
-| **Authentication** | Login/logout, sessions, CSRF, role-based abilities, password change, brute-force throttling |
+| **Authentication** | Login/logout, sessions, CSRF, roles, throttling, and Fail2ban protection for web/SIP attacks |
 | **Dashboard** | Live Asterisk status, active calls, registrations, per-feature counts, recent CDR |
 | **Tenants** | Multiple businesses, each with its own Asterisk dialplan `context` so numbers never collide |
 | **Extensions** | PJSIP endpoints, caller ID, ring timeout, regenerate SIP secret, voicemail binding |
@@ -32,8 +32,8 @@ Required PHP extensions: `pdo_sqlite` (or `pdo_mysql`), `mbstring`,
 | **Music on hold** | MOH classes bound to directories, random/shuffle |
 | **Call center** | Queues with ring strategies, wrap-up, penalties, agent assignment, live status |
 | **Conferences** | ConfBridge rooms, participant/admin PINs, max members, recording |
-| **Call history** | CDR with filters, answer-rate and talk-time stats |
-| **System** | Live status, granular config apply, tenant settings, audit log |
+| **Call history** | Automatic CDR import, filters, stats, tenant-scoped WAV recording downloads |
+| **System** | Live status, automatic inbound/outbound/all-call recording, settings, audit log |
 
 ---
 
@@ -50,9 +50,10 @@ sudo bash scripts/install-server-ubuntu.sh \
 ```
 
 This deploys the application to `/opt/asterisk-panel` and installs/configures
-Asterisk, PHP 8.3-FPM, Nginx, SQLite, localhost-only AMI, all managed Asterisk
-includes, permissions, the initial superadmin, and the web SSL helper. A secure
-admin password is generated and printed when `--admin-password` is omitted.
+Asterisk, PHP 8.3-FPM, Nginx, SQLite, localhost-only AMI, Fail2ban, automatic
+CDR import, protected call-recording storage, all managed Asterisk includes,
+permissions, the initial superadmin, and the web SSL helper. A secure admin
+password is generated and printed when `--admin-password` is omitted.
 After signing in, finish Hosted ACME-DNS under **System → SSL / HTTPS**.
 
 The installer supports Ubuntu **24.04**, preserves runtime data when re-run, and

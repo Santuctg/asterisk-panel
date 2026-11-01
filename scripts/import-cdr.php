@@ -44,6 +44,8 @@ if (!is_readable($csvPath)) {
 $ctxToTenant = [];
 foreach ($db->all('SELECT id, context FROM tenants') as $t) {
     $ctxToTenant[$t['context']] = (int) $t['id'];
+    $ctxToTenant[$t['context'] . '-inbound'] = (int) $t['id'];
+    $ctxToTenant[$t['context'] . '-outbound'] = (int) $t['id'];
 }
 
 $handle = fopen($csvPath, 'r');
@@ -57,13 +59,23 @@ $header = fgetcsv($handle, 0, ',', '"', '\\');
 if ($header && in_array('uniqueid', $header, true)) {
     $cols = array_flip(array_map('strval', $header));
 } else {
-    // Fall back to the stock Asterisk CSV column order.
+    // cdr_csv's stock Master.csv has 18 columns (including clid and the
+    // start/answer/end timestamps). Keep compatibility with the panel's
+    // earlier compact 15-column export as well.
+    $stockCsv = count($header ?: []) >= 18;
     rewind($handle);
-    $cols = array_flip([
-        'calldate','src','dst','dcontext','channel','dstchannel','lastapp',
-        'lastdata','duration','billsec','disposition','amaflags','accountcode',
-        'uniqueid','userfield',
-    ]);
+    $cols = array_flip($stockCsv
+        ? [
+            'accountcode','src','dst','dcontext','clid','channel','dstchannel',
+            'lastapp','lastdata','calldate','answer','end','duration','billsec',
+            'disposition','amaflags','uniqueid','userfield',
+        ]
+        : [
+            'calldate','src','dst','dcontext','channel','dstchannel','lastapp',
+            'lastdata','duration','billsec','disposition','amaflags','accountcode',
+            'uniqueid','userfield',
+        ]
+    );
 }
 
 $inserted = 0;

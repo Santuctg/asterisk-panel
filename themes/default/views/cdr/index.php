@@ -79,6 +79,7 @@ $answeredRate = ($stats['total'] ?? 0) > 0
                             <th>Result</th>
                             <th class="num">Duration</th>
                             <th class="num">Billable</th>
+                            <th>Recording</th>
                             <th>Account</th>
                         </tr>
                     </thead>
@@ -100,6 +101,13 @@ $answeredRate = ($stats['total'] ?? 0) > 0
                                 <td><span class="badge <?= $tone ?>"><?= e($c['disposition']) ?></span></td>
                                 <td class="num mono"><?= e(format_duration((int) $c['duration'])) ?></td>
                                 <td class="num mono"><?= e(format_duration((int) $c['billsec'])) ?></td>
+                                <td>
+                                    <?php if (str_starts_with((string) ($c['userfield'] ?? ''), 'recording:')): ?>
+                                        <a class="btn btn-sm" href="/cdr/<?= (int) $c['id'] ?>/recording">Download WAV</a>
+                                    <?php else: ?>
+                                        <span class="muted">—</span>
+                                    <?php endif; ?>
+                                </td>
                                 <td class="muted"><?= e($c['accountcode'] ?: '—') ?></td>
                             </tr>
                         <?php endforeach; ?>
