@@ -55,7 +55,27 @@ and set the root to `public/`.
 
 ### Production HTTPS
 
-On Debian/Ubuntu, point the domain's DNS at the server, open TCP 80/443, and run:
+The recommended setup is available inside the panel at **System → SSL / HTTPS**.
+It uses hosted `auth.acme-dns.io`, so certificate validation does not require
+port 80 or DNS-provider API credentials. The panel hostname still needs an
+`A`/`AAAA` record pointing to this server so browsers and phones can reach it:
+
+1. Enter the panel hostname and certificate email in the web UI.
+2. Add the displayed permanent `_acme-challenge` CNAME at your DNS provider.
+3. Install the restricted helper once over SSH:
+
+```bash
+sudo bash scripts/install-web-ssl-helper.sh
+```
+
+4. Verify the CNAME and click **Issue certificate & enable HTTPS**.
+
+The ACME credential can update only that delegated TXT challenge record. It is
+stored outside the web root and is never rendered into the page. The helper has
+one allow-listed sudo action rather than granting PHP general root access.
+
+For a conventional HTTP-01 setup instead, point the domain's DNS at the server,
+open TCP 80/443, and run:
 
 ```bash
 sudo bash scripts/setup-https.sh \
@@ -63,7 +83,7 @@ sudo bash scripts/setup-https.sh \
   --email admin@example.com
 ```
 
-The idempotent installer configures Nginx, obtains a Let's Encrypt certificate,
+That idempotent installer configures Nginx, obtains a Let's Encrypt certificate,
 redirects HTTP to HTTPS, enables renewal, and passes `APP_URL=https://...` plus
 `APP_SECURE_COOKIES=1` to PHP-FPM. See
 **[docs/asterisk-setup.md](docs/asterisk-setup.md#production-https--lets-encrypt)**

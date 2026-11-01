@@ -40,6 +40,7 @@ $user = $auth->user();
             'children' => [
                 ['label' => 'Status',      'href' => '/system/status'],
                 ['label' => 'Settings',    'href' => '/system/settings'],
+                ['label' => 'SSL / HTTPS', 'href' => '/system/ssl'],
                 ['label' => 'Audit Log',   'href' => '/system/audit'],
             ],
         ],
@@ -62,8 +63,16 @@ $user = $auth->user();
             <?php foreach ($nav as $item): ?>
                 <?php if (!$canSee($item)) continue; ?>
                 <?php
-                $active = str_starts_with($currentPage, $item['href']);
                 $hasChildren = !empty($item['children']);
+                $active = str_starts_with($currentPage, $item['href']);
+                if ($hasChildren) {
+                    foreach ($item['children'] as $child) {
+                        if ($currentPage === $child['href']) {
+                            $active = true;
+                            break;
+                        }
+                    }
+                }
                 ?>
                 <div class="nav-group">
                     <a href="<?= e($item['href']) ?>"

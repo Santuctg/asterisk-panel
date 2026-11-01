@@ -201,6 +201,40 @@ behind TLS, put it behind HTTPS and restrict access at the firewall.
 
 ### Production HTTPS / Let's Encrypt
 
+#### Web setup with Hosted ACME-DNS (recommended)
+
+Sign in as a superadmin and open **System → SSL / HTTPS**. This workflow uses
+the public `https://auth.acme-dns.io` service and Let's Encrypt DNS-01. Keep an
+`A`/`AAAA` record for the panel hostname pointed at this server for normal web
+and phone access; DNS-01 itself does not require inbound port 80.
+
+1. Register the public panel hostname and email in the page.
+2. At your normal DNS provider, create the exact CNAME shown by the panel:
+   `_acme-challenge.<panel-host>` → `<unique-id>.auth.acme-dns.io`.
+3. Over SSH, install the privileged component once:
+
+   ```bash
+   sudo bash scripts/install-web-ssl-helper.sh
+   ```
+
+   If PHP-FPM does not run as `www-data`, pass `--web-user USER`. If socket
+   detection fails, pass `--php-socket /run/php/php8.2-fpm.sock`.
+4. Click **Verify CNAME**, then **Issue certificate & enable HTTPS**.
+
+The browser never receives the ACME-DNS username/password. They are stored as
+`storage/acme/acme-dns.json` with mode `0600`, outside `public/`. The one-time
+installer adds a sudo rule for only `asterisk-panel-ssl issue`; PHP cannot run
+arbitrary privileged commands. Executable hooks and the Nginx template are
+installed as root-owned files. Certbot saves the authentication and deploy hooks
+for unattended renewal, and Nginx is reloaded after renewal.
+
+Keep the CNAME permanently. Removing it breaks renewal. The hosted service is
+then authorized to answer only the delegated ACME TXT challenge, not to modify
+any other DNS records. The supplied privileged helper intentionally allows only
+the selected hosted `auth.acme-dns.io` endpoint.
+
+#### Direct server setup with HTTP-01
+
 Before requesting a certificate, create an `A`/`AAAA` DNS record for the panel
 and allow inbound TCP **80** and **443**. On Debian or Ubuntu, run from the
 project root:

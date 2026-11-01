@@ -18,7 +18,7 @@ use App\Controllers\{
     DeviceController, RingGroupController, ParkingController, IvrController,
     RouteController, MusicOnHoldController, CallCenterController,
     ConferenceController, CdrController, TenantController, UserController,
-    SystemController, ProvisionController
+    SystemController, SslController, ProvisionController
 };
 use App\Core\Auth;
 use App\Core\Csrf;
@@ -147,6 +147,11 @@ $router->get('/system/settings', [SystemController::class, 'settings'], [Auth::r
 $router->post('/system/settings', [SystemController::class, 'saveSettings'], [Auth::require('tenant.view'), Csrf::middleware(...)]);
 $router->get('/system/audit', [SystemController::class, 'auditLog'], [Auth::require('tenant.view')]);
 $router->get('/system/audit-feed', [SystemController::class, 'auditFeed'], [Auth::require('tenant.view')]);
+$router->get('/system/ssl', [SslController::class, 'index'], [Auth::require('tenant.manage')]);
+$router->post('/system/ssl/register', [SslController::class, 'register'], [Auth::require('tenant.manage'), Csrf::middleware(...)]);
+$router->post('/system/ssl/verify', [SslController::class, 'verify'], [Auth::require('tenant.manage'), Csrf::middleware(...)]);
+$router->post('/system/ssl/issue', [SslController::class, 'issue'], [Auth::require('tenant.manage'), Csrf::middleware(...)]);
+$router->post('/system/ssl/reset', [SslController::class, 'reset'], [Auth::require('tenant.manage'), Csrf::middleware(...)]);
 
 // Profile (any logged-in user)
 $router->get('/profile', [AuthController::class, 'profile'], $auth);

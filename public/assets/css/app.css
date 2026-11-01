@@ -108,6 +108,18 @@ a:hover { text-decoration: underline; }
 svg { display: block; }
 button { font-family: inherit; }
 code, .mono { font-family: var(--mono); font-size: 12.5px; }
+.code-block {
+    margin: 12px 0 0;
+    padding: 14px 16px;
+    overflow: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-alt);
+    color: var(--text);
+    font: 12px/1.6 var(--mono);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
 
 /* ---------- App shell ---------- */
 .app-shell { display: flex; min-height: 100vh; }

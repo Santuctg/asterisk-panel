@@ -23,7 +23,7 @@ $appUrl = (string) $env('APP_URL', 'http://localhost:8080');
 
 return [
     'name'    => $env('APP_NAME', 'Asterisk Panel'),
-    'version' => '1.0.0',
+    'version' => '1.1.0',
 
     // Absolute, externally reachable URL of this panel. Used to build
     // provisioning URLs handed to phones.

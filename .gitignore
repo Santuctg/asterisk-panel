@@ -9,6 +9,7 @@
 /storage/cache/*
 /storage/provision/*
 /storage/asterisk/*
+/storage/acme/*
 
 # Local tooling / operating system
 /.idea/
