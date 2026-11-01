@@ -39,6 +39,27 @@ Required PHP extensions: `pdo_sqlite` (or `pdo_mysql`), `mbstring`,
 
 ## Quick start
 
+### Ubuntu 24.04 production server (panel + Asterisk)
+
+From a checked-out copy of this repository, run one command:
+
+```bash
+sudo bash scripts/install-server-ubuntu.sh \
+  --domain pbx.example.com \
+  --admin-email admin@example.com
+```
+
+This deploys the application to `/opt/asterisk-panel` and installs/configures
+Asterisk, PHP 8.3-FPM, Nginx, SQLite, localhost-only AMI, all managed Asterisk
+includes, permissions, the initial superadmin, and the web SSL helper. A secure
+admin password is generated and printed when `--admin-password` is omitted.
+After signing in, finish Hosted ACME-DNS under **System → SSL / HTTPS**.
+
+The installer supports Ubuntu **24.04**, preserves runtime data when re-run, and
+only adds SIP/RTP/web firewall rules when UFW is already active.
+
+### Development
+
 ```bash
 # 1. Install (creates DB schema + admin user)
 php scripts/install.php --username=admin --password=YourSecret1 --email=admin@example.com
@@ -124,7 +145,8 @@ resources/
 storage/          Runtime data (NOT web-accessible)
   database/, logs/, provision/, asterisk/, cache/
 
-scripts/          install.php, asterisk-mail.php, import-cdr.php
+scripts/          Ubuntu server installer, DB installer, config apply,
+                  SSL helpers, voicemail mail relay, CDR import
 docs/             asterisk-setup.md — how to wire this to a live Asterisk
 ```
 

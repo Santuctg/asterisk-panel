@@ -94,7 +94,12 @@ final class SystemController extends BaseController
 
         return $this->view('system/settings', [
             'settings' => $this->loadSettings($tid),
-            'ami'      => (array) config('asterisk.ami', []),
+            'ami'      => [
+                'host'     => config('asterisk.ami.host', '127.0.0.1'),
+                'port'     => config('asterisk.ami.port', 5038),
+                'username' => config('asterisk.ami.username', ''),
+                'secret'   => config('asterisk.ami.secret', ''),
+            ],
         ]);
     }
 

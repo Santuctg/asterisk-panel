@@ -37,5 +37,6 @@ return [
     'voicemail' => [
         'serveremail' => $env('VM_SERVEREMAIL', 'asterisk@localhost'),
         'attach'      => $env('VM_ATTACH', 'yes'),
+        'mailcmd'     => $env('VM_MAILCMD', '/usr/bin/php ' . BASE_PATH . '/scripts/asterisk-mail.php'),
     ],
 ];

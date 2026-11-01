@@ -1,0 +1,324 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+umask 027
+
+usage() {
+    cat <<'EOF'
+Install Asterisk Panel and Asterisk together on Ubuntu 24.04.
+
+Usage:
+  sudo bash scripts/install-server-ubuntu.sh [options]
+
+Options:
+  --domain HOST            Public panel hostname (recommended, e.g. pbx.example.com)
+  --install-dir PATH       Deployment path (default: /opt/asterisk-panel)
+  --admin-user USER        Initial panel superadmin (default: admin)
+  --admin-password PASS    Initial password (generated when omitted)
+  --admin-email EMAIL      Initial superadmin email
+  --tenant NAME            Initial tenant name (default: Default Business)
+  --no-firewall-rules      Do not add rules when UFW is already active
+  -h, --help               Show help
+
+The installer is safe to re-run. Runtime databases and ACME credentials in the
+deployment directory are preserved.
+EOF
+}
+
+SOURCE_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+INSTALL_DIR=/opt/asterisk-panel
+DOMAIN=""
+ADMIN_USER=admin
+ADMIN_PASSWORD=""
+ADMIN_PASSWORD_EXPLICIT=0
+ADMIN_EMAIL=""
+TENANT_NAME="Default Business"
+FIREWALL_RULES=1
+
+while (($#)); do
+    case "$1" in
+        --domain) DOMAIN="${2:-}"; shift 2 ;;
+        --install-dir) INSTALL_DIR="${2:-}"; shift 2 ;;
+        --admin-user) ADMIN_USER="${2:-}"; shift 2 ;;
+        --admin-password) ADMIN_PASSWORD="${2:-}"; ADMIN_PASSWORD_EXPLICIT=1; shift 2 ;;
+        --admin-email) ADMIN_EMAIL="${2:-}"; shift 2 ;;
+        --tenant) TENANT_NAME="${2:-}"; shift 2 ;;
+        --no-firewall-rules) FIREWALL_RULES=0; shift ;;
+        -h|--help) usage; exit 0 ;;
+        *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
+    esac
+done
+
+if [[ $EUID -ne 0 ]]; then
+    echo "Run this installer with sudo." >&2
+    exit 1
+fi
+
+source /etc/os-release
+if [[ "${ID:-}" != ubuntu || "${VERSION_ID:-}" != 24.04 ]]; then
+    echo "This installer supports Ubuntu 24.04 only (detected ${PRETTY_NAME:-unknown})." >&2
+    exit 1
+fi
+if [[ -n "$DOMAIN" ]]; then
+    DOMAIN="${DOMAIN,,}"
+    [[ ${#DOMAIN} -le 253 && "$DOMAIN" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$ ]] || { echo "Invalid --domain." >&2; exit 2; }
+fi
+[[ "$ADMIN_USER" =~ ^[A-Za-z0-9_.-]{3,80}$ ]] || { echo "Invalid --admin-user." >&2; exit 2; }
+if ((ADMIN_PASSWORD_EXPLICIT)) && [[ ${#ADMIN_PASSWORD} -lt 12 ]]; then
+    echo "--admin-password must contain at least 12 characters." >&2
+    exit 2
+fi
+if [[ -n "$ADMIN_EMAIL" ]]; then
+    [[ "$ADMIN_EMAIL" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]] || { echo "Invalid --admin-email." >&2; exit 2; }
+fi
+[[ "$INSTALL_DIR" =~ ^/[A-Za-z0-9._/-]+$ && "$INSTALL_DIR" != / && "$INSTALL_DIR" != /etc && "$INSTALL_DIR" != /usr ]] || { echo "Use a dedicated absolute --install-dir without spaces." >&2; exit 2; }
+
+trap 'echo "Installation failed at line ${LINENO}. Review the command output above." >&2' ERR
+
+echo "[1/10] Installing Ubuntu packages..."
+export DEBIAN_FRONTEND=noninteractive
+apt-get update
+apt-get install -y software-properties-common
+add-apt-repository -y universe
+apt-get update
+apt-get install -y \
+    asterisk nginx rsync openssl sudo curl dnsutils certbot python3 ufw \
+    php8.3-cli php8.3-fpm php8.3-sqlite3 php8.3-mbstring php8.3-curl php8.3-xml php8.3-opcache
+
+echo "[2/10] Deploying the panel to ${INSTALL_DIR}..."
+install -d -o root -g root -m 0755 "$INSTALL_DIR"
+if [[ "$(realpath "$SOURCE_ROOT")" != "$(realpath "$INSTALL_DIR")" ]]; then
+    rsync -a \
+        --exclude='.git/' --exclude='.env' --exclude='.env.*' \
+        --exclude='storage/database/' --exclude='storage/logs/' \
+        --exclude='storage/cache/' --exclude='storage/provision/' \
+        --exclude='storage/asterisk/' --exclude='storage/acme/' \
+        "$SOURCE_ROOT/" "$INSTALL_DIR/"
+fi
+
+find "$INSTALL_DIR" -path "$INSTALL_DIR/storage" -prune -o -type d -exec chmod 0755 {} +
+find "$INSTALL_DIR" -path "$INSTALL_DIR/storage" -prune -o -type f -exec chmod 0644 {} +
+chown -R root:root "$INSTALL_DIR"
+install -d -o www-data -g www-data -m 0770 "$INSTALL_DIR/storage"
+for dir in database logs cache provision asterisk acme; do
+    install -d -o www-data -g www-data -m 0770 "$INSTALL_DIR/storage/$dir"
+done
+chown -R www-data:www-data "$INSTALL_DIR/storage"
+
+echo "[3/10] Creating persistent server credentials..."
+install -d -o root -g root -m 0750 /etc/asterisk-panel
+SERVER_ENV=/etc/asterisk-panel/server.env
+if [[ -f "$SERVER_ENV" ]]; then
+    # This file is root-owned and generated only by this installer.
+    source "$SERVER_ENV"
+else
+    AMI_SECRET="$(openssl rand -hex 32)"
+fi
+[[ "${AMI_SECRET:-}" =~ ^[a-f0-9]{64}$ ]] || { echo "Invalid persisted AMI secret in $SERVER_ENV." >&2; exit 1; }
+ADMIN_GENERATED=0
+DB_PATH="$INSTALL_DIR/storage/database/asterisk_panel.sqlite"
+if [[ -z "$ADMIN_PASSWORD" && ! -f "$DB_PATH" ]]; then
+    ADMIN_PASSWORD="$(openssl rand -hex 10)"
+    ADMIN_GENERATED=1
+fi
+
+if [[ -n "$DOMAIN" ]]; then
+    APP_URL="http://${DOMAIN}"
+    SERVER_NAME="$DOMAIN"
+    SIP_HOST="$DOMAIN"
+else
+    SERVER_IP="$(hostname -I | awk '{print $1}')"
+    APP_URL="http://${SERVER_IP:-127.0.0.1}"
+    SERVER_NAME="_"
+    SIP_HOST="${SERVER_IP:-127.0.0.1}"
+fi
+PHP_VERSION="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')"
+PHP_FPM_SERVICE="php${PHP_VERSION}-fpm"
+PHP_SOCKET=/run/php/asterisk-panel.sock
+
+{
+    printf 'APP_ROOT=%q\n' "$INSTALL_DIR"
+    printf 'APP_URL=%q\n' "$APP_URL"
+    printf 'AMI_USER=%q\n' 'asterisk-panel'
+    printf 'AMI_SECRET=%q\n' "$AMI_SECRET"
+    printf 'PHP_SOCKET=%q\n' "$PHP_SOCKET"
+    printf 'SIP_HOST=%q\n' "$SIP_HOST"
+} >"$SERVER_ENV"
+chmod 0600 "$SERVER_ENV"
+
+echo "[4/10] Configuring the dedicated PHP-FPM pool..."
+POOL_FILE="/etc/php/${PHP_VERSION}/fpm/pool.d/asterisk-panel.conf"
+cat >"$POOL_FILE" <<EOF
+[asterisk-panel]
+user = www-data
+group = www-data
+listen = ${PHP_SOCKET}
+listen.owner = www-data
+listen.group = www-data
+listen.mode = 0660
+pm = dynamic
+pm.max_children = 12
+pm.start_servers = 2
+pm.min_spare_servers = 1
+pm.max_spare_servers = 4
+clear_env = no
+env[APP_URL] = ${APP_URL}
+env[APP_DEBUG] = 0
+env[APP_SECURE_COOKIES] = 0
+env[DB_DRIVER] = sqlite
+env[DB_NAME] = ${INSTALL_DIR}/storage/database/asterisk_panel.sqlite
+env[AMI_HOST] = 127.0.0.1
+env[AMI_PORT] = 5038
+env[AMI_USER] = asterisk-panel
+env[AMI_SECRET] = ${AMI_SECRET}
+env[ASTERISK_CONFIG_DIR] = /etc/asterisk/asterisk_panel
+env[ASTERISK_SIP_HOST] = ${SIP_HOST}
+env[VM_MAILCMD] = /usr/bin/php ${INSTALL_DIR}/scripts/asterisk-mail.php
+EOF
+chmod 0640 "$POOL_FILE"
+systemctl enable --now "$PHP_FPM_SERVICE"
+systemctl restart "$PHP_FPM_SERVICE"
+[[ -S "$PHP_SOCKET" ]] || { echo "PHP-FPM socket was not created: $PHP_SOCKET" >&2; exit 1; }
+for extension in pdo_sqlite mbstring openssl fileinfo; do
+    php -m | grep -Fxiq "$extension" || { echo "Required PHP extension is missing: $extension" >&2; exit 1; }
+done
+
+echo "[5/10] Initializing the panel database..."
+INSTALL_ARGS=("--username=$ADMIN_USER" "--tenant=$TENANT_NAME")
+if [[ -n "$ADMIN_EMAIL" ]]; then
+    INSTALL_ARGS+=("--email=$ADMIN_EMAIL")
+fi
+if [[ -n "$ADMIN_PASSWORD" ]]; then
+    INSTALL_ARGS+=("--password=$ADMIN_PASSWORD")
+fi
+if ((ADMIN_PASSWORD_EXPLICIT)); then
+    INSTALL_ARGS+=(--force)
+fi
+runuser -u www-data -- env \
+    APP_URL="$APP_URL" DB_DRIVER=sqlite DB_NAME="$DB_PATH" \
+    php "$INSTALL_DIR/scripts/install.php" "${INSTALL_ARGS[@]}"
+
+echo "[6/10] Configuring Asterisk AMI and managed includes..."
+install -d -o www-data -g asterisk -m 2775 /etc/asterisk/asterisk_panel
+install -o root -g asterisk -m 0644 "$INSTALL_DIR/resources/deploy/asterisk/pjsip-base.conf" /etc/asterisk/asterisk_panel/pjsip_base.conf
+install -d -o root -g asterisk -m 0750 /etc/asterisk/manager.d
+cat >/etc/asterisk/manager.d/asterisk-panel.conf <<EOF
+[general]
+enabled = yes
+webenabled = no
+bindaddr = 127.0.0.1
+port = 5038
+
+[asterisk-panel]
+secret = ${AMI_SECRET}
+deny = 0.0.0.0/0.0.0.0
+permit = 127.0.0.1/255.255.255.255
+read = all
+write = all
+EOF
+chmod 0640 /etc/asterisk/manager.d/asterisk-panel.conf
+
+ensure_include() {
+    local file="$1" line="$2"
+    touch "$file"
+    if ! grep -Fqx -- "$line" "$file"; then
+        printf '\n; --- Asterisk Panel (managed include) ---\n%s\n' "$line" >>"$file"
+    fi
+}
+
+ensure_include /etc/asterisk/manager.conf '#include manager.d/asterisk-panel.conf'
+ensure_include /etc/asterisk/pjsip.conf '#include asterisk_panel/pjsip_base.conf'
+ensure_include /etc/asterisk/pjsip.conf '#include asterisk_panel/pjsip_endpoints.conf'
+ensure_include /etc/asterisk/pjsip.conf '#include asterisk_panel/pjsip_trunks.conf'
+ensure_include /etc/asterisk/extensions.conf '#include asterisk_panel/dialplan.conf'
+ensure_include /etc/asterisk/voicemail.conf '#include asterisk_panel/voicemail.conf'
+ensure_include /etc/asterisk/queues.conf '#include asterisk_panel/queues.conf'
+ensure_include /etc/asterisk/res_parking.conf '#include asterisk_panel/parking.conf'
+ensure_include /etc/asterisk/musiconhold.conf '#include asterisk_panel/musiconhold.conf'
+ensure_include /etc/asterisk/confbridge.conf '#include asterisk_panel/confbridge.conf'
+
+echo "[7/10] Generating initial Asterisk configuration..."
+runuser -u www-data -- env \
+    DB_DRIVER=sqlite DB_NAME="$INSTALL_DIR/storage/database/asterisk_panel.sqlite" \
+    AMI_HOST=127.0.0.1 AMI_PORT=5038 AMI_USER=asterisk-panel AMI_SECRET="$AMI_SECRET" \
+    ASTERISK_CONFIG_DIR=/etc/asterisk/asterisk_panel \
+    VM_MAILCMD="/usr/bin/php $INSTALL_DIR/scripts/asterisk-mail.php" \
+    php "$INSTALL_DIR/scripts/apply-config.php"
+for generated in pjsip_endpoints.conf pjsip_trunks.conf dialplan.conf voicemail.conf queues.conf parking.conf musiconhold.conf confbridge.conf; do
+    [[ -s "/etc/asterisk/asterisk_panel/$generated" ]] || { echo "Missing generated Asterisk config: $generated" >&2; exit 1; }
+done
+chgrp -R asterisk /etc/asterisk/asterisk_panel
+find /etc/asterisk/asterisk_panel -type f -exec chmod 0640 {} +
+
+echo "[8/10] Starting Asterisk..."
+systemctl enable asterisk
+systemctl restart asterisk
+sleep 2
+systemctl is-active --quiet asterisk || { journalctl -u asterisk -n 80 --no-pager; exit 1; }
+asterisk -rx 'core show version'
+asterisk -rx 'manager show settings' >/dev/null
+
+echo "[9/10] Configuring the initial Nginx site..."
+SITE=/etc/nginx/sites-available/asterisk-panel
+if [[ ! -f "$SITE" ]] || ! grep -qE 'listen[[:space:]]+443' "$SITE"; then
+    cat >"$SITE" <<EOF
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${SERVER_NAME};
+    root "${INSTALL_DIR}/public";
+    index index.php;
+    client_max_body_size 20m;
+
+    location / { try_files \$uri \$uri/ /index.php?\$query_string; }
+    location = /index.php {
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+        fastcgi_param APP_URL ${APP_URL};
+        fastcgi_param APP_SECURE_COOKIES 0;
+        fastcgi_pass unix:${PHP_SOCKET};
+    }
+    location ~ \.php\$ { return 404; }
+    location ~ /\. { deny all; }
+}
+EOF
+fi
+ln -sfn "$SITE" /etc/nginx/sites-enabled/asterisk-panel
+if [[ -L /etc/nginx/sites-enabled/default ]] \
+    && [[ "$(readlink -f /etc/nginx/sites-enabled/default)" == /etc/nginx/sites-available/default ]]; then
+    unlink /etc/nginx/sites-enabled/default
+fi
+nginx -t
+systemctl enable --now nginx
+systemctl reload nginx
+
+echo "[10/10] Installing the web SSL helper..."
+bash "$INSTALL_DIR/scripts/install-web-ssl-helper.sh" --web-user www-data --php-socket "$PHP_SOCKET"
+
+if ((FIREWALL_RULES)) && ufw status | grep -q '^Status: active'; then
+    ufw allow 80/tcp comment 'Asterisk Panel HTTP'
+    ufw allow 443/tcp comment 'Asterisk Panel HTTPS'
+    ufw allow 5060/udp comment 'Asterisk PJSIP'
+    ufw allow 5060/tcp comment 'Asterisk PJSIP TCP'
+    ufw allow 10000:20000/udp comment 'Asterisk RTP'
+fi
+
+cat <<EOF
+
+============================================================
+Asterisk Panel installation completed.
+============================================================
+Panel URL:    ${APP_URL}/login
+Username:     ${ADMIN_USER}
+Password:     ${ADMIN_PASSWORD:-unchanged (existing installation)}
+Asterisk:     $(asterisk -rx 'core show version' | head -n 1)
+AMI:          listening on 127.0.0.1:5038
+
+Next:
+  1. Sign in and change the generated password if applicable.
+  2. Open System -> SSL / HTTPS and register ${DOMAIN:-your domain}.
+  3. Add the displayed CNAME, verify it, and issue the certificate.
+EOF
+
+if ((ADMIN_GENERATED)); then
+    echo "Save the generated password now; it is not written to a plaintext project file."
+fi

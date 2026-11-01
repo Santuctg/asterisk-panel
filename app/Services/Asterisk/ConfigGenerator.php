@@ -123,6 +123,7 @@ final class ConfigGenerator
         $out .= ";; Local extensions (PJSIP endpoints, auth + AOR).\n\n";
 
         $out .= "[global]\n";
+        $out .= "type = global\n";
         $out .= "endpoint_identifier_order = ip,username\n\n";
 
         $extensions = $this->db->all(
@@ -137,6 +138,7 @@ final class ConfigGenerator
 
             $out .= "; ---- {$ext['extension']} ({$ext['name']}) context={$ctx} ----\n";
             $out .= "[{$name}](endpoint_basic)\n";
+            $out .= "context = {$ctx}\n";
             $out .= "auth = {$name}\n";
             $out .= "aors = {$name}\n";
             if (!empty($ext['cid_name'])) {
@@ -222,6 +224,7 @@ final class ConfigGenerator
         $out .= "[general]\n";
         $out .= "format = wav49|wav|mp3\n";
         $out .= "serveremail = " . (Config::get('asterisk.voicemail.serveremail', 'asterisk@localhost')) . "\n";
+        $out .= "mailcmd = " . (Config::get('asterisk.voicemail.mailcmd', '/usr/bin/php ' . BASE_PATH . '/scripts/asterisk-mail.php')) . "\n";
         $out .= "attach = " . (Config::get('asterisk.voicemail.attach', 'yes')) . "\n";
         $out .= "maxmessage = 180\n";
         $out .= "minmessage = 3\n";

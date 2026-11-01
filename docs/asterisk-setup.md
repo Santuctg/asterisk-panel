@@ -29,6 +29,36 @@ under a dedicated subdirectory.
 * PHP **8.2+** with `pdo_sqlite` (or `pdo_mysql`), `mbstring`, `openssl`, and `fileinfo`.
 * Network reach from the panel host to the Asterisk host on **TCP 5038** (AMI).
 
+### Automated Ubuntu 24.04 installation
+
+For a new server where the panel and Asterisk run together, the recommended
+path is the bundled installer rather than completing the manual sections below:
+
+```bash
+sudo bash scripts/install-server-ubuntu.sh \
+  --domain pbx.example.com \
+  --admin-email admin@example.com
+```
+
+It installs Asterisk, PHP 8.3-FPM, Nginx and required extensions; deploys the
+panel under `/opt/asterisk-panel`; creates a random localhost-only AMI account;
+adds every managed include; initializes SQLite and the superadmin; starts and
+verifies Asterisk; and installs the restricted web SSL helper. The generated
+panel password is printed once at completion.
+
+Useful optional arguments:
+
+```text
+--admin-user USER
+--admin-password PASS
+--tenant "Business Name"
+--install-dir /opt/asterisk-panel
+--no-firewall-rules
+```
+
+The remaining sections document the equivalent manual setup and are useful for
+split panel/Asterisk deployments or troubleshooting.
+
 ---
 
 ## 2. Enable the Manager Interface (AMI)
@@ -80,34 +110,16 @@ file. The panel writes into `/etc/asterisk/asterisk_panel/` by default
 
 ```ini
 ; --- Asterisk Panel ---
+#include asterisk_panel/pjsip_base.conf
 #include asterisk_panel/pjsip_endpoints.conf
 #include asterisk_panel/pjsip_trunks.conf
+```
 
-; Template sections the generated files reference. If your pjsip.conf does
-; not already define these, copy them in (they are safe defaults):
-[endpoint_basic](endpoint)
-allow = !all,ulaw,alaw,g722,opus
-dtmf_mode = rfc4733
-trust_id_inbound = yes
-direct_media = no
-rtp_symmetric = yes
-force_rtp_codec = yes
+Copy the supplied base transport/templates once:
 
-[auth]
-type = auth
-
-[aor]
-type = aor
-qualify_frequency = 60
-
-[trunk-basic](endpoint)
-allow = !all,ulaw,alaw,g722
-dtmf_mode = rfc4733
-direct_media = no
-rtp_symmetric = yes
-
-[registration](registration)
-; generic outbound registration template
+```bash
+sudo install -m 0644 resources/deploy/asterisk/pjsip-base.conf \
+  /etc/asterisk/asterisk_panel/pjsip_base.conf
 ```
 
 **`/etc/asterisk/voicemail.conf`** — add at the very top of the file:
@@ -123,15 +135,13 @@ rtp_symmetric = yes
 #include asterisk_panel/queues.conf
 ```
 
-**`/etc/asterisk/features.conf`** (parking) — the panel writes
-`parking.conf`, so include it from a file that is loaded:
+**`/etc/asterisk/res_parking.conf`** (parking):
 
 ```ini
 #include asterisk_panel/parking.conf
 ```
 
-> If your build uses `res_parking` with its own `parking.conf`, add the
-> `#include` there instead.
+The generated file contains `res_parking` parking-lot sections.
 
 **`/etc/asterisk/musiconhold.conf`**:
 

@@ -104,7 +104,7 @@ $email    = $opts['email'] ?? null;
 
 $existingUser = $db->one('SELECT id FROM users WHERE username = ?', [$username]);
 
-if ($existingUser && empty($opts['force'])) {
+if ($existingUser && !array_key_exists('force', $opts)) {
     echo "      User \"{$username}\" already exists — skipping.\n";
 } else {
     if ($password === null) {
@@ -144,3 +144,4 @@ echo "  2. Sign in at      http://localhost:8080/login\n";
 echo "  3. Wire up Asterisk (AMI + config #include): see docs/asterisk-setup.md\n";
 echo "  4. Set APP_URL and AMI_* in your environment before production use.\n";
 echo "  5. Enable HTTPS: sudo bash scripts/setup-https.sh --domain pbx.example.com --email admin@example.com\n";
+echo "\nFor a new Ubuntu 24.04 production server, scripts/install-server-ubuntu.sh installs the panel and Asterisk together.\n";
