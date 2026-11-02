@@ -180,6 +180,10 @@ sudo install -m 0644 resources/deploy/asterisk/pjsip-base.conf \
 
 The generated file contains `res_parking` parking-lot sections.
 
+The Ubuntu installer also loads `resources/deploy/asterisk/pjsip-base.conf`,
+which defines the panel UDP transport and the endpoint/trunk templates used by
+the generated PJSIP files.
+
 **`/etc/asterisk/musiconhold.conf`**:
 
 ```ini
