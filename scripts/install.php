@@ -57,6 +57,36 @@ foreach ($schema as $name => $sql) {
 echo '      ' . count($tables) . " tables ensured\n";
 
 // ---------------------------------------------------------------------
+// 2b. Migrate existing tables: add `record` column where missing.
+//     Safe to re-run: each ALTER is skipped when the column already exists.
+// ---------------------------------------------------------------------
+function addColumnIfMissing(\App\Core\Database $db, string $table, string $column, string $def): void
+{
+    try {
+        $cols = $db->all("PRAGMA table_info({$table})");
+    } catch (\Throwable $e) {
+        return; // not SQLite; schema already handles fresh installs
+    }
+    $names = array_column($cols, 'name');
+    if (!in_array($column, $names, true)) {
+        $db->exec("ALTER TABLE {$table} ADD COLUMN {$column} {$def}");
+    }
+}
+
+foreach ([
+    ['extensions',         'record', 'INTEGER DEFAULT 0'],
+    ['ring_groups',        'record', 'INTEGER DEFAULT 0'],
+    ['ivr_menus',          'record', 'INTEGER DEFAULT 0'],
+    ['inbound_routes',     'record', 'INTEGER DEFAULT 0'],
+    ['outbound_routes',    'record', 'INTEGER DEFAULT 0'],
+    ['time_conditions',    'record', 'INTEGER DEFAULT 0'],
+    ['queues',             'record', 'INTEGER DEFAULT 0'],
+] as [$table, $column, $def]) {
+    addColumnIfMissing($db, $table, $column, $def);
+}
+echo "      `record` column ensured on call-routable tables\n";
+
+// ---------------------------------------------------------------------
 // 3. Create the default tenant
 // ---------------------------------------------------------------------
 echo "[3/4] Setting up tenant...\n";

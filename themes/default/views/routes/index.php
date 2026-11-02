@@ -108,6 +108,13 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                             <?php echo field_text('priority', 'Priority', 0, ['type' => 'number',
                                 'hint' => 'Lower numbers are evaluated first.']); ?>
                             <div class="span-2"><?php echo field_check('enabled', 'Route active', true); ?></div>
+                            <?php echo field_select('record', 'Call recording', [
+                                '0' => 'Tenant default',
+                                '1' => 'Always record',
+                                '2' => 'Never record',
+                            ], '0', [
+                                'hint' => 'Override the tenant-wide automatic recording setting for this inbound route.',
+                            ]); ?>
                         </div>
                     </div>
                     <div class="modal-foot">
@@ -191,6 +198,13 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                             ]); ?>
                             <?php echo field_text('priority', 'Priority', 0, ['type' => 'number']); ?>
                             <div class="span-2"><?php echo field_check('enabled', 'Route active', true); ?></div>
+                            <?php echo field_select('record', 'Call recording', [
+                                '0' => 'Tenant default',
+                                '1' => 'Always record',
+                                '2' => 'Never record',
+                            ], '0', [
+                                'hint' => 'Override the tenant-wide automatic recording setting for this outbound route.',
+                            ]); ?>
                         </div>
                     </div>
                     <div class="modal-foot">
@@ -372,11 +386,11 @@ $activeTab = $_GET['tab'] ?? 'inbound';
     var configs = [
         { modal: 'inboundModal',  form: 'inboundForm',  title: 'inboundTitle',  submit: 'inboundSubmit',
           action: '/routes/inbound',  editAction: function (id) { return '/routes/inbound/' + id; },
-          fields: ['name','did_pattern','cid_pattern','dest_type','dest_id','priority'],
+          fields: ['name','did_pattern','cid_pattern','dest_type','dest_id','priority','record'],
           checks: [['enabled',1]], label: 'inbound route' },
         { modal: 'outboundModal', form: 'outboundForm', title: 'outboundTitle', submit: 'outboundSubmit',
           action: '/routes/outbound', editAction: function (id) { return '/routes/outbound/' + id; },
-          fields: ['name','prefix','match_pattern','trunk_id','cid_override','priority'],
+          fields: ['name','prefix','match_pattern','trunk_id','cid_override','priority','record'],
           checks: [['enabled',1]], label: 'outbound route' },
         { modal: 'trunkModal',    form: 'trunkForm',    title: 'trunkTitle',    submit: 'trunkSubmit',
           action: '/routes/trunks', editAction: function (id) { return '/routes/trunks/' + id; },

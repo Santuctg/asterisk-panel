@@ -103,6 +103,14 @@ $val    = static fn (string $key, $default = '') => $row[$key] ?? old($key, $def
                         (bool) $val('vm_on_noanswer', 1), 'Send to voicemail when nobody picks up.'); ?>
                     <?php echo field_check('enabled', 'Enabled',
                         $isNew ? true : (bool) $row['enabled'], 'Disabled extensions cannot register or receive calls.'); ?>
+
+                    <?php echo field_select('record', 'Call recording', [
+                        '0' => 'Tenant default',
+                        '1' => 'Always record',
+                        '2' => 'Never record',
+                    ], (string) ($row['record'] ?? 0), [
+                        'hint' => 'Override the tenant-wide automatic recording setting for this extension.',
+                    ]); ?>
                 </div>
 
                 <?php echo field_textarea('description', 'Notes', (string) $val('description'), [

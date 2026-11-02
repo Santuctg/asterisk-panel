@@ -92,6 +92,24 @@ users can download a WAV from **Call History**; direct web access to the
 recording directory is blocked and Nginx serves a file only after PHP performs
 the tenant authorization check.
 
+The CDR importer associates the filename through `CDR(userfield)`. Authorized
+users can download a WAV from **Call History**; direct web access to the
+recording directory is blocked and Nginx serves a file only after PHP performs
+the tenant authorization check.
+
+### Per-extension and per-route recording overrides
+
+The tenant-wide setting is the default. You can override it for each call leg:
+
+* **Extensions** → edit → **Call recording**: Tenant default / Always record / Never record
+* **Call Routing → Inbound routes** → edit → **Call recording**: same three options
+* **Call Routing → Outbound routes** → edit → **Call recording**: same three options
+
+Set **Always record** to force recording even when the tenant mode is **Off**.
+Set **Never record** to exclude a specific extension or route even when the
+tenant mode is **All**. Leave **Tenant default** to follow the System → Settings
+choice.
+
 Recordings can consume substantial disk space and may be legally regulated.
 Configure external retention/archival appropriate to your jurisdiction before
 enabling recording in production.

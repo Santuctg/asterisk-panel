@@ -367,7 +367,7 @@ final class ConfigGenerator
             $pattern = $this->didToPattern($r['did_pattern']);
             $out .= "; {$r['name']}\n";
             $out .= "exten => {$pattern},1,NoOp(Inbound: {$r['name']})\n";
-            if ($record) {
+            if ($this->shouldRecord((int) ($r['record'] ?? 0), $record)) {
                 $out .= $this->recordingGosub('inbound', $ctx);
             }
             $out .= " same => n,Gosub({$this->destinationGosub($r['dest_type'], $r['dest_id'], $ctx)} )\n";
@@ -395,7 +395,7 @@ final class ConfigGenerator
 
             $out .= "; {$r['name']}\n";
             $out .= "exten => {$pattern},1,NoOp(Outbound: {$r['name']})\n";
-            if ($record) {
+            if ($this->shouldRecord((int) ($r['record'] ?? 0), $record)) {
                 $out .= $this->recordingGosub('outbound', $ctx);
             }
             $out .= " same => n,Set(CALLERID(num)=" . ($r['cid_override'] ?: '${CALLERID(num)}') . ")\n";
@@ -426,7 +426,7 @@ final class ConfigGenerator
 
             $out .= "; {$e['extension']} {$label}\n";
             $out .= "exten => {$e['extension']},1,NoOp(Ext {$e['extension']} {$label})\n";
-            if ($record) {
+            if ($this->shouldRecord((int) ($e['record'] ?? 0), $record)) {
                 $out .= $this->recordingGosub('internal', $ctx);
             }
             $out .= " same => n,Set(CALLERID(name)=\"{$label}\")\n";
@@ -456,7 +456,7 @@ final class ConfigGenerator
 
             $out .= "; Ring group {$g['extension']} {$this->esc($g['name'])}\n";
             $out .= "exten => {$g['extension']},1,NoOp(Ring group: {$this->esc($g['name'])})\n";
-            if ($record) {
+            if ($this->shouldRecord((int) ($g['record'] ?? 0), $record)) {
                 $out .= $this->recordingGosub('internal', $ctx);
             }
 
@@ -485,7 +485,7 @@ final class ConfigGenerator
         foreach ($queues as $q) {
             $out .= "; Queue {$q['extension']} {$this->esc($q['name'])}\n";
             $out .= "exten => {$q['extension']},1,NoOp(Queue: {$this->esc($q['name'])})\n";
-            if ($record) {
+            if ($this->shouldRecord((int) ($q['record'] ?? 0), $record)) {
                 $out .= $this->recordingGosub('internal', $ctx);
             }
             $out .= " same => n,Queue({$q['extension']},tT,,,{$q['max_wait']})\n";
@@ -505,7 +505,7 @@ final class ConfigGenerator
         foreach ($ivrs as $ivr) {
             $out .= "; IVR {$ivr['extension']} {$this->esc($ivr['name'])}\n";
             $out .= "exten => {$ivr['extension']},1,NoOp(IVR: {$this->esc($ivr['name'])})\n";
-            if ($record) {
+            if ($this->shouldRecord((int) ($ivr['record'] ?? 0), $record)) {
                 $out .= $this->recordingGosub('internal', $ctx);
             }
             $out .= " same => n,Answer()\n";
@@ -568,7 +568,7 @@ final class ConfigGenerator
         foreach ($conds as $c) {
             $out .= "; Time condition {$this->esc($c['name'])}\n";
             $out .= "exten => {$c['extension']},1,NoOp(Time condition: {$this->esc($c['name'])})\n";
-            if ($record) {
+            if ($this->shouldRecord((int) ($c['record'] ?? 0), $record)) {
                 $out .= $this->recordingGosub('internal', $ctx);
             }
             $out .= " same => n,GotoIfTime(" . $this->timeMatch($c) . "?{$ctx}-{$c['extension']}-open,1)\n";
@@ -611,7 +611,7 @@ final class ConfigGenerator
             $profile = $r['profile'] ?: 'default';
             $out .= "; Conference {$r['extension']} {$this->esc($r['name'])}\n";
             $out .= "exten => {$r['extension']},1,NoOp(Conference: {$this->esc($r['name'])})\n";
-            if ($record) {
+            if ($this->shouldRecord((int) ($r['record'] ?? 0), $record)) {
                 $out .= $this->recordingGosub('internal', $ctx);
             }
             $out .= " same => n,Answer()\n";
@@ -633,7 +633,7 @@ final class ConfigGenerator
         foreach ($lots as $l) {
             $out .= "; Park lot {$this->esc($l['name'])} (ext {$l['extension']})\n";
             $out .= "exten => {$l['extension']},1,NoOp(Park lot: {$this->esc($l['name'])})\n";
-            if ($record) {
+            if ($this->shouldRecord((int) ($l['record'] ?? 0), $record)) {
                 $out .= $this->recordingGosub('internal', $ctx);
             }
             $out .= " same => n,Park({$l['parked_range']},{$ctx}-{$l['id']},{$ctx}-{$l['id']},{$l['return_extension']})\n";
@@ -850,6 +850,22 @@ final class ConfigGenerator
             [$key, $tenantId, $tenantId]
         );
         return $value === false || $value === null ? $default : (string) $value;
+    }
+
+    /**
+     * Resolve whether to record a call leg.
+     *
+     * itemRecord: 0 = inherit tenant default, 1 = force record, 2 = force skip.
+     */
+    private function shouldRecord(int $itemRecord, bool $tenantRecord): bool
+    {
+        if ($itemRecord === 1) {
+            return true;
+        }
+        if ($itemRecord === 2) {
+            return false;
+        }
+        return $tenantRecord;
     }
 
     /** Build a Gosub() target that routes to any supported destination. */

@@ -88,6 +88,7 @@ final class RouteController extends BaseController
             'dest_id'     => $request->int('dest_id') ?: null,
             'priority'    => $request->int('priority', 0),
             'enabled'     => $request->bool('enabled', true) ? 1 : 0,
+            'record'      => $request->int('record', 0),
         ];
 
         $v = Validator::make($data, [
@@ -124,6 +125,7 @@ final class RouteController extends BaseController
             'dest_id'     => $request->int('dest_id') ?: null,
             'priority'    => $request->int('priority', 0),
             'enabled'     => $request->bool('enabled', true) ? 1 : 0,
+            'record'      => $request->int('record', 0),
         ];
 
         $v = Validator::make($data, [
@@ -174,6 +176,7 @@ final class RouteController extends BaseController
             'cid_override'  => $request->str('cid_override'),
             'priority'      => $request->int('priority', 0),
             'enabled'       => $request->bool('enabled', true) ? 1 : 0,
+            'record'        => $request->int('record', 0),
         ];
 
         $v = Validator::make($data, [
@@ -210,6 +213,7 @@ final class RouteController extends BaseController
             'cid_override'  => $request->str('cid_override'),
             'priority'      => $request->int('priority', 0),
             'enabled'       => $request->bool('enabled', true) ? 1 : 0,
+            'record'        => $request->int('record', 0),
         ];
 
         $v = Validator::make($data, [

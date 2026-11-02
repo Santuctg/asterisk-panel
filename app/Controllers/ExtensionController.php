@@ -18,7 +18,7 @@ final class ExtensionController extends BaseController
     private const FILLABLE = [
         'extension', 'name', 'secret', 'cid_name', 'cid_number',
         'vm_enabled', 'vm_on_busy', 'vm_on_noanswer', 'ring_timeout',
-        'max_registrations', 'follow_me', 'enabled', 'description',
+        'max_registrations', 'follow_me', 'enabled', 'description', 'record',
     ];
 
     /** GET /extensions */
@@ -253,6 +253,7 @@ final class ExtensionController extends BaseController
             'max_registrations' => max(1, $request->int('max_registrations', 1)),
             'follow_me'         => $request->bool('follow_me') ? 1 : 0,
             'enabled'           => $request->bool('enabled', true) ? 1 : 0,
+            'record'            => $request->int('record', 0),
             'description'       => $request->str('description'),
         ];
     }

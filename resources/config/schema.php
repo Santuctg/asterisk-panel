@@ -65,6 +65,7 @@ return [
             follow_me          INTEGER DEFAULT 0,
             enabled            INTEGER DEFAULT 1,
             description        TEXT,
+            record             INTEGER DEFAULT 0,
             created_at         DATETIME,
             updated_at         DATETIME,
             UNIQUE(tenant_id, extension)
@@ -131,6 +132,7 @@ return [
             strategy     VARCHAR(30) DEFAULT "ringall",
             timeout      INTEGER DEFAULT 30,
             ringback     VARCHAR(80),
+            record       INTEGER DEFAULT 0,
             enabled      INTEGER DEFAULT 1,
             created_at   DATETIME,
             updated_at   DATETIME,
@@ -178,6 +180,7 @@ return [
             keys             TEXT,
             timeout_action   VARCHAR(30),
             timeout_dest_id  INTEGER,
+            record           INTEGER DEFAULT 0,
             enabled          INTEGER DEFAULT 1,
             created_at       DATETIME,
             updated_at       DATETIME,
@@ -195,6 +198,7 @@ return [
             dest_id     INTEGER,
             priority    INTEGER DEFAULT 0,
             enabled     INTEGER DEFAULT 1,
+            record      INTEGER DEFAULT 0,
             created_at  DATETIME,
             updated_at  DATETIME
         )',
@@ -210,6 +214,7 @@ return [
             cid_override  VARCHAR(60),
             priority      INTEGER DEFAULT 0,
             enabled       INTEGER DEFAULT 1,
+            record        INTEGER DEFAULT 0,
             created_at    DATETIME,
             updated_at    DATETIME
         )',
@@ -234,6 +239,7 @@ return [
             closed_dest_id  INTEGER,
             priority        INTEGER DEFAULT 0,
             enabled         INTEGER DEFAULT 1,
+            record          INTEGER DEFAULT 0,
             created_at      DATETIME,
             updated_at      DATETIME
         )',
@@ -264,6 +270,7 @@ return [
             member_delay    INTEGER DEFAULT 0,
             agent_announce  VARCHAR(120),
             moh_class       VARCHAR(80) DEFAULT "default",
+            record          INTEGER DEFAULT 0,
             enabled         INTEGER DEFAULT 1,
             created_at      DATETIME,
             updated_at      DATETIME,
