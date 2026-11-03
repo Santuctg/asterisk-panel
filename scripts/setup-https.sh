@@ -127,6 +127,26 @@ nginx -t
 systemctl reload nginx
 systemctl enable --now certbot.timer 2>/dev/null || true
 
+# The installer creates a dedicated PHP-FPM pool with an APP_URL environment
+# setting. Nginx FastCGI params alone do not override getenv('APP_URL') there.
+# Keep the pool and persisted installer settings in sync with the HTTPS site.
+SERVER_ENV=/etc/asterisk-panel/server.env
+if [[ -f "$SERVER_ENV" ]] && grep -Fxq "APP_ROOT=${APP_ROOT}" "$SERVER_ENV"; then
+    cp -an "$SERVER_ENV" "${SERVER_ENV}.pre-https"
+    sed -i -E "s|^APP_URL=.*$|APP_URL=https://${DOMAIN}|" "$SERVER_ENV"
+fi
+for POOL_FILE in /etc/php/*/fpm/pool.d/asterisk-panel.conf; do
+    [[ -f "$POOL_FILE" ]] || continue
+    cp -an "$POOL_FILE" "${POOL_FILE}.pre-https"
+    sed -i -E \
+        -e "s|^env\[APP_URL\][[:space:]]*=.*$|env[APP_URL] = https://${DOMAIN}|" \
+        -e 's|^env\[APP_SECURE_COOKIES\][[:space:]]*=.*$|env[APP_SECURE_COOKIES] = 1|' \
+        "$POOL_FILE"
+    PHP_VERSION="$(basename "$(dirname "$(dirname "$(dirname "$POOL_FILE")")")")"
+    "php-fpm${PHP_VERSION}" -t
+    systemctl reload "php${PHP_VERSION}-fpm"
+done
+
 cat <<EOF
 
 HTTPS is active: https://${DOMAIN}
