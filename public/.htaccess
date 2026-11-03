@@ -1,38 +1,15 @@
-# Apache / cPanel / LiteSpeed front controller.
-#
-# Point the vhost (or cPanel subdomain) document root at this public/
-# directory. Only mod_rewrite directives are used here so the file works on
-# hosts whose AllowOverride is limited to FileInfo.
-
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
-    # Force HTTPS (uncomment after cPanel AutoSSL has issued a certificate,
-    # or use cPanel > Domains > Force HTTPS Redirect instead):
-    # RewriteCond %{HTTPS} off
-    # RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+    # Allow direct access to real files/dirs (assets), otherwise front controller.
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
 
-    # Deny hidden files (.env, .git, editor backups) but keep ACME challenges
-    # reachable for HTTP-01 certificate validation.
-    RewriteRule (^|/)\.(?!well-known) - [F]
-
-    # Never execute PHP other than the index.php front controller.
-    RewriteCond %{REQUEST_URI} !^/index\.php$
-    RewriteRule \.php$ - [F,L]
-
-    # Serve real files and directories (public/assets/...) directly; every
-    # other URL is dispatched by the front controller.
-    RewriteCond %{REQUEST_FILENAME} !-f
-    RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteRule ^ index.php [QSA,L]
+    RewriteRule ^ index.php [L]
 </IfModule>
 
-# If mod_rewrite is unavailable, nothing above runs and only /index.php
-# responds — enable "Rewrite" support (Apache) in the hosting control panel.
-
-# Defence in depth: never serve dotfiles even if mod_rewrite is off.
-# (Challenge files under .well-known/acme-challenge/ do not start with a
-# dot in their own name, so ACME validation still works.)
+# Basic hardening: never serve dotfiles or hidden folders.
 <FilesMatch "^\.">
     Require all denied
 </FilesMatch>
