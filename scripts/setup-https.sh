@@ -69,7 +69,13 @@ else
 fi
 
 if [[ -z "$PHP_SOCKET" ]]; then
-    PHP_SOCKET="$(find /run/php -maxdepth 1 -type s -name 'php*-fpm.sock' -print 2>/dev/null | sort -V | tail -n 1)"
+    # Prefer the dedicated panel pool. Choosing the generic www socket drops
+    # the AMI/DB environment configured by install-server-ubuntu.sh.
+    if [[ -S /run/php/asterisk-panel.sock ]]; then
+        PHP_SOCKET=/run/php/asterisk-panel.sock
+    else
+        PHP_SOCKET="$(find /run/php -maxdepth 1 -type s -name 'php*-fpm.sock' -print 2>/dev/null | sort -V | tail -n 1)"
+    fi
 fi
 if [[ -z "$PHP_SOCKET" || ! -S "$PHP_SOCKET" ]]; then
     echo "PHP-FPM socket not found; pass --php-socket /run/php/php8.2-fpm.sock." >&2
