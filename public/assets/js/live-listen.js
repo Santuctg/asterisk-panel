@@ -1,5 +1,5 @@
 // Browser SIP uses a bundled MIT-licensed JsSIP build (see assets/vendor).
-import JsSIP from '../vendor/jssip-3.13.9.mjs';
+import JsSIP from '../vendor/jssip-3.13.9.mjs?v=2';
 
 const supervisor = document.querySelector('#listen-supervisor');
 const secret = document.querySelector('#listen-secret');

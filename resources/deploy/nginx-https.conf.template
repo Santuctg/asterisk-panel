@@ -42,6 +42,13 @@ server {
         try_files $uri $uri/ /index.php?$query_string;
     }
 
+    # Ubuntu's stock mime.types does not classify .mjs; nosniff otherwise
+    # blocks the bundled JsSIP module needed by Browser Listen.
+    location = /assets/vendor/jssip-3.13.9.mjs {
+        types { application/javascript mjs; }
+        try_files $uri =404;
+    }
+
     # Same-origin WSS for browser SIP. Asterisk HTTP listens on loopback only.
     location = /ws {
         if ($http_origin != "https://__DOMAIN__") { return 403; }
