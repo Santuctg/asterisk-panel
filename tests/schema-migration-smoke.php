@@ -29,6 +29,9 @@ $db->insert('users', ['tenant_id'=>1,'username'=>'same','password'=>'x','role'=>
 $db->insert('users', ['tenant_id'=>2,'username'=>'same','password'=>'x','role'=>'user','active'=>1]);
 if ((int)$db->scalar("SELECT COUNT(*) FROM users WHERE username='same'") !== 2) throw new RuntimeException('Tenant username uniqueness migration failed');
 if ((int)$db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='roles'") !== 1) throw new RuntimeException('Roles table missing');
+// Subsequent migrations must ignore the partial global-superadmin index.
+$migration = file_get_contents($base . '/scripts/migrate.php');
+if (!str_contains($migration, "index['partial']")) throw new RuntimeException('Partial-index idempotence guard missing');
 unset($db);
 @unlink($path);
 echo "All schema migration checks passed.\n";

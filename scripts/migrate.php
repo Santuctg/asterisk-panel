@@ -19,7 +19,7 @@ $db->exec($schema['roles']);
 if ((string) $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite') {
     $hasGlobalUsernameUnique = false;
     foreach ($db->all('PRAGMA index_list(users)') as $index) {
-        if (!(int) ($index['unique'] ?? 0)) { continue; }
+        if (!(int) ($index['unique'] ?? 0) || (int) ($index['partial'] ?? 0) === 1) { continue; }
         $columns = array_column($db->all('PRAGMA index_info(' . $index['name'] . ')'), 'name');
         if ($columns === ['username']) { $hasGlobalUsernameUnique = true; break; }
     }
