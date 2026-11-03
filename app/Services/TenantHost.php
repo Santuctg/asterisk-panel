@@ -23,15 +23,14 @@ final class TenantHost
         $primary = strtolower((string) Config::get('app.primary_host', ''));
         if ($primary !== '' && hash_equals($primary, $host)) {
             if ($role === 'superadmin') { return true; }
-            if (!in_array($role, ['user', 'admin'], true) || empty($user['tenant_id'])) { return false; }
+            if ($role === 'superadmin' || empty($user['tenant_id'])) { return false; }
             $domain = $db->scalar('SELECT domain FROM tenants WHERE id = ? AND enabled = 1', [(int) $user['tenant_id']]);
             return $domain === false || trim((string) $domain) === '';
         }
 
         $tenant = $db->one('SELECT id FROM tenants WHERE enabled = 1 AND LOWER(domain) = ?', [$host]);
         if ($tenant) {
-            return in_array($role, ['user', 'admin'], true)
-                && (int) ($user['tenant_id'] ?? 0) === (int) $tenant['id'];
+            return $role !== 'superadmin' && (int) ($user['tenant_id'] ?? 0) === (int) $tenant['id'];
         }
         return false;
     }

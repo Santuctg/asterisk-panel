@@ -17,7 +17,7 @@ use App\Controllers\{
     AuthController, DashboardController, ExtensionController, VoicemailController,
     DeviceController, RingGroupController, ParkingController, IvrController,
     RouteController, MusicOnHoldController, CallCenterController,
-    ConferenceController, CdrController, TenantController, UserController,
+    ConferenceController, CdrController, TenantController, UserController, RoleController,
     SystemController, SslController, ProvisionController, LiveListenController, WebPhoneController, TenantSslController
 };
 use App\Core\Auth;
@@ -133,6 +133,8 @@ $router->delete('/conferences/{id}', [ConferenceController::class, 'destroy'], a
 // CDR / call history
 $router->get('/cdr', [CdrController::class, 'index'], $read);
 $router->get('/cdr/{id}/recording', [CdrController::class, 'recording'], $read);
+$router->delete('/cdr', [CdrController::class, 'clear'], [Auth::require('cdr.delete'), Csrf::middleware(...)]);
+$router->delete('/cdr/{id}', [CdrController::class, 'destroy'], [Auth::require('cdr.delete'), Csrf::middleware(...)]);
 
 // Tenants (superadmin)
 $router->get('/tenants', [TenantController::class, 'index'], [Auth::require('tenant.view')]);
@@ -150,6 +152,12 @@ $router->get('/users', [UserController::class, 'index'], [Auth::require('user.ma
 $router->post('/users', [UserController::class, 'store'], [Auth::require('user.manage'), Csrf::middleware(...)]);
 $router->post('/users/{id}', [UserController::class, 'update'], [Auth::require('user.manage'), Csrf::middleware(...)]);
 $router->delete('/users/{id}', [UserController::class, 'destroy'], [Auth::require('user.manage'), Csrf::middleware(...)]);
+
+// Tenant-scoped custom roles
+$router->get('/roles', [RoleController::class, 'index'], [Auth::require('role.manage')]);
+$router->post('/roles', [RoleController::class, 'store'], [Auth::require('role.manage'), Csrf::middleware(...)]);
+$router->post('/roles/{id}', [RoleController::class, 'update'], [Auth::require('role.manage'), Csrf::middleware(...)]);
+$router->delete('/roles/{id}', [RoleController::class, 'destroy'], [Auth::require('role.manage'), Csrf::middleware(...)]);
 
 // System: status, apply config, settings, audit log
 $router->get('/system/status', [SystemController::class, 'status'], $auth);

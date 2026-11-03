@@ -1,17 +1,10 @@
 <?php
 /**
- * Panel users. Expects: $rows, $tenants
+ * Panel users. Expects: $rows, $tenants, $roleOptions
  */
 require dirname(__DIR__) . '/partials/fields.php';
 
-$roleOpts = [
-    'user' => 'User — dashboard, Web Phone and call history',
-    'admin' => 'Tenant admin — manages one tenant',
-    'superadmin' => 'Super admin — main panel and all tenants',
-];
-if (!is_superadmin()) {
-    unset($roleOpts['superadmin']);
-}
+$roleOpts = (array) $roleOptions;
 
 $tenantOpts = [];
 foreach ((array) $tenants as $t) { $tenantOpts[$t['id']] = $t['name']; }
@@ -20,9 +13,10 @@ foreach ((array) $tenants as $t) { $tenantOpts[$t['id']] = $t['name']; }
 <div class="page-head">
     <div>
         <h1>Users</h1>
-        <div class="subtitle">Panel accounts and their access level</div>
+        <div class="subtitle">Accounts for <?= e(reset($tenantOpts) ?: 'the active tenant') ?><?= is_superadmin() ? ' (plus global super admins)' : '' ?></div>
     </div>
     <div class="page-actions">
+        <a class="btn" href="/roles">Manage roles</a>
         <button class="btn btn-primary" data-modal-open="userModal">
             <?= $this->fragment('icons/plus') ?> New user
         </button>
@@ -54,6 +48,7 @@ foreach ((array) $tenants as $t) { $tenantOpts[$t['id']] = $t['name']; }
                     </thead>
                     <tbody>
                         <?php foreach ($rows as $u): ?>
+                            <?php $editUser = array_intersect_key($u, array_flip(['id','username','email','tenant_id','role','active'])); ?>
                             <tr>
                                 <td>
                                     <strong><?= e($u['username']) ?></strong>
@@ -65,7 +60,7 @@ foreach ((array) $tenants as $t) { $tenantOpts[$t['id']] = $t['name']; }
                                 <td><?= e($u['tenant_name'] ?: '—') ?></td>
                                 <td>
                                     <span class="badge <?= $u['role'] === 'superadmin' ? 'violet' : ($u['role'] === 'admin' ? 'blue' : 'gray') ?>">
-                                        <?= e(ucfirst((string) $u['role'])) ?>
+                                        <?= e($u['role_name'] ?: ($roleOpts[$u['role']] ?? ucfirst((string) $u['role']))) ?>
                                     </span>
                                 </td>
                                 <td class="muted text-xs nowrap">
@@ -78,7 +73,7 @@ foreach ((array) $tenants as $t) { $tenantOpts[$t['id']] = $t['name']; }
                                 </td>
                                 <td class="actions">
                                     <button class="btn btn-sm" data-modal-open="userModal"
-                                            data-edit='<?= e(json_encode($u, JSON_HEX_APOS | JSON_HEX_QUOT)) ?>'>Edit</button>
+                                            data-edit='<?= e(json_encode($editUser, JSON_HEX_APOS | JSON_HEX_QUOT)) ?>'>Edit</button>
                                     <?php if ((int) $u['id'] !== auth()->id()): ?>
                                         <form method="post" action="/users/<?= (int) $u['id'] ?>">
                                             <?= csrf() ?><input type="hidden" name="_method" value="DELETE">
@@ -117,11 +112,6 @@ foreach ((array) $tenants as $t) { $tenantOpts[$t['id']] = $t['name']; }
                         'required' => true,
                         'hint' => 'Tenant users cannot sign in through another tenant domain. Super admins use the main panel domain.',
                     ]); ?>
-                    <?php if (is_superadmin() && count($tenantOpts) > 0): ?>
-                        <?php echo field_select('tenant_id', 'Tenant', $tenantOpts, null, [
-                            'placeholder' => 'None (global)',
-                        ]); ?>
-                    <?php endif; ?>
                     <?php echo field_text('password', 'Password', '', [
                         'type' => 'password', 'span' => true, 'autocomplete' => 'new-password',
                         'hint' => 'Minimum 8 characters. On edit, leave blank to keep the current password.',

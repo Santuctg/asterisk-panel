@@ -18,6 +18,12 @@ $answeredRate = ($stats['total'] ?? 0) > 0
         <h1>Call History</h1>
         <div class="subtitle">Call detail records for the active tenant</div>
     </div>
+    <?php if (auth()->can('cdr.delete') && $total > 0): ?>
+        <form method="post" action="/cdr">
+            <?= csrf() ?><input type="hidden" name="_method" value="DELETE">
+            <button class="btn btn-ghost" data-confirm-btn="Delete all call history and recordings for this tenant?">Delete all history</button>
+        </form>
+    <?php endif; ?>
 </div>
 
 <div class="grid grid-3 mb-4">
@@ -81,6 +87,7 @@ $answeredRate = ($stats['total'] ?? 0) > 0
                             <th class="num">Billable</th>
                             <th>Recording</th>
                             <th>Account</th>
+                            <?php if (auth()->can('cdr.delete')): ?><th class="actions">Actions</th><?php endif; ?>
                         </tr>
                     </thead>
                     <tbody>
@@ -109,6 +116,12 @@ $answeredRate = ($stats['total'] ?? 0) > 0
                                     <?php endif; ?>
                                 </td>
                                 <td class="muted"><?= e($c['accountcode'] ?: '—') ?></td>
+                                <?php if (auth()->can('cdr.delete')): ?>
+                                    <td class="actions"><form method="post" action="/cdr/<?= (int)$c['id'] ?>">
+                                        <?= csrf() ?><input type="hidden" name="_method" value="DELETE">
+                                        <button class="btn btn-sm btn-ghost" data-confirm-btn="Delete this call record and its recording?">Delete</button>
+                                    </form></td>
+                                <?php endif; ?>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>

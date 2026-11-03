@@ -1,0 +1,34 @@
+<?php
+
+declare(strict_types=1);
+
+$base = dirname(__DIR__);
+$path = $base . '/storage/cache/schema-migration-smoke.sqlite';
+@mkdir(dirname($path), 0775, true);
+@unlink($path);
+$legacy = new PDO('sqlite:' . $path);
+$legacy->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$legacy->exec('CREATE TABLE tenants (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, context TEXT, enabled INTEGER)');
+$legacy->exec('CREATE TABLE users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, tenant_id INTEGER, username VARCHAR(80) NOT NULL UNIQUE,
+    email VARCHAR(160), password VARCHAR(255) NOT NULL, role VARCHAR(20), active INTEGER,
+    last_login DATETIME, last_login_ip VARCHAR(45), created_at DATETIME, updated_at DATETIME
+)');
+$legacy->exec("INSERT INTO tenants(name,context,enabled) VALUES ('A','a',1),('B','b',1)");
+$legacy->exec("INSERT INTO users(tenant_id,username,password,role,active) VALUES (1,'admin','x','superadmin',1)");
+$legacy = null;
+
+putenv('DB_DRIVER=sqlite');
+putenv('DB_NAME=' . $path);
+require $base . '/scripts/migrate.php';
+
+$db = App\Core\App::getInstance()->db();
+$super = $db->one("SELECT * FROM users WHERE role = 'superadmin'");
+if ($super === null || $super['tenant_id'] !== null) throw new RuntimeException('Superadmin was not normalized');
+$db->insert('users', ['tenant_id'=>1,'username'=>'same','password'=>'x','role'=>'user','active'=>1]);
+$db->insert('users', ['tenant_id'=>2,'username'=>'same','password'=>'x','role'=>'user','active'=>1]);
+if ((int)$db->scalar("SELECT COUNT(*) FROM users WHERE username='same'") !== 2) throw new RuntimeException('Tenant username uniqueness migration failed');
+if ((int)$db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='roles'") !== 1) throw new RuntimeException('Roles table missing');
+unset($db);
+@unlink($path);
+echo "All schema migration checks passed.\n";

@@ -37,6 +37,7 @@ $user = $auth->user();
         ['label' => 'Call History', 'href' => '/cdr',            'icon' => 'clock',   'ability' => 'cdr.view'],
         ['label' => 'Tenants',      'href' => '/tenants',        'icon' => 'building','ability' => 'tenant.view'],
         ['label' => 'Users',        'href' => '/users',          'icon' => 'user',    'ability' => 'user.manage'],
+        ['label' => 'Roles',        'href' => '/roles',          'icon' => 'users',   'ability' => 'role.manage'],
         ['label' => 'System',       'href' => '/system/status',  'icon' => 'cog',     'ability' => null,
             'children' => [
                 ['label' => 'Status',      'href' => '/system/status'],

@@ -37,7 +37,7 @@ return [
         CREATE TABLE IF NOT EXISTS users (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
             tenant_id       INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
-            username        VARCHAR(80) NOT NULL UNIQUE,
+            username        VARCHAR(80) NOT NULL,
             email           VARCHAR(160),
             password        VARCHAR(255) NOT NULL,
             role            VARCHAR(20) DEFAULT "user",
@@ -45,7 +45,21 @@ return [
             last_login      DATETIME,
             last_login_ip   VARCHAR(45),
             created_at      DATETIME,
-            updated_at      DATETIME
+            updated_at      DATETIME,
+            UNIQUE(tenant_id, username)
+        )',
+
+    'roles' => '
+        CREATE TABLE IF NOT EXISTS roles (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            tenant_id   INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+            name        VARCHAR(80) NOT NULL,
+            slug        VARCHAR(20) NOT NULL,
+            permissions TEXT NOT NULL DEFAULT "[]",
+            created_at  DATETIME,
+            updated_at  DATETIME,
+            UNIQUE(tenant_id, name),
+            UNIQUE(tenant_id, slug)
         )',
 
     'extensions' => '

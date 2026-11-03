@@ -55,6 +55,7 @@ foreach ($schema as $name => $sql) {
     $tables[] = $name;
 }
 echo '      ' . count($tables) . " tables ensured\n";
+$db->run("UPDATE users SET tenant_id = NULL WHERE role = 'superadmin'");
 
 // ---------------------------------------------------------------------
 // 2b. Migrate existing tables: add `record` column where missing.

@@ -27,15 +27,19 @@ final class Auth
             'SELECT * FROM users WHERE (username = :u OR email = :u) AND active = 1',
             ['u' => $username]
         );
-        $row = null;
+        $matches = [];
         foreach ($rows as $candidate) {
             if (TenantHost::allows($candidate) && password_verify($password, $candidate['password'])) {
-                $row = $candidate; break;
+                $matches[] = $candidate;
             }
         }
-        if (!$row) {
+        // The main hostname can serve multiple domain-less tenants. If the
+        // same credentials match more than one account, fail closed instead
+        // of selecting an arbitrary tenant.
+        if (count($matches) !== 1) {
             return false;
         }
+        $row = $matches[0];
 
         // Re-hash if the algorithm strength changed.
         if (password_needs_rehash($row['password'], PASSWORD_DEFAULT)) {
@@ -131,14 +135,47 @@ final class Auth
                 'dashboard.view', 'extension.manage', 'voicemail.manage', 'device.manage',
                 'ringgroup.manage', 'parking.manage', 'ivr.manage', 'route.manage',
                 'moh.manage', 'callcenter.manage', 'conference.manage', 'cdr.view',
-                'tenant.view', 'user.manage', 'call.listen',
+                'cdr.delete', 'user.manage', 'role.manage', 'call.listen',
             ],
             'user' => [
                 'dashboard.view', 'cdr.view',
             ],
         ];
 
-        return in_array($ability, $matrix[$role] ?? [], true);
+        if (isset($matrix[$role])) {
+            return in_array($ability, $matrix[$role], true);
+        }
+
+        $user = $this->user();
+        if (!$user || empty($user['tenant_id'])) { return false; }
+        $json = App::getInstance()->db()->scalar(
+            'SELECT permissions FROM roles WHERE tenant_id = ? AND slug = ?',
+            [(int) $user['tenant_id'], $role]
+        );
+        if (!is_string($json)) { return false; }
+        $permissions = json_decode($json, true);
+        return is_array($permissions) && in_array($ability, $permissions, true);
+    }
+
+    /** Permissions that may be granted by a tenant-scoped custom role. */
+    public static function assignableAbilities(): array
+    {
+        return [
+            'dashboard.view' => 'View dashboard',
+            'extension.manage' => 'Manage extensions',
+            'voicemail.manage' => 'Manage voicemail',
+            'device.manage' => 'Manage devices',
+            'ringgroup.manage' => 'Manage ring groups',
+            'parking.manage' => 'Manage call parking',
+            'ivr.manage' => 'Manage IVR menus',
+            'route.manage' => 'Manage call routing',
+            'moh.manage' => 'Manage music on hold',
+            'callcenter.manage' => 'Manage call center',
+            'conference.manage' => 'Manage conferences',
+            'cdr.view' => 'View call history',
+            'cdr.delete' => 'Delete call history',
+            'call.listen' => 'Use live listen',
+        ];
     }
 
     /**

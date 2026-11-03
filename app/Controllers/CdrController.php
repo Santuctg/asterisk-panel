@@ -7,6 +7,7 @@ namespace App\Controllers;
 use App\Core\Request;
 use App\Core\Response;
 use App\Core\Config;
+use App\Core\Flash;
 
 /**
  * Call detail records. Reads from the `cdr` table populated by Asterisk's
@@ -93,5 +94,42 @@ final class CdrController extends BaseController
             'X-Accel-Redirect'    => '/_protected/recordings/' . rawurlencode($filename),
             'X-Content-Type-Options' => 'nosniff',
         ]));
+    }
+
+    /** DELETE /cdr/{id} — remove one tenant-scoped record and recording. */
+    public function destroy(Request $request): Response
+    {
+        $row = $this->db()->one('SELECT * FROM cdr WHERE id = ? AND tenant_id = ?', [
+            (int) $request->params['id'], $this->tenantId(),
+        ]);
+        if (!$row) { Flash::error('Call record not found.'); return Response::redirect('/cdr'); }
+        $this->deleteRecording((string) ($row['userfield'] ?? ''));
+        $this->db()->delete('cdr', (int) $row['id']);
+        $this->audit('cdr.delete', 'cdr', (int) $row['id'], ['uniqueid' => $row['uniqueid'] ?? null]);
+        Flash::success('Call record deleted.');
+        return Response::redirect('/cdr');
+    }
+
+    /** DELETE /cdr — clear call history for only the active tenant. */
+    public function clear(Request $request): Response
+    {
+        $tid = $this->tenantId();
+        if (!$tid) { return Response::redirect('/cdr'); }
+        $rows = $this->db()->all('SELECT userfield FROM cdr WHERE tenant_id = ?', [$tid]);
+        foreach ($rows as $row) { $this->deleteRecording((string) ($row['userfield'] ?? '')); }
+        $count = $this->db()->run('DELETE FROM cdr WHERE tenant_id = ?', [$tid])->rowCount();
+        $this->audit('cdr.clear', 'tenant', $tid, ['records' => $count]);
+        Flash::success("Deleted {$count} call history record(s).");
+        return Response::redirect('/cdr');
+    }
+
+    private function deleteRecording(string $userfield): void
+    {
+        if (!str_starts_with($userfield, 'recording:')) { return; }
+        $filename = substr($userfield, strlen('recording:'));
+        if ($filename !== basename($filename) || !preg_match('/^[A-Za-z0-9_.-]+\.wav$/', $filename)) { return; }
+        $dir = rtrim((string) Config::get('asterisk.recording_dir', '/var/spool/asterisk/monitor/asterisk-panel'), '/');
+        $file = $dir . '/' . $filename;
+        if (is_file($file)) { @unlink($file); }
     }
 }

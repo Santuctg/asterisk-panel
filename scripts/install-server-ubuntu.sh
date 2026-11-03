@@ -201,10 +201,13 @@ fi
 runuser -u www-data -- env \
     APP_URL="$APP_URL" DB_DRIVER=sqlite DB_NAME="$DB_PATH" \
     php "$INSTALL_DIR/scripts/install.php" "${INSTALL_ARGS[@]}"
+runuser -u www-data -- env \
+    APP_URL="$APP_URL" DB_DRIVER=sqlite DB_NAME="$DB_PATH" \
+    php "$INSTALL_DIR/scripts/migrate.php"
 
 echo "[6/11] Configuring Asterisk AMI and managed includes..."
 install -d -o www-data -g asterisk -m 2775 /etc/asterisk/asterisk_panel
-install -d -o asterisk -g asterisk -m 0750 /var/spool/asterisk/monitor/asterisk-panel
+install -d -o asterisk -g asterisk -m 2770 /var/spool/asterisk/monitor/asterisk-panel
 install -o root -g asterisk -m 0644 "$INSTALL_DIR/resources/deploy/asterisk/pjsip-base.conf" /etc/asterisk/asterisk_panel/pjsip_base.conf
 install -d -o root -g asterisk -m 0750 /etc/asterisk/manager.d
 cat >/etc/asterisk/manager.d/asterisk-panel.conf <<EOF
