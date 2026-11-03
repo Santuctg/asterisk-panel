@@ -4,7 +4,11 @@
  */
 require dirname(__DIR__) . '/partials/fields.php';
 
-$roleOpts = ['user' => 'User', 'admin' => 'Admin', 'superadmin' => 'Super admin'];
+$roleOpts = [
+    'user' => 'User — dashboard, Web Phone and call history',
+    'admin' => 'Tenant admin — manages one tenant',
+    'superadmin' => 'Super admin — main panel and all tenants',
+];
 if (!is_superadmin()) {
     unset($roleOpts['superadmin']);
 }
@@ -111,7 +115,7 @@ foreach ((array) $tenants as $t) { $tenantOpts[$t['id']] = $t['name']; }
                     <?php echo field_text('email', 'Email', '', ['type' => 'email']); ?>
                     <?php echo field_select('role', 'Role', $roleOpts, 'user', [
                         'required' => true,
-                        'hint' => 'Admin manages their tenant. Super admin manages everything.',
+                        'hint' => 'Tenant users cannot sign in through another tenant domain. Super admins use the main panel domain.',
                     ]); ?>
                     <?php if (is_superadmin() && count($tenantOpts) > 0): ?>
                         <?php echo field_select('tenant_id', 'Tenant', $tenantOpts, null, [

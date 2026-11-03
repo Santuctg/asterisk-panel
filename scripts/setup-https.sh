@@ -134,6 +134,11 @@ SERVER_ENV=/etc/asterisk-panel/server.env
 if [[ -f "$SERVER_ENV" ]] && grep -Fxq "APP_ROOT=${APP_ROOT}" "$SERVER_ENV"; then
     cp -an "$SERVER_ENV" "${SERVER_ENV}.pre-https"
     sed -i -E "s|^APP_URL=.*$|APP_URL=https://${DOMAIN}|" "$SERVER_ENV"
+    if grep -q '^APP_PRIMARY_HOST=' "$SERVER_ENV"; then
+        sed -i -E "s|^APP_PRIMARY_HOST=.*$|APP_PRIMARY_HOST=${DOMAIN}|" "$SERVER_ENV"
+    else
+        printf 'APP_PRIMARY_HOST=%q\n' "$DOMAIN" >>"$SERVER_ENV"
+    fi
 fi
 for POOL_FILE in /etc/php/*/fpm/pool.d/asterisk-panel.conf; do
     [[ -f "$POOL_FILE" ]] || continue
@@ -142,6 +147,11 @@ for POOL_FILE in /etc/php/*/fpm/pool.d/asterisk-panel.conf; do
         -e "s|^env\[APP_URL\][[:space:]]*=.*$|env[APP_URL] = https://${DOMAIN}|" \
         -e 's|^env\[APP_SECURE_COOKIES\][[:space:]]*=.*$|env[APP_SECURE_COOKIES] = 1|' \
         "$POOL_FILE"
+    if grep -q '^env\[APP_PRIMARY_HOST\][[:space:]]*=' "$POOL_FILE"; then
+        sed -i -E "s|^env\[APP_PRIMARY_HOST\][[:space:]]*=.*$|env[APP_PRIMARY_HOST] = ${DOMAIN}|" "$POOL_FILE"
+    else
+        printf 'env[APP_PRIMARY_HOST] = %s\n' "$DOMAIN" >>"$POOL_FILE"
+    fi
     PHP_VERSION="$(basename "$(dirname "$(dirname "$(dirname "$POOL_FILE")")")")"
     "php-fpm${PHP_VERSION}" -t
     systemctl reload "php${PHP_VERSION}-fpm"

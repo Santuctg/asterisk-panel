@@ -28,6 +28,9 @@ return [
     // Absolute, externally reachable URL of this panel. Used to build
     // provisioning URLs handed to phones.
     'url'     => $appUrl,
+    // Stable main login hostname. Unlike APP_URL it is not replaced by a
+    // tenant virtual host's FastCGI parameter.
+    'primary_host' => strtolower((string) $env('APP_PRIMARY_HOST', parse_url($appUrl, PHP_URL_HOST) ?: '')),
 
     'debug'   => $envBool('APP_DEBUG', false),
 

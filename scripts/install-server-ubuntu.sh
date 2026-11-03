@@ -132,6 +132,7 @@ else
     SERVER_NAME="_"
     SIP_HOST="${SERVER_IP:-127.0.0.1}"
 fi
+PRIMARY_HOST="${DOMAIN:-${SERVER_IP:-127.0.0.1}}"
 PHP_VERSION="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')"
 PHP_FPM_SERVICE="php${PHP_VERSION}-fpm"
 PHP_SOCKET=/run/php/asterisk-panel.sock
@@ -139,6 +140,7 @@ PHP_SOCKET=/run/php/asterisk-panel.sock
 {
     printf 'APP_ROOT=%q\n' "$INSTALL_DIR"
     printf 'APP_URL=%q\n' "$APP_URL"
+    printf 'APP_PRIMARY_HOST=%q\n' "$PRIMARY_HOST"
     printf 'AMI_USER=%q\n' 'asterisk-panel'
     printf 'AMI_SECRET=%q\n' "$AMI_SECRET"
     printf 'PHP_SOCKET=%q\n' "$PHP_SOCKET"
@@ -163,6 +165,7 @@ pm.min_spare_servers = 1
 pm.max_spare_servers = 4
 clear_env = no
 env[APP_URL] = ${APP_URL}
+env[APP_PRIMARY_HOST] = ${PRIMARY_HOST}
 env[APP_DEBUG] = 0
 env[APP_SECURE_COOKIES] = 0
 env[DB_DRIVER] = sqlite

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Core;
 
+use App\Services\TenantHost;
+
 /**
  * Authentication + authorization.
  *
@@ -21,12 +23,17 @@ final class Auth
     {
         $db = App::getInstance()->db();
 
-        $row = $db->one(
-            'SELECT * FROM users WHERE (username = :u OR email = :u) AND active = 1 LIMIT 1',
+        $rows = $db->all(
+            'SELECT * FROM users WHERE (username = :u OR email = :u) AND active = 1',
             ['u' => $username]
         );
-
-        if (!$row || !password_verify($password, $row['password'])) {
+        $row = null;
+        foreach ($rows as $candidate) {
+            if (TenantHost::allows($candidate) && password_verify($password, $candidate['password'])) {
+                $row = $candidate; break;
+            }
+        }
+        if (!$row) {
             return false;
         }
 
@@ -76,6 +83,10 @@ final class Auth
 
         if ($id) {
             $this->user = App::getInstance()->db()->one('SELECT * FROM users WHERE id = ? AND active = 1', [(int) $id]);
+            if ($this->user && !TenantHost::allows($this->user)) {
+                Session::forget('user_id');
+                $this->user = null;
+            }
         }
 
         return $this->user;
