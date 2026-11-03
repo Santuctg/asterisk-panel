@@ -13,7 +13,7 @@ foreach ((array) $tenants as $t) { $tenantOpts[$t['id']] = $t['name']; }
 <div class="page-head">
     <div>
         <h1>Users</h1>
-        <div class="subtitle">Accounts for <?= e(reset($tenantOpts) ?: 'the active tenant') ?><?= is_superadmin() ? ' (plus global super admins)' : '' ?></div>
+        <div class="subtitle">Accounts for <?= e(reset($tenantOpts) ?: 'the active tenant') ?></div>
     </div>
     <div class="page-actions">
         <a class="btn" href="/roles">Manage roles</a>

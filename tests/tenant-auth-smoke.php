@@ -66,8 +66,9 @@ $_SERVER['HTTP_HOST'] = 'panel.example.test';
 $_SESSION['active_tenant'] = $tenantA;
 $app->auth()->login($super);
 $superPage = $controller->index(new App\Core\Request('GET', '/users'));
-$check(str_contains($superPage->body(), 'admin-a') && str_contains($superPage->body(), 'rootadmin')
-    && !str_contains($superPage->body(), 'admin-b'), 'superadmin user list follows active tenant');
+$check(str_contains($superPage->body(), 'admin-a') && substr_count($superPage->body(), 'rootadmin') === 1
+    && !str_contains($superPage->body(), 'admin-b') && !str_contains($superPage->body(), 'value="superadmin"'),
+    'superadmin user list contains only active tenant users');
 $_SERVER['HTTP_HOST'] = 'a.example.test';
 $app->auth()->login($adminA);
 $controller->store(new App\Core\Request('POST', '/users', [], [
@@ -92,13 +93,20 @@ $controller->store(new App\Core\Request('POST', '/users', [], [
     'username' => 'same-user', 'email' => '', 'role' => 'user', 'password' => 'new-password', 'enabled' => '1',
 ]));
 $check((int) $db->scalar("SELECT COUNT(*) FROM users WHERE username = 'same-user'") === 2, 'same username may exist in different tenants');
-$db->insert('extensions', ['tenant_id' => $tenantA, 'extension' => '1001', 'name' => 'A 1001', 'secret' => '1', 'enabled' => 1]);
-$db->insert('extensions', ['tenant_id' => $tenantB, 'extension' => '1001', 'name' => 'B 1001', 'secret' => '1', 'enabled' => 1]);
+// Exercise the real controller: the generic unique validator must receive
+// tenant_id before checking a number already used by another tenant.
+$extensions = new App\Controllers\ExtensionController();
+$extensions->store(new App\Core\Request('POST', '/extensions', [], [
+    'extension'=>'1001','name'=>'B 1001','secret'=>'1','enabled'=>'1',
+]));
+$_SERVER['HTTP_HOST'] = 'a.example.test';
+$app->auth()->login($adminA);
+$extensions->store(new App\Core\Request('POST', '/extensions', [], [
+    'extension'=>'1001','name'=>'A 1001','secret'=>'1','enabled'=>'1',
+]));
 $check((int) $db->scalar("SELECT COUNT(*) FROM extensions WHERE extension = '1001'") === 2,
     'same extension may exist in different tenants');
 
-$_SERVER['HTTP_HOST'] = 'a.example.test';
-$app->auth()->login($adminA);
 $request = new App\Core\Request('POST', '/users/' . $created['id'], [], [
     'tenant_id' => (string) $tenantB, 'email' => 'updated@example.test',
     'role' => 'user', 'enabled' => '1',
@@ -123,7 +131,13 @@ $customUser = $db->insert('users', [
 ]);
 $app->auth()->login($customUser);
 $check($app->auth()->can('cdr.view') && $app->auth()->can('cdr.delete')
-    && !$app->auth()->can('user.manage') && !$app->auth()->can('role.manage') && !$app->auth()->can('tenant.manage'),
+    && $app->auth()->can('user.manage') && $app->auth()->can('role.manage') && !$app->auth()->can('tenant.manage'),
     'custom role grants only selected safe permissions');
+$customUsers = new App\Controllers\UserController();
+$customUsers->store(new App\Core\Request('POST', '/users', [], [
+    'username'=>'forged-admin','role'=>'admin','password'=>'new-password','enabled'=>'1',
+]));
+$check((int)$db->scalar("SELECT COUNT(*) FROM users WHERE username='forged-admin'") === 0,
+    'custom user manager cannot create tenant admin');
 
 echo "All tenant authentication and role checks passed.\n";

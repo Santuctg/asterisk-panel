@@ -175,6 +175,8 @@ final class Auth
             'cdr.view' => 'View call history',
             'cdr.delete' => 'Delete call history',
             'call.listen' => 'Use live listen',
+            'user.manage' => 'Manage tenant users',
+            'role.manage' => 'Manage custom roles',
         ];
     }
 

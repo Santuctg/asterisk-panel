@@ -20,24 +20,14 @@ final class UserController extends BaseController
     {
         $tid = $this->tenantId();
 
-        if (auth()->isSuperAdmin()) {
-            $rows = $this->db()->all(
-                'SELECT u.*, t.name AS tenant_name, r.name AS role_name FROM users u
-                 LEFT JOIN tenants t ON t.id = u.tenant_id
-                 LEFT JOIN roles r ON r.tenant_id = u.tenant_id AND r.slug = u.role
-                 WHERE u.tenant_id = ? OR u.role = \'superadmin\' ORDER BY u.role = \'superadmin\' DESC, u.username', [$tid]
-            );
-            $tenants = $this->db()->all('SELECT id, name FROM tenants WHERE id = ? AND enabled = 1', [$tid]);
-        } else {
-            $rows = $this->db()->all(
-                'SELECT u.*, t.name AS tenant_name, r.name AS role_name FROM users u
-                 LEFT JOIN tenants t ON t.id = u.tenant_id
-                 LEFT JOIN roles r ON r.tenant_id = u.tenant_id AND r.slug = u.role
-                 WHERE u.tenant_id = ? ORDER BY u.username',
-                 [$tid]
-            );
-            $tenants = $this->db()->all('SELECT id, name FROM tenants WHERE id = ?', [$tid]);
-        }
+        $rows = $this->db()->all(
+            'SELECT u.*, t.name AS tenant_name, r.name AS role_name FROM users u
+             LEFT JOIN tenants t ON t.id = u.tenant_id
+             LEFT JOIN roles r ON r.tenant_id = u.tenant_id AND r.slug = u.role
+             WHERE u.tenant_id = ? ORDER BY u.username',
+             [$tid]
+        );
+        $tenants = $this->db()->all('SELECT id, name FROM tenants WHERE id = ?', [$tid]);
 
         return $this->view('users/index', [
             'rows' => $rows, 'tenants' => $tenants, 'roleOptions' => $this->roleOptions($tid),
@@ -66,8 +56,8 @@ final class UserController extends BaseController
             'password' => 'required|min:8',
         ]);
 
-        if (!auth()->isSuperAdmin() && $data['role'] === 'superadmin') {
-            Flash::error('Tenant admins cannot create super admins.');
+        if ($data['role'] === 'superadmin') {
+            Flash::error('Super admin accounts are not managed inside a tenant.');
             return Response::redirect('/users');
         }
 
@@ -77,19 +67,17 @@ final class UserController extends BaseController
             return Response::redirect('/users');
         }
 
-        if ($data['role'] === 'superadmin') {
-            $data['tenant_id'] = null;
-        } elseif (!$this->validTenantId($data['tenant_id'])) {
+        if (!$this->validTenantId($data['tenant_id'])) {
             Flash::error('User and admin roles must be assigned to an active tenant.');
             return Response::redirect('/users');
         }
-        if (!$this->validRole($data['role'], $data['tenant_id'])) {
+        if (!$this->canAssignRole($data['role'], $data['tenant_id'])) {
             Flash::error('Select a valid role for this tenant.');
             return Response::redirect('/users');
         }
-        $duplicate = $data['tenant_id'] === null
-            ? $this->db()->scalar('SELECT COUNT(*) FROM users WHERE tenant_id IS NULL AND username = ?', [$data['username']])
-            : $this->db()->scalar('SELECT COUNT(*) FROM users WHERE tenant_id = ? AND username = ?', [$data['tenant_id'], $data['username']]);
+        $duplicate = $this->db()->scalar(
+            'SELECT COUNT(*) FROM users WHERE tenant_id = ? AND username = ?', [$data['tenant_id'], $data['username']]
+        );
         if ($duplicate) {
             Flash::error('That username already exists in this tenant.');
             return Response::redirect('/users');
@@ -129,11 +117,9 @@ final class UserController extends BaseController
             return Response::redirect('/users');
         }
 
-        if (!auth()->isSuperAdmin()) {
-            if ($data['role'] === 'superadmin') {
-                Flash::error('Tenant admins cannot assign the super admin role.');
-                return Response::redirect('/users');
-            }
+        if ($data['role'] === 'superadmin') {
+            Flash::error('Super admin accounts are not managed inside a tenant.');
+            return Response::redirect('/users');
         }
 
         // Prevent locking yourself out / deactivating yourself.
@@ -142,23 +128,14 @@ final class UserController extends BaseController
             $data['role']   = $row['role'];
         }
 
-        if ($data['role'] === 'superadmin') {
-            $data['tenant_id'] = null;
-        } else {
-            $assignedTenant = $row['role'] === 'superadmin' ? $this->tenantId() : $row['tenant_id'];
-            if (!$this->validTenantId($assignedTenant)) {
-                Flash::error('User and admin roles must be assigned to an active tenant.');
-                return Response::redirect('/users');
-            }
-            $data['tenant_id'] = (int) $assignedTenant;
-        }
-        if (!$this->validRole($data['role'], $data['tenant_id'] ?? null)) {
-            Flash::error('Select a valid role for this tenant.');
+        $assignedTenant = $row['tenant_id'];
+        if (!$this->validTenantId($assignedTenant)) {
+            Flash::error('User and admin roles must be assigned to an active tenant.');
             return Response::redirect('/users');
         }
-
-        if ($this->wouldRemoveLastSuperAdmin($row, $data)) {
-            Flash::error('At least one active super admin account is required.');
+        $data['tenant_id'] = (int) $assignedTenant;
+        if (!$this->canAssignRole($data['role'], $data['tenant_id'])) {
+            Flash::error('Select a valid role for this tenant.');
             return Response::redirect('/users');
         }
 
@@ -196,12 +173,6 @@ final class UserController extends BaseController
             return Response::redirect('/users');
         }
 
-        if ($row['role'] === 'superadmin' && (int) $row['active'] === 1
-            && (int) $this->db()->scalar("SELECT COUNT(*) FROM users WHERE role = 'superadmin' AND active = 1") <= 1) {
-            Flash::error('At least one active super admin account is required.');
-            return Response::redirect('/users');
-        }
-
         $this->db()->delete('users', (int) $row['id']);
         $this->audit('user.delete', 'user', (int) $row['id'], ['username' => $row['username']]);
 
@@ -212,13 +183,16 @@ final class UserController extends BaseController
     private function findScoped(int $id): ?array
     {
         if (auth()->isSuperAdmin()) {
-            return $this->db()->one(
-                'SELECT * FROM users WHERE id = ? AND (tenant_id = ? OR role = \'superadmin\')',
-                [$id, $this->tenantId()]
-            );
+            return $this->db()->one('SELECT * FROM users WHERE id = ? AND tenant_id = ?', [$id, $this->tenantId()]);
         }
 
         $tid = $this->tenantId();
+        if (auth()->role() !== 'admin') {
+            return $this->db()->one(
+                "SELECT * FROM users WHERE id = ? AND tenant_id = ? AND role NOT IN ('admin', 'superadmin')",
+                [$id, $tid]
+            );
+        }
         return $this->db()->one('SELECT * FROM users WHERE id = ? AND tenant_id = ?', [$id, $tid]);
     }
 
@@ -228,34 +202,28 @@ final class UserController extends BaseController
             && (int) $this->db()->scalar('SELECT COUNT(*) FROM tenants WHERE id = ? AND enabled = 1', [(int) $tenantId]) === 1;
     }
 
-    private function validRole(string $role, mixed $tenantId): bool
+    private function canAssignRole(string $role, mixed $tenantId): bool
     {
-        if ($role === 'superadmin') { return auth()->isSuperAdmin() && $tenantId === null; }
-        if (in_array($role, ['user', 'admin'], true)) { return $this->validTenantId($tenantId); }
+        if ($role === 'superadmin') { return false; }
+        if ($role === 'admin') {
+            return in_array(auth()->role(), ['admin', 'superadmin'], true) && $this->validTenantId($tenantId);
+        }
+        if ($role === 'user') { return $this->validTenantId($tenantId); }
         return $this->validTenantId($tenantId)
             && (int) $this->db()->scalar('SELECT COUNT(*) FROM roles WHERE tenant_id = ? AND slug = ?', [(int) $tenantId, $role]) === 1;
     }
 
     private function roleOptions(?int $tenantId): array
     {
-        $options = ['user' => 'User', 'admin' => 'Tenant admin'];
+        $options = ['user' => 'User'];
+        if (in_array(auth()->role(), ['admin', 'superadmin'], true)) {
+            $options['admin'] = 'Tenant admin';
+        }
         if ($tenantId) {
             foreach ($this->db()->all('SELECT slug, name FROM roles WHERE tenant_id = ? ORDER BY name', [$tenantId]) as $role) {
                 $options[$role['slug']] = $role['name'];
             }
         }
-        if (auth()->isSuperAdmin()) { $options['superadmin'] = 'Super admin'; }
         return $options;
-    }
-
-    private function wouldRemoveLastSuperAdmin(array $row, array $data): bool
-    {
-        if ($row['role'] !== 'superadmin' || (int) $row['active'] !== 1) {
-            return false;
-        }
-        if (($data['role'] ?? $row['role']) === 'superadmin' && (int) ($data['active'] ?? $row['active']) === 1) {
-            return false;
-        }
-        return (int) $this->db()->scalar("SELECT COUNT(*) FROM users WHERE role = 'superadmin' AND active = 1") <= 1;
     }
 }

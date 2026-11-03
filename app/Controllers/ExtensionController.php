@@ -81,6 +81,9 @@ final class ExtensionController extends BaseController
         }
 
         $data = $this->collect($request, $tid);
+        // The unique validator needs the tenant scope before it runs. Without
+        // this, an extension number used by another tenant is rejected.
+        $data['tenant_id'] = $tid;
 
         $v = Validator::make($data, [
             'extension' => 'required|digits_between:2,6|unique:extensions,extension,,tenant_id',
@@ -89,8 +92,6 @@ final class ExtensionController extends BaseController
             'cid_number'=> 'nullable|digits_between:3,16',
             'ring_timeout' => 'nullable|integer',
         ]);
-        $data['tenant_id'] = $tid;
-
         if ($v->fails()) {
             $this->stashOld($request);
             Flash::error($v->firstError());
