@@ -190,6 +190,18 @@ final class ConfigGenerator
             $out .= "type = aor\n";
             $out .= "max_contacts = 1\n";
             $out .= "remove_existing = yes\n\n";
+
+            // A separate identity is used for normal browser calling. Keeping
+            // it distinct preserves the listen-only endpoint's restrictions.
+            $phone = $name . '-phone-web';
+            $out .= "[{$phone}]\n";
+            $out .= "type = endpoint\ntransport = panel-transport-ws\n";
+            $out .= "context = {$ctx}\nauth = {$phone}\naors = {$phone}\n";
+            $out .= "webrtc = yes\ndtls_auto_generate_cert = yes\ndirect_media = no\n";
+            $out .= "allow = !all,opus,ulaw,alaw\nidentify_by = username,auth_username\n\n";
+            $out .= "[{$phone}]\ntype = auth\nauth_type = userpass\n";
+            $out .= "username = {$phone}\npassword = {$this->esc($ext['secret'])}\n\n";
+            $out .= "[{$phone}]\ntype = aor\nmax_contacts = 1\nremove_existing = yes\n\n";
         }
 
         return $out;

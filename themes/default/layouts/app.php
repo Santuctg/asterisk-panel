@@ -23,6 +23,7 @@ $user = $auth->user();
     // Navigation structure: [label, href|children, ability|null, icon]
     $nav = [
         ['label' => 'Dashboard',    'href' => '/dashboard',      'icon' => 'grid',    'ability' => null],
+        ['label' => 'Web Phone',    'href' => '/web-phone',       'icon' => 'phone',   'ability' => null],
         ['label' => 'Extensions',   'href' => '/extensions',     'icon' => 'phone',   'ability' => 'extension.manage'],
         ['label' => 'Voicemail',    'href' => '/voicemail',      'icon' => 'mail',    'ability' => 'voicemail.manage'],
         ['label' => 'Devices',      'href' => '/devices',        'icon' => 'device',  'ability' => 'device.manage'],

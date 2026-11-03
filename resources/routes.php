@@ -18,7 +18,7 @@ use App\Controllers\{
     DeviceController, RingGroupController, ParkingController, IvrController,
     RouteController, MusicOnHoldController, CallCenterController,
     ConferenceController, CdrController, TenantController, UserController,
-    SystemController, SslController, ProvisionController, LiveListenController
+    SystemController, SslController, ProvisionController, LiveListenController, WebPhoneController
 };
 use App\Core\Auth;
 use App\Core\Csrf;
@@ -44,6 +44,9 @@ $router->get('/dashboard', [DashboardController::class, 'index'], $auth);
 $router->post('/dashboard/switch-tenant', [DashboardController::class, 'switchTenant'], array_merge($auth, $csrf));
 $router->get('/live-listen', [LiveListenController::class, 'index'], [Auth::require('call.listen')]);
 $router->post('/live-listen/start', [LiveListenController::class, 'start'], [Auth::require('call.listen'), Csrf::middleware(...)]);
+
+// Browser WebRTC softphone
+$router->get('/web-phone', [WebPhoneController::class, 'index'], $auth);
 
 // Extensions
 $router->get('/extensions', [ExtensionController::class, 'index'], $admin);
