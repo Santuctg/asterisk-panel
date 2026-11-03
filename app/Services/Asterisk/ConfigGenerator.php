@@ -64,6 +64,9 @@ final class ConfigGenerator
     /** Generate only the files affected by a given feature (faster reload). */
     public function generateFor(string $feature): array
     {
+        if ($feature === 'tenant') {
+            return $this->generateAll();
+        }
         $files = match ($feature) {
             'sip_port' => ['pjsip_port.conf' => $this->renderPjsipPort()],
             'extension', 'voicemail' => [
@@ -78,8 +81,12 @@ final class ConfigGenerator
             'moh'       => ['musiconhold.conf' => $this->renderMusicOnHold()],
             'conference'=> ['confbridge.conf' => $this->renderConfBridge(), 'dialplan.conf' => $this->renderDialplan()],
             'device'    => [], // provisioning is served live, no conf file
-            default     => $this->generateAll(),
+            default     => null,
         };
+
+        if ($files === null) {
+            return $this->generateAll();
+        }
 
         foreach ($files as $name => $content) {
             $this->write($name, $content);

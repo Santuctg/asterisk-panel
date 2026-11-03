@@ -1,4 +1,5 @@
 <?php
+require dirname(__DIR__) . '/partials/fields.php';
 $tenant=$ssl['tenant']; $registered=!empty($ssl['fulldomain']); $verified=!empty($ssl['cname_verified']);
 $status=$ssl['status']??'not_configured';
 ?>
