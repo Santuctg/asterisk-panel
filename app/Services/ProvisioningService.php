@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Core\App;
 use App\Core\Config;
+use App\Services\Asterisk\SipPort;
 use App\Support\Str;
 
 /**
@@ -171,7 +172,7 @@ final class ProvisioningService
             'SIP_AUTH'     => $sipUser,
             'DOMAIN'       => $ctx,
             'SIP_SERVER'   => $sipHost,
-            'SIP_PORT'     => Config::get('asterisk.sip_port', 5060),
+            'SIP_PORT'     => SipPort::configured(),
             'PROXY'        => $sipHost,
             'REGISTRAR'    => $sipHost,
             'NAME'         => $e['name'] ?? ($d['description'] ?? 'Phone'),

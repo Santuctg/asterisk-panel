@@ -44,6 +44,7 @@ final class ConfigGenerator
     {
         $written = [];
 
+        $written['pjsip_port.conf']       = $this->renderPjsipPort();
         $written['pjsip_endpoints.conf']  = $this->renderPjsipEndpoints();
         $written['pjsip_trunks.conf']     = $this->renderPjsipTrunks();
         $written['dialplan.conf']         = $this->renderDialplan();
@@ -64,6 +65,7 @@ final class ConfigGenerator
     public function generateFor(string $feature): array
     {
         $files = match ($feature) {
+            'sip_port' => ['pjsip_port.conf' => $this->renderPjsipPort()],
             'extension', 'voicemail' => [
                 'pjsip_endpoints.conf' => $this->renderPjsipEndpoints(),
                 'voicemail.conf'       => $this->renderVoicemail(),
@@ -116,6 +118,11 @@ final class ConfigGenerator
     // -----------------------------------------------------------------
     // PJSIP
     // -----------------------------------------------------------------
+
+    public function renderPjsipPort(): string
+    {
+        return 'bind = 0.0.0.0:' . SipPort::configured() . "\n";
+    }
 
     public function renderPjsipEndpoints(): string
     {

@@ -281,7 +281,7 @@ runuser -u www-data -- env \
     ASTERISK_RECORDING_DIR=/var/spool/asterisk/monitor/asterisk-panel \
     VM_MAILCMD="/usr/bin/php $INSTALL_DIR/scripts/asterisk-mail.php" \
     php "$INSTALL_DIR/scripts/apply-config.php"
-for generated in pjsip_endpoints.conf pjsip_trunks.conf dialplan.conf voicemail.conf queues.conf parking.conf musiconhold.conf confbridge.conf; do
+for generated in pjsip_port.conf pjsip_endpoints.conf pjsip_trunks.conf dialplan.conf voicemail.conf queues.conf parking.conf musiconhold.conf confbridge.conf; do
     [[ -s "/etc/asterisk/asterisk_panel/$generated" ]] || { echo "Missing generated Asterisk config: $generated" >&2; exit 1; }
 done
 chgrp -R asterisk /etc/asterisk/asterisk_panel

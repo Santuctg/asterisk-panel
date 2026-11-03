@@ -7,6 +7,7 @@ namespace App\Controllers;
 use App\Core\Flash;
 use App\Core\Request;
 use App\Core\Response;
+use App\Services\Asterisk\SipPort;
 
 /**
  * System pages: live Asterisk status, "apply config", panel settings and
@@ -94,6 +95,8 @@ final class SystemController extends BaseController
 
         return $this->view('system/settings', [
             'settings' => $this->loadSettings($tid),
+            'sipPort'  => SipPort::configured(),
+            'canChangeSipPort' => $this->app->auth()->isSuperAdmin(),
             'ami'      => [
                 'host'     => config('asterisk.ami.host', '127.0.0.1'),
                 'port'     => config('asterisk.ami.port', 5038),
@@ -111,6 +114,15 @@ final class SystemController extends BaseController
         if (!in_array($recordingMode, ['off', 'all', 'inbound', 'outbound'], true)) {
             Flash::error('The selected automatic recording mode is invalid.');
             return Response::redirect('/system/settings');
+        }
+        $sipPort = null;
+        if ($this->app->auth()->isSuperAdmin()) {
+            $sipPort = $request->str('sip_udp_port', (string) SipPort::DEFAULT);
+            if (!SipPort::valid($sipPort)) {
+                Flash::error('SIP UDP port must be 1024–65535, excluding the RTP range 10000–20000.');
+                return Response::redirect('/system/settings');
+            }
+            $this->saveGlobalSetting('sip_udp_port', $sipPort);
         }
 
         $keys = ['company_name', 'company_email', 'company_phone', 'outbound_cid_name',
@@ -141,8 +153,13 @@ final class SystemController extends BaseController
         }
 
         $this->audit('settings.update', 'settings', $tid);
-        $this->applyToAsterisk('route');
-        Flash::success('Settings saved.');
+        if ($this->app->auth()->isSuperAdmin()) {
+            $this->applyToAsterisk('sip_port');
+            Flash::success('Settings saved. SIP port configuration was regenerated; restart Asterisk to activate a changed listener port.');
+        } else {
+            $this->applyToAsterisk('route');
+            Flash::success('Settings saved.');
+        }
         return Response::redirect('/system/settings');
     }
 
@@ -195,5 +212,22 @@ final class SystemController extends BaseController
             $out[$r['key']] = $r['value'];
         }
         return $out;
+    }
+
+    private function saveGlobalSetting(string $key, string $value): void
+    {
+        $existing = $this->db()->one(
+            'SELECT id FROM settings WHERE key = ? AND tenant_id IS NULL ORDER BY id DESC LIMIT 1',
+            [$key]
+        );
+        $data = ['value' => $value, 'updated_at' => date('Y-m-d H:i:s')];
+        if ($existing) {
+            $this->db()->update('settings', (int) $existing['id'], $data);
+            return;
+        }
+        $this->db()->insert('settings', [
+            'tenant_id' => null, 'key' => $key, 'value' => $value,
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
     }
 }

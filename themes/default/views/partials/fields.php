@@ -14,12 +14,14 @@ if (!function_exists('field_text')) {
         $span       = !empty($opts['span']) ? ' span-2' : '';
         $autocomplete = $opts['autocomplete'] ?? 'off';
         $pattern    = isset($opts['pattern']) ? ' pattern="' . e($opts['pattern']) . '"' : '';
+        $min        = isset($opts['min']) ? ' min="' . e((string) $opts['min']) . '"' : '';
+        $max        = isset($opts['max']) ? ' max="' . e((string) $opts['max']) . '"' : '';
         $readonly   = !empty($opts['readonly']) ? ' readonly' : '';
 
         return '<div class="field' . $span . '">'
             . '<label for="' . e($name) . '">' . e($label) . '</label>'
             . '<input type="' . e($type) . '" id="' . e($name) . '" name="' . e($name) . '"'
-            . ' value="' . e($value) . '"' . $required . $placeholder . $pattern . $readonly
+            . ' value="' . e($value) . '"' . $required . $placeholder . $pattern . $min . $max . $readonly
             . ' autocomplete="' . e($autocomplete) . '">'
             . $hint
             . '</div>';

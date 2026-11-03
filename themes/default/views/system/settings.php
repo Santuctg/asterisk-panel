@@ -17,6 +17,19 @@ $s = static fn (string $k, string $d = '') => $settings[$k] ?? $d;
     </div>
 </div>
 
+<?php if (!empty($canChangeSipPort)): ?>
+<div class="card">
+    <div class="card-head"><h2>SIP listener</h2></div>
+    <div class="card-body">
+        <?php echo field_text('sip_udp_port', 'SIP UDP port', (string) ($sipPort ?? 5060), [
+            'type' => 'number', 'min' => 1024, 'max' => 65535,
+            'hint' => 'Global Asterisk PJSIP port. RTP uses 10000–20000, so that range is excluded. Existing phones must be updated after changing it.',
+        ]); ?>
+        <p class="hint mt-3 mb-0"><strong>Important:</strong> saving regenerates the configuration, but Asterisk must be restarted for a changed transport port to start listening. Update firewall rules and phone provisioning too.</p>
+    </div>
+</div>
+<?php endif; ?>
+
 <form method="post" action="/system/settings">
     <?= csrf() ?>
 
