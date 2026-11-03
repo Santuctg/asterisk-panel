@@ -205,7 +205,7 @@ install -d -o asterisk -g asterisk -m 0750 /var/spool/asterisk/monitor/asterisk-
 install -o root -g asterisk -m 0644 "$INSTALL_DIR/resources/deploy/asterisk/pjsip-base.conf" /etc/asterisk/asterisk_panel/pjsip_base.conf
 install -d -o root -g asterisk -m 0750 /etc/asterisk/manager.d
 cat >/etc/asterisk/manager.d/asterisk-panel.conf <<EOF
-[general]
+[general](+)
 enabled = yes
 webenabled = no
 bindaddr = 127.0.0.1
@@ -218,6 +218,7 @@ permit = 127.0.0.1/255.255.255.255
 read = all
 write = all
 EOF
+chown root:asterisk /etc/asterisk/manager.d/asterisk-panel.conf
 chmod 0640 /etc/asterisk/manager.d/asterisk-panel.conf
 
 ensure_include() {
@@ -228,7 +229,11 @@ ensure_include() {
     fi
 }
 
-ensure_include /etc/asterisk/manager.conf '#include manager.d/asterisk-panel.conf'
+# Ubuntu's stock manager.conf already includes manager.d/*.conf. Avoid
+# loading the same credentials twice when that wildcard is present.
+if ! grep -Eq '^[[:space:]]*#include[[:space:]]+"?manager\.d/\*\.conf"?[[:space:]]*$' /etc/asterisk/manager.conf; then
+    ensure_include /etc/asterisk/manager.conf '#include manager.d/asterisk-panel.conf'
+fi
 ensure_include /etc/asterisk/pjsip.conf '#include asterisk_panel/pjsip_base.conf'
 ensure_include /etc/asterisk/pjsip.conf '#include asterisk_panel/pjsip_endpoints.conf'
 ensure_include /etc/asterisk/pjsip.conf '#include asterisk_panel/pjsip_trunks.conf'
