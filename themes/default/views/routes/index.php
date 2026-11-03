@@ -243,7 +243,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                                     <td><?= $t['enabled'] ? '<span class="badge green">On</span>' : '<span class="badge gray">Off</span>' ?></td>
                                     <td class="actions">
                                         <button class="btn btn-sm" data-modal-open="trunkModal"
-                                                data-edit='<?= e(json_encode($t, JSON_HEX_APOS | JSON_HEX_QUOT)) ?>'>Edit</button>
+                                                data-edit='<?= e(json_encode(array_diff_key($t, ['secret' => true]), JSON_HEX_APOS | JSON_HEX_QUOT)) ?>'>Edit</button>
                                         <form method="post" action="/routes/trunks/<?= (int) $t['id'] ?>">
                                             <?= csrf() ?><input type="hidden" name="_method" value="DELETE">
                                             <button class="btn btn-sm btn-ghost" style="color:var(--danger-500)"
@@ -262,7 +262,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
 
         <div class="modal-overlay" id="trunkModal" hidden>
             <div class="modal">
-                <form method="post" action="/routes/trunks" id="trunkForm">
+                <form method="post" action="/routes/trunks" id="trunkForm" autocomplete="off">
                     <?= csrf() ?>
                     <div class="modal-head">
                         <h2 id="trunkTitle">Add trunk</h2>
@@ -272,9 +272,10 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                         <div class="form-grid">
                             <?php echo field_text('name', 'Trunk name', '', ['required' => true, 'span' => true]); ?>
                             <?php echo field_text('host', 'SIP host / proxy', '', ['required' => true, 'placeholder' => 'sip.provider.com']); ?>
-                            <?php echo field_text('username', 'Username / auth ID', ''); ?>
-                            <?php echo field_text('secret', 'Password', '', ['type' => 'password',
-                                'hint' => 'Leave blank when editing to keep the current password.']); ?>
+                            <?php echo field_text('sip_trunk_auth_id', 'Username / auth ID', '', ['autocomplete' => 'off']); ?>
+                            <?php echo field_text('sip_trunk_auth_secret', 'SIP trunk password', '', [
+                                'type' => 'password', 'autocomplete' => 'new-password',
+                                'hint' => 'Use your SIP provider password, not your panel login password. Leave blank when editing to keep the current password.']); ?>
                             <?php echo field_text('from_domain', 'From domain', '', ['hint' => 'Defaults to the host.']); ?>
                             <?php echo field_text('cid', 'Caller ID', '', ['placeholder' => 'Name <number>']); ?>
                             <?php echo field_text('register', 'Re-register every (seconds)', 300, ['type' => 'number']); ?>
@@ -394,7 +395,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
           checks: [['enabled',1]], label: 'outbound route' },
         { modal: 'trunkModal',    form: 'trunkForm',    title: 'trunkTitle',    submit: 'trunkSubmit',
           action: '/routes/trunks', editAction: function (id) { return '/routes/trunks/' + id; },
-          fields: ['name','host','username','from_domain','cid','register'],
+           fields: ['name','host','from_domain','cid','register'],
           checks: [['enabled',1]], label: 'trunk' },
         { modal: 'timeModal',     form: 'timeForm',     title: 'timeTitle',     submit: 'timeSubmit',
           action: '/routes/time', editAction: function (id) { return '/routes/time/' + id; },
@@ -416,10 +417,14 @@ $activeTab = $_GET['tab'] ?? 'inbound';
             title.textContent = 'Edit ' + cfg.label;
             submit.textContent = 'Save changes';
 
-            cfg.fields.forEach(function (k) {
-                var el = form.elements[k];
-                if (el && data[k] !== undefined && data[k] !== null) el.value = data[k];
-            });
+             cfg.fields.forEach(function (k) {
+                 var el = form.elements[k];
+                 if (el && data[k] !== undefined && data[k] !== null) el.value = data[k];
+             });
+             if (cfg.modal === 'trunkModal') {
+                 form.elements.sip_trunk_auth_id.value = data.username || '';
+                 form.elements.sip_trunk_auth_secret.value = '';
+             }
             cfg.checks.forEach(function (pair) {
                 var el = form.elements[pair[0]];
                 if (el) el.checked = Number(data[pair[0]]) === pair[1];
