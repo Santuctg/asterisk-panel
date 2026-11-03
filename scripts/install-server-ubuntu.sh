@@ -397,6 +397,15 @@ ignoreip = 127.0.0.1/8 ::1
 EOF
 systemctl enable --now fail2ban
 systemctl restart fail2ban
+# systemctl restart returns before fail2ban-server opens its control socket.
+# Wait briefly instead of failing a healthy installation on the first probe.
+for attempt in {1..30}; do
+    if fail2ban-client ping >/dev/null 2>&1; then
+        break
+    fi
+    sleep 1
+done
+fail2ban-client ping >/dev/null
 fail2ban-client status asterisk >/dev/null
 fail2ban-client status asterisk-panel-login >/dev/null
 
