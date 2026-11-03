@@ -120,7 +120,7 @@ final class Auth
                 'dashboard.view', 'extension.manage', 'voicemail.manage', 'device.manage',
                 'ringgroup.manage', 'parking.manage', 'ivr.manage', 'route.manage',
                 'moh.manage', 'callcenter.manage', 'conference.manage', 'cdr.view',
-                'tenant.view', 'user.manage',
+                'tenant.view', 'user.manage', 'call.listen',
             ],
             'user' => [
                 'dashboard.view', 'cdr.view',

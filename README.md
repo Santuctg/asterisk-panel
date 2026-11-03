@@ -17,6 +17,10 @@ Required PHP extensions: `pdo_sqlite` (or `pdo_mysql`), `mbstring`,
 
 ## Feature set
 
+Live call audio: tenant admins can use **Phone Listen** (Asterisk calls a
+supervisor extension) or **Browser Listen** (WebRTC over HTTPS/WSS). See
+[docs/live-listen.md](docs/live-listen.md) for requirements and verification.
+
 | Area | What you can do |
 |---|---|
 | **Authentication** | Login/logout, sessions, CSRF, roles, throttling, and Fail2ban protection for web/SIP attacks |

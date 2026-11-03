@@ -232,6 +232,13 @@ ensure_include /etc/asterisk/manager.conf '#include manager.d/asterisk-panel.con
 ensure_include /etc/asterisk/pjsip.conf '#include asterisk_panel/pjsip_base.conf'
 ensure_include /etc/asterisk/pjsip.conf '#include asterisk_panel/pjsip_endpoints.conf'
 ensure_include /etc/asterisk/pjsip.conf '#include asterisk_panel/pjsip_trunks.conf'
+cat >/etc/asterisk/asterisk_panel/http.conf <<'EOF'
+[general](+)
+enabled = yes
+bindaddr = 127.0.0.1
+bindport = 8088
+EOF
+ensure_include /etc/asterisk/http.conf '#include asterisk_panel/http.conf'
 ensure_include /etc/asterisk/extensions.conf '#include asterisk_panel/dialplan.conf'
 ensure_include /etc/asterisk/voicemail.conf '#include asterisk_panel/voicemail.conf'
 ensure_include /etc/asterisk/queues.conf '#include asterisk_panel/queues.conf'

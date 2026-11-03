@@ -159,6 +159,30 @@ final class ConfigGenerator
             $out .= "type = aor\n";
             $out .= "max_contacts = {$ext['max_registrations']}\n";
             $out .= "remove_existing = yes\n\n";
+
+            // Separate WebRTC identity. Never use the ordinary phone's endpoint
+            // for browser registration (different transport and media settings).
+            $web = $name . '-web';
+            $out .= "[{$web}]\n";
+            $out .= "type = endpoint\n";
+            $out .= "transport = panel-transport-ws\n";
+            $out .= "context = panel-listen-only\n";
+            $out .= "auth = {$web}\n";
+            $out .= "aors = {$web}\n";
+            $out .= "webrtc = yes\n";
+            $out .= "dtls_auto_generate_cert = yes\n";
+            $out .= "direct_media = no\n";
+            $out .= "allow = !all,opus,ulaw,alaw\n";
+            $out .= "identify_by = username,auth_username\n\n";
+            $out .= "[{$web}]\n";
+            $out .= "type = auth\n";
+            $out .= "auth_type = userpass\n";
+            $out .= "username = {$web}\n";
+            $out .= "password = {$this->esc($ext['secret'])}\n\n";
+            $out .= "[{$web}]\n";
+            $out .= "type = aor\n";
+            $out .= "max_contacts = 1\n";
+            $out .= "remove_existing = yes\n\n";
         }
 
         return $out;
@@ -346,6 +370,10 @@ final class ConfigGenerator
             $out .= $this->dialplanIvrContexts($tid, $ctx);
             $out .= $this->dialplanOutboundRoutes($tid, $ctx, $recordOutbound);
         }
+
+        // Browser identities may register but cannot dial arbitrary numbers.
+        $out .= "[panel-listen-only]\n";
+        $out .= "exten => _X.,1,Hangup()\n\n";
 
         return $out;
     }

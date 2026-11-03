@@ -45,6 +45,7 @@ if [[ ! "$DOMAIN" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ ]] || [[ "$DOMAIN
     echo "A valid --domain is required." >&2
     exit 2
 fi
+DOMAIN="${DOMAIN,,}"
 if [[ ! "$EMAIL" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]]; then
     echo "A valid --email is required." >&2
     exit 2

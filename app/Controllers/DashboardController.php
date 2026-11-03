@@ -42,8 +42,8 @@ final class DashboardController extends BaseController
             $online = $mgr->isOnline();
             if ($online) {
                 $astVersion    = $mgr->version()['version'] ?? 'unknown';
-                $activeChannels = $mgr->activeChannels();
-                $channels      = $mgr->channels(12);
+                $channels      = $tid ? $mgr->tenantChannels($tid, 12) : [];
+                $activeChannels = count($channels);
             }
         } catch (\Throwable $e) {
             \App\Core\Logger::info('Dashboard: Asterisk unavailable', ['error' => $e->getMessage()]);

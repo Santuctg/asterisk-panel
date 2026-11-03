@@ -103,6 +103,54 @@ final class AsteriskManager
         return $rows;
     }
 
+    /** Never display another tenant's endpoint channels to a tenant admin. */
+    public function tenantChannels(int $tenantId, int $limit = 25): array
+    {
+        $db = App::getInstance()->db();
+        $ctx = $db->scalar('SELECT context FROM tenants WHERE id = ? AND enabled = 1', [$tenantId]);
+        if (!$ctx) {
+            return [];
+        }
+        $safeCtx = preg_replace('/[^a-zA-Z0-9_]/', '_', (string) $ctx);
+        $extensions = $db->all('SELECT extension FROM extensions WHERE tenant_id = ? AND enabled = 1', [$tenantId]);
+        $prefixes = array_map(static fn ($row) => 'PJSIP/' . $safeCtx . '_' . $row['extension'] . '-', $extensions);
+        $rows = [];
+        foreach ($this->channels(200) as $channel) {
+            foreach ($prefixes as $prefix) {
+                if (str_starts_with($channel['name'], $prefix)) {
+                    $rows[] = $channel;
+                    break;
+                }
+            }
+            if (count($rows) >= $limit) {
+                break;
+            }
+        }
+        return $rows;
+    }
+
+    /** Machine-readable Asterisk snapshot. Do not authorize from the dashboard's CLI table. */
+    public function channelSnapshot(): array
+    {
+        return self::parseConciseChannels($this->ami->command('core show channels concise'));
+    }
+
+    public static function parseConciseChannels(string $out): array
+    {
+        $rows = [];
+        foreach (explode("\n", $out) as $line) {
+            $fields = explode('!', trim($line));
+            if (count($fields) >= 12 && preg_match('/^PJSIP\/[A-Za-z0-9_-]+-[a-fA-F0-9]+$/', $fields[0])) {
+                $rows[$fields[0]] = [
+                    'name' => $fields[0], 'context' => $fields[1],
+                    'caller' => $fields[7], 'duration' => $fields[10],
+                    'bridged' => $fields[11],
+                ];
+            }
+        }
+        return $rows;
+    }
+
     /** Parse `queue show` into a simple array. */
     function queueStatus(): array
     {

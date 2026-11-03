@@ -32,7 +32,7 @@ final class SystemController extends BaseController
             if ($online) {
                 $version  = $mgr->version();
                 $uptime   = $mgr->uptime()['raw'] ?? '';
-                $channels = $mgr->channels(30);
+                $channels = $this->tenantId() ? $mgr->tenantChannels($this->tenantId(), 30) : [];
                 $contacts = $mgr->contacts();
                 $confs    = $mgr->conferences();
                 $queues   = $mgr->queueStatus();

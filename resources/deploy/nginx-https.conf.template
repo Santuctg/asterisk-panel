@@ -42,6 +42,18 @@ server {
         try_files $uri $uri/ /index.php?$query_string;
     }
 
+    # Same-origin WSS for browser SIP. Asterisk HTTP listens on loopback only.
+    location = /ws {
+        if ($http_origin != "https://__DOMAIN__") { return 403; }
+        proxy_pass http://127.0.0.1:8088/ws;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header Origin $http_origin;
+        proxy_read_timeout 3600s;
+    }
+
     include /etc/nginx/snippets/asterisk-panel-recordings.conf;
 
     location = /index.php {

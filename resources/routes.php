@@ -18,7 +18,7 @@ use App\Controllers\{
     DeviceController, RingGroupController, ParkingController, IvrController,
     RouteController, MusicOnHoldController, CallCenterController,
     ConferenceController, CdrController, TenantController, UserController,
-    SystemController, SslController, ProvisionController
+    SystemController, SslController, ProvisionController, LiveListenController
 };
 use App\Core\Auth;
 use App\Core\Csrf;
@@ -42,6 +42,8 @@ $csrf    = [Csrf::middleware(...)];
 $router->get('/', [DashboardController::class, 'index'], $auth);
 $router->get('/dashboard', [DashboardController::class, 'index'], $auth);
 $router->post('/dashboard/switch-tenant', [DashboardController::class, 'switchTenant'], array_merge($auth, $csrf));
+$router->get('/live-listen', [LiveListenController::class, 'index'], [Auth::require('call.listen')]);
+$router->post('/live-listen/start', [LiveListenController::class, 'start'], [Auth::require('call.listen'), Csrf::middleware(...)]);
 
 // Extensions
 $router->get('/extensions', [ExtensionController::class, 'index'], $admin);

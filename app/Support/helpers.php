@@ -104,13 +104,19 @@ if (!function_exists('tenant_id')) {
     /** Active tenant for the current session (falls back to first tenant). */
     function tenant_id(): ?int
     {
+        $auth = auth();
+        $user = $auth->user();
+
+        // Only superadmins may switch tenants. A stale session must not
+        // override the tenant assigned to an ordinary user or tenant admin.
+        if ($user && !$auth->isSuperAdmin()) {
+            return !empty($user['tenant_id']) ? (int) $user['tenant_id'] : null;
+        }
+
         $tid = $_SESSION['active_tenant'] ?? null;
         if ($tid) {
             return (int) $tid;
         }
-
-        $auth = auth();
-        $user = $auth->user();
 
         if ($user && !empty($user['tenant_id'])) {
             return (int) $user['tenant_id'];

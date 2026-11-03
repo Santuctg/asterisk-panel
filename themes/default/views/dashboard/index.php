@@ -29,6 +29,9 @@ $tile = function (string $icon, string $tone, int|string $value, string $label, 
         <div class="subtitle">System overview and live status</div>
     </div>
     <div class="page-actions">
+        <?php if (auth()->can('call.listen')): ?>
+            <a href="/live-listen" class="btn">Live Listen</a>
+        <?php endif; ?>
         <a href="/extensions/create" class="btn btn-primary">
             <?= $this->fragment('icons/plus') ?> New extension
         </a>
