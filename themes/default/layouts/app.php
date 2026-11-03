@@ -38,6 +38,8 @@ $user = $auth->user();
         ['label' => 'Tenants',      'href' => '/tenants',        'icon' => 'building','ability' => 'tenant.view'],
         ['label' => 'Users',        'href' => '/users',          'icon' => 'user',    'ability' => 'user.manage'],
         ['label' => 'Roles',        'href' => '/roles',          'icon' => 'users',   'ability' => 'role.manage'],
+        ['label' => 'Global Admins','href' => '/global-admins',  'icon' => 'user',    'ability' => 'tenant.manage'],
+        ['label' => 'Fail2ban',      'href' => '/fail2ban',       'icon' => 'shield',  'ability' => 'tenant.manage'],
         ['label' => 'System',       'href' => '/system/status',  'icon' => 'cog',     'ability' => null,
             'children' => [
                 ['label' => 'Status',      'href' => '/system/status'],

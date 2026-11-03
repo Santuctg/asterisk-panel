@@ -17,7 +17,7 @@ use App\Controllers\{
     AuthController, DashboardController, ExtensionController, VoicemailController,
     DeviceController, RingGroupController, ParkingController, IvrController,
     RouteController, MusicOnHoldController, CallCenterController,
-    ConferenceController, CdrController, TenantController, UserController, RoleController,
+    ConferenceController, CdrController, TenantController, UserController, RoleController, GlobalAdminController, Fail2banController,
     SystemController, SslController, ProvisionController, LiveListenController, WebPhoneController, TenantSslController
 };
 use App\Core\Auth;
@@ -158,6 +158,15 @@ $router->get('/roles', [RoleController::class, 'index'], [Auth::require('role.ma
 $router->post('/roles', [RoleController::class, 'store'], [Auth::require('role.manage'), Csrf::middleware(...)]);
 $router->post('/roles/{id}', [RoleController::class, 'update'], [Auth::require('role.manage'), Csrf::middleware(...)]);
 $router->delete('/roles/{id}', [RoleController::class, 'destroy'], [Auth::require('role.manage'), Csrf::middleware(...)]);
+
+// Global control-plane accounts and host security (superadmin only)
+$router->get('/global-admins', [GlobalAdminController::class, 'index'], [Auth::require('tenant.manage')]);
+$router->post('/global-admins', [GlobalAdminController::class, 'store'], [Auth::require('tenant.manage'), Csrf::middleware(...)]);
+$router->post('/global-admins/{id}', [GlobalAdminController::class, 'update'], [Auth::require('tenant.manage'), Csrf::middleware(...)]);
+$router->delete('/global-admins/{id}', [GlobalAdminController::class, 'destroy'], [Auth::require('tenant.manage'), Csrf::middleware(...)]);
+$router->get('/fail2ban', [Fail2banController::class, 'index'], [Auth::require('tenant.manage')]);
+$router->post('/fail2ban/ban', [Fail2banController::class, 'ban'], [Auth::require('tenant.manage'), Csrf::middleware(...)]);
+$router->post('/fail2ban/unban', [Fail2banController::class, 'unban'], [Auth::require('tenant.manage'), Csrf::middleware(...)]);
 
 // System: status, apply config, settings, audit log
 $router->get('/system/status', [SystemController::class, 'status'], $auth);
