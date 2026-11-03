@@ -3,6 +3,7 @@
 require dirname(__DIR__) . '/partials/fields.php';
 
 $registered = !empty($ssl['domain']) && !empty($ssl['fulldomain']);
+$installedCertificate = !empty($ssl['certificate_present']);
 $verified = !empty($ssl['cname_verified']);
 $active = ($ssl['status'] ?? '') === 'active';
 $status = $ssl['status'] ?? 'not_configured';
@@ -62,7 +63,16 @@ $statusClass = match ($status) {
     </div>
 </div>
 
-<?php if (!$registered): ?>
+<?php if (!$registered && $installedCertificate): ?>
+    <div class="card">
+        <div class="card-head"><h2>HTTPS is already active</h2><span class="badge green"><span class="dot"></span>Installed</span></div>
+        <div class="card-body">
+            <p class="muted mt-0">A valid certificate for <strong><?= e($ssl['certificate_domain'] ?? $ssl['domain']) ?></strong> is already installed and served by Nginx.</p>
+            <?php if (!empty($ssl['certificate_expiry'])): ?><p class="hint mb-0">Certificate expiry: <?= e($ssl['certificate_expiry']) ?></p><?php endif; ?>
+            <p class="hint mb-0">Hosted ACME-DNS registration is not required for the currently active certificate.</p>
+        </div>
+    </div>
+<?php elseif (!$registered): ?>
     <form method="post" action="/system/ssl/register" class="card">
         <?= csrf() ?>
         <div class="card-head"><h2>1. Register the domain</h2></div>

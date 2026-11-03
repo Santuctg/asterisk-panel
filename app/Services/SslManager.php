@@ -22,9 +22,39 @@ final class SslManager
     public function publicState(): array
     {
         $state = $this->readState();
+        $this->mergeInstalledCertificate($state);
         unset($state['username'], $state['password'], $state['subdomain']);
         $state['helper_ready'] = $this->helperReady();
         return $state;
+    }
+
+    /** Recognize certificates installed by the server installer too. */
+    private function mergeInstalledCertificate(array &$state): void
+    {
+        $url = (string) Config::get('app.url', '');
+        $domain = strtolower((string) parse_url($url, PHP_URL_HOST));
+        if ($domain === '' || !preg_match('/^(?:[a-z0-9-]+\.)+[a-z]{2,63}$/', $domain)) {
+            return;
+        }
+        $cert = "/etc/letsencrypt/live/{$domain}/fullchain.pem";
+        if (!is_readable($cert)) {
+            return;
+        }
+        $state['certificate_present'] = true;
+        $state['certificate_domain'] = $domain;
+        $state['certificate_expiry'] ??= null;
+        if (function_exists('openssl_x509_parse')) {
+            $parsed = @openssl_x509_parse((string) file_get_contents($cert));
+            if (is_array($parsed) && !empty($parsed['validTo_time_t'])) {
+                $state['certificate_expiry'] = date(DATE_ATOM, (int) $parsed['validTo_time_t']);
+            }
+        }
+        if (empty($state['domain'])) {
+            $state['domain'] = $domain;
+        }
+        if (empty($state['status']) || $state['status'] === 'not_configured') {
+            $state['status'] = 'active';
+        }
     }
 
     public function register(string $domain, string $email): array
