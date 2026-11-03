@@ -61,6 +61,7 @@ $timezoneOpts = timezone_options();
                                         : '<span class="badge gray"><span class="dot"></span>Disabled</span>' ?>
                                 </td>
                                 <td class="actions">
+                                    <?php if (!empty($t['domain'])): ?><a class="btn btn-sm" href="/tenants/<?= (int)$t['id'] ?>/ssl">SSL</a><?php endif; ?>
                                     <button class="btn btn-sm" data-modal-open="tenantModal"
                                             data-edit='<?= e(json_encode($t, JSON_HEX_APOS | JSON_HEX_QUOT)) ?>'>Edit</button>
                                     <form method="post" action="/tenants/<?= (int) $t['id'] ?>">

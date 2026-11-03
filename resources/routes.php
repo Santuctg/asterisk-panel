@@ -18,7 +18,7 @@ use App\Controllers\{
     DeviceController, RingGroupController, ParkingController, IvrController,
     RouteController, MusicOnHoldController, CallCenterController,
     ConferenceController, CdrController, TenantController, UserController,
-    SystemController, SslController, ProvisionController, LiveListenController, WebPhoneController
+    SystemController, SslController, ProvisionController, LiveListenController, WebPhoneController, TenantSslController
 };
 use App\Core\Auth;
 use App\Core\Csrf;
@@ -139,6 +139,11 @@ $router->get('/tenants', [TenantController::class, 'index'], [Auth::require('ten
 $router->post('/tenants', [TenantController::class, 'store'], [Auth::require('tenant.manage'), Csrf::middleware(...)]);
 $router->post('/tenants/{id}', [TenantController::class, 'update'], [Auth::require('tenant.manage'), Csrf::middleware(...)]);
 $router->delete('/tenants/{id}', [TenantController::class, 'destroy'], [Auth::require('tenant.manage'), Csrf::middleware(...)]);
+$router->get('/tenants/{id}/ssl', [TenantSslController::class, 'index'], [Auth::require('tenant.manage')]);
+$router->post('/tenants/{id}/ssl/register', [TenantSslController::class, 'register'], [Auth::require('tenant.manage'), Csrf::middleware(...)]);
+$router->post('/tenants/{id}/ssl/verify', [TenantSslController::class, 'verify'], [Auth::require('tenant.manage'), Csrf::middleware(...)]);
+$router->post('/tenants/{id}/ssl/issue', [TenantSslController::class, 'issue'], [Auth::require('tenant.manage'), Csrf::middleware(...)]);
+$router->post('/tenants/{id}/ssl/reset', [TenantSslController::class, 'reset'], [Auth::require('tenant.manage'), Csrf::middleware(...)]);
 
 // Users (admin+)
 $router->get('/users', [UserController::class, 'index'], [Auth::require('user.manage')]);

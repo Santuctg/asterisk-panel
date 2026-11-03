@@ -55,6 +55,7 @@ install -o root -g root -m 0755 "$SCRIPT_DIR/acme-dns-ssl-helper.sh" /usr/local/
 install -o root -g root -m 0755 "$SCRIPT_DIR/acme-dns-auth-hook.sh" /usr/local/lib/asterisk-panel/acme-dns-auth
 install -o root -g root -m 0755 "$SCRIPT_DIR/acme-dns-cleanup-hook.sh" /usr/local/lib/asterisk-panel/acme-dns-cleanup
 install -o root -g root -m 0644 "$APP_ROOT/resources/deploy/nginx-https.conf.template" /usr/local/lib/asterisk-panel/nginx-https.conf.template
+install -o root -g root -m 0644 "$APP_ROOT/resources/deploy/nginx-tenant-https.conf.template" /usr/local/lib/asterisk-panel/nginx-tenant-https.conf.template
 install -o root -g root -m 0644 "$APP_ROOT/resources/deploy/nginx-recordings.conf" /etc/nginx/snippets/asterisk-panel-recordings.conf
 
 # Upgrade an older panel-generated site without replacing its certificate paths.
@@ -74,7 +75,9 @@ chown root:root /etc/asterisk-panel/ssl-helper.conf
 SUDOERS=/etc/sudoers.d/asterisk-panel-ssl
 cat >"$SUDOERS" <<EOF
 Cmnd_Alias ASTERISK_PANEL_SSL = /usr/local/sbin/asterisk-panel-ssl issue
+Cmnd_Alias ASTERISK_PANEL_TENANT_SSL = /usr/local/sbin/asterisk-panel-ssl issue-tenant *
 ${WEB_USER} ALL=(root) NOPASSWD: ASTERISK_PANEL_SSL
+${WEB_USER} ALL=(root) NOPASSWD: ASTERISK_PANEL_TENANT_SSL
 EOF
 chmod 0440 "$SUDOERS"
 visudo -cf "$SUDOERS"

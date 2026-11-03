@@ -63,6 +63,10 @@ final class TenantController extends BaseController
             Flash::error($v->firstError() ?? 'The selected timezone is invalid.');
             return Response::redirect('/tenants');
         }
+        if ($data['domain'] !== '' && $this->db()->scalar('SELECT COUNT(*) FROM tenants WHERE LOWER(domain) = LOWER(?)', [$data['domain']])) {
+            Flash::error('That domain is already assigned to another tenant.');
+            return Response::redirect('/tenants');
+        }
 
         $id = $this->db()->insert('tenants', $data);
 
@@ -95,6 +99,12 @@ final class TenantController extends BaseController
         $v = Validator::make($data, ['name' => 'required|max:120']);
         if ($v->fails() || !is_valid_timezone($data['timezone'])) {
             Flash::error($v->firstError() ?? 'The selected timezone is invalid.');
+            return Response::redirect('/tenants');
+        }
+        if ($data['domain'] !== '' && $this->db()->scalar(
+            'SELECT COUNT(*) FROM tenants WHERE id <> ? AND LOWER(domain) = LOWER(?)', [(int) $row['id'], $data['domain']]
+        )) {
+            Flash::error('That domain is already assigned to another tenant.');
             return Response::redirect('/tenants');
         }
 

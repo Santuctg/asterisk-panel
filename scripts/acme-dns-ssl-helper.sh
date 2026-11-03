@@ -3,15 +3,24 @@ set -Eeuo pipefail
 umask 077
 
 [[ ${EUID} -eq 0 ]] || { echo "This helper must run as root." >&2; exit 1; }
-[[ "${1:-}" == "issue" && $# -eq 1 ]] || { echo "Usage: asterisk-panel-ssl issue" >&2; exit 2; }
+MODE="${1:-}"
+if [[ "$MODE" == issue && $# -eq 1 ]]; then
+    STATE_NAME=acme-dns.json
+elif [[ "$MODE" == issue-tenant && $# -eq 2 && "${2:-}" =~ ^[1-9][0-9]*$ ]]; then
+    STATE_NAME="tenant-${2}.json"
+else
+    echo "Usage: asterisk-panel-ssl issue | issue-tenant TENANT_ID" >&2; exit 2
+fi
 [[ -f /etc/asterisk-panel/ssl-helper.conf && ! -L /etc/asterisk-panel/ssl-helper.conf ]] || { echo "Helper configuration is missing." >&2; exit 1; }
 source /etc/asterisk-panel/ssl-helper.conf
 
-STATE_FILE="${APP_ROOT}/storage/acme/acme-dns.json"
+STATE_FILE="${APP_ROOT}/storage/acme/${STATE_NAME}"
 TEMPLATE=/usr/local/lib/asterisk-panel/nginx-https.conf.template
+if [[ "$MODE" == issue-tenant ]]; then TEMPLATE=/usr/local/lib/asterisk-panel/nginx-tenant-https.conf.template; fi
 AUTH_HOOK=/usr/local/lib/asterisk-panel/acme-dns-auth
 CLEANUP_HOOK=/usr/local/lib/asterisk-panel/acme-dns-cleanup
 SITE=/etc/nginx/sites-available/asterisk-panel
+if [[ "$MODE" == issue-tenant ]]; then SITE="/etc/nginx/sites-available/asterisk-panel-tenant-${2}"; fi
 
 [[ -f "$STATE_FILE" && ! -L "$STATE_FILE" ]] || { echo "Secure ACME-DNS registration is missing." >&2; exit 1; }
 [[ -f "$TEMPLATE" && ! -L "$TEMPLATE" ]] || { echo "Nginx template is missing." >&2; exit 1; }
@@ -62,7 +71,9 @@ sed \
     "$TEMPLATE" >"${SITE}.tmp"
 install -o root -g root -m 0644 "${SITE}.tmp" "$SITE"
 rm -f "${SITE}.tmp"
-ln -sfn "$SITE" /etc/nginx/sites-enabled/asterisk-panel
+ENABLED_NAME=asterisk-panel
+if [[ "$MODE" == issue-tenant ]]; then ENABLED_NAME="asterisk-panel-tenant-${2}"; fi
+ln -sfn "$SITE" "/etc/nginx/sites-enabled/${ENABLED_NAME}"
 mkdir -p /var/www/letsencrypt/.well-known/acme-challenge
 
 nginx -t

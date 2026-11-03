@@ -2,8 +2,18 @@
 set -Eeuo pipefail
 
 source /etc/asterisk-panel/ssl-helper.conf
-STATE_FILE="${APP_ROOT}/storage/acme/acme-dns.json"
-[[ -f "$STATE_FILE" && ! -L "$STATE_FILE" ]] || { echo "Secure ACME-DNS state is missing." >&2; exit 1; }
+STATE_FILE="$(python3 - "${APP_ROOT}/storage/acme" "$CERTBOT_DOMAIN" <<'PY'
+import glob, json, os, sys
+matches=[]
+for path in glob.glob(os.path.join(sys.argv[1], "acme-dns.json"))+glob.glob(os.path.join(sys.argv[1], "tenant-*.json")):
+    try:
+        with open(path, encoding="utf-8") as handle: state=json.load(handle)
+        if state.get("domain") == sys.argv[2]: matches.append(path)
+    except (OSError, ValueError): pass
+if len(matches)==1: print(matches[0])
+PY
+)"
+[[ -n "$STATE_FILE" && -f "$STATE_FILE" && ! -L "$STATE_FILE" ]] || { echo "Unique secure ACME-DNS state is missing." >&2; exit 1; }
 
 mapfile -t ACME < <(python3 - "$STATE_FILE" <<'PY'
 import json, sys
