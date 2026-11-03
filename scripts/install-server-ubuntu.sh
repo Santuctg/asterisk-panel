@@ -288,12 +288,31 @@ chgrp -R asterisk /etc/asterisk/asterisk_panel
 find /etc/asterisk/asterisk_panel -type f -exec chmod 0640 {} +
 
 echo "[8/11] Starting Asterisk..."
+# The panel only configures PJSIP; avoid exposing unused IAX2 (UDP 4569).
+if [[ -f /etc/asterisk/modules.conf ]] && ! grep -qE '^[[:space:]]*noload[[:space:]]*=>[[:space:]]*chan_iax2\.so' /etc/asterisk/modules.conf; then
+    cp -an /etc/asterisk/modules.conf /etc/asterisk/modules.conf.pre-panel-iax
+    sed -i '/^autoload=yes/a noload => chan_iax2.so' /etc/asterisk/modules.conf
+fi
+# Ubuntu also autoloads chan_sip, which otherwise claims the SIP WebSocket
+# protocol before PJSIP and leaves res_pjsip_transport_websocket declined.
+# Keep chan_sip available for existing installations, but give WS to PJSIP.
+if [[ -f /etc/asterisk/sip.conf ]]; then
+    cp -an /etc/asterisk/sip.conf /etc/asterisk/sip.conf.pre-panel-websocket
+    if grep -qE '^[[:space:]]*websocket_enabled[[:space:]]*=' /etc/asterisk/sip.conf; then
+        sed -i -E 's/^[[:space:]]*websocket_enabled[[:space:]]*=.*/websocket_enabled = false/' /etc/asterisk/sip.conf
+    else
+        sed -i '/^\[general\]/a websocket_enabled = false' /etc/asterisk/sip.conf
+    fi
+fi
 systemctl enable asterisk
 systemctl restart asterisk
 sleep 2
 systemctl is-active --quiet asterisk || { journalctl -u asterisk -n 80 --no-pager; exit 1; }
 asterisk -rx 'core show version'
 asterisk -rx 'manager show settings' >/dev/null
+asterisk -rx 'module show like res_pjsip_transport_websocket' | grep -qE 'res_pjsip_transport_websocket\.so.*Running' || {
+    echo 'PJSIP WebSocket transport is not running' >&2; exit 1;
+}
 
 install -d -o asterisk -g asterisk -m 0750 /var/log/asterisk/cdr-csv
 touch /var/log/asterisk/cdr-csv/Master.csv
@@ -381,6 +400,7 @@ cat >/etc/fail2ban/jail.d/asterisk-panel.local <<EOF
 [asterisk]
 enabled = true
 filter = asterisk
+backend = polling
 port = 5060,5061
 protocol = all
 logpath = /var/log/asterisk/security
@@ -392,6 +412,7 @@ ignoreip = 127.0.0.1/8 ::1
 [asterisk-panel-login]
 enabled = true
 filter = asterisk-panel-login
+backend = polling
 port = http,https
 protocol = tcp
 logpath = ${INSTALL_DIR}/storage/logs/app-*.log
