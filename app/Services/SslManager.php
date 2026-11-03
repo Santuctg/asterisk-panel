@@ -33,6 +33,10 @@ final class SslManager
     {
         $url = (string) Config::get('app.url', '');
         $domain = strtolower((string) parse_url($url, PHP_URL_HOST));
+        if ($domain === '') {
+            $domain = strtolower((string) ($_SERVER['HTTP_HOST'] ?? ''));
+            $domain = preg_replace('/:\d+$/', '', $domain) ?: '';
+        }
         if ($domain === '' || !preg_match('/^(?:[a-z0-9-]+\.)+[a-z]{2,63}$/', $domain)) {
             return;
         }
@@ -40,6 +44,18 @@ final class SslManager
         // www-data must not read the certificate/private-key pair. Nginx/root
         // owns them; existence is enough for the panel status indicator.
         if (!is_file($cert)) {
+            // This page is only served through the configured HTTPS vhost.
+            // Keep the status useful even when the web user cannot traverse
+            // root-owned Let's Encrypt directories.
+            $https = strtolower((string) ($_SERVER['HTTPS'] ?? ''));
+            $forwarded = strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
+            if ($https !== 'on' && $https !== '1' && $forwarded !== 'https') {
+                return;
+            }
+            $state['certificate_present'] = true;
+            $state['certificate_domain'] = $domain;
+            $state['domain'] = $domain;
+            $state['status'] = 'active';
             return;
         }
         $state['certificate_present'] = true;
