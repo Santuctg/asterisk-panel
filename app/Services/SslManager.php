@@ -37,13 +37,15 @@ final class SslManager
             return;
         }
         $cert = "/etc/letsencrypt/live/{$domain}/fullchain.pem";
-        if (!is_readable($cert)) {
+        // www-data must not read the certificate/private-key pair. Nginx/root
+        // owns them; existence is enough for the panel status indicator.
+        if (!is_file($cert)) {
             return;
         }
         $state['certificate_present'] = true;
         $state['certificate_domain'] = $domain;
         $state['certificate_expiry'] ??= null;
-        if (function_exists('openssl_x509_parse')) {
+        if (is_readable($cert) && function_exists('openssl_x509_parse')) {
             $parsed = @openssl_x509_parse((string) file_get_contents($cert));
             if (is_array($parsed) && !empty($parsed['validTo_time_t'])) {
                 $state['certificate_expiry'] = date(DATE_ATOM, (int) $parsed['validTo_time_t']);
