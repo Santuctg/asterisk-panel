@@ -75,6 +75,16 @@ For Apache, point the document root at `public/` (the included `.htaccess`
 handles rewriting). For nginx, use the standard `try_files $uri $uri/ /index.php?$query_string;`
 and set the root to `public/`.
 
+### cPanel / shared hosting
+
+The PHP panel runs on cPanel as-is — see
+**[docs/cpanel-install.md](docs/cpanel-install.md)** for the full walkthrough
+(upload, document root → `public/`, `.env` config, `php scripts/install.php`,
+AutoSSL, CDR cron). Short version: point the domain at `public/`, copy
+`.env.example` to `.env`, run `php scripts/install.php`. Asterisk itself
+(dialplan apply, AMI, recording capture, Fail2ban) still needs a rooted
+server — usually a separate VPS the panel connects to over AMI.
+
 ### Production HTTPS
 
 The recommended setup is available inside the panel at **System → SSL / HTTPS**.

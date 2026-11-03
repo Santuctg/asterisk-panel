@@ -87,11 +87,27 @@ final class CdrController extends BaseController
             return Response::text('Recording not found.', 404);
         }
 
-        return (new Response('', 200, [
+        // Nginx serves the file after this authorization check via an internal
+        // redirect. Apache/cPanel has no X-Accel-Redirect, so PHP streams the
+        // already-authorized file itself. ASTERISK_X_ACCEL=0/1 forces either.
+        $xAccelEnv = getenv('ASTERISK_X_ACCEL');
+        $useAccel = $xAccelEnv !== false
+            ? filter_var($xAccelEnv, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE) ?? true
+            : str_contains(strtolower((string) ($_SERVER['SERVER_SOFTWARE'] ?? '')), 'nginx');
+
+        if ($useAccel) {
+            return (new Response('', 200, [
+                'Content-Type'        => 'audio/wav',
+                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                'X-Accel-Redirect'    => '/_protected/recordings/' . rawurlencode($filename),
+                'X-Content-Type-Options' => 'nosniff',
+            ]));
+        }
+
+        return Response::file($file, [
             'Content-Type'        => 'audio/wav',
             'Content-Disposition' => 'attachment; filename="' . $filename . '"',
-            'X-Accel-Redirect'    => '/_protected/recordings/' . rawurlencode($filename),
             'X-Content-Type-Options' => 'nosniff',
-        ]));
+        ]);
     }
 }

@@ -11,6 +11,36 @@ App\Core\Autoloader::register(dirname(__DIR__));
 require __DIR__ . '/Support/helpers.php';
 
 // ---------------------------------------------------------------------
+// Optional .env file (cPanel/shared hosting friendly)
+//
+// Real environment variables always win; the file only fills in keys that
+// are not already set. Format: KEY=value, one per line, # comments allowed.
+// ---------------------------------------------------------------------
+$envFile = dirname(__DIR__) . '/.env';
+if (is_readable($envFile)) {
+    foreach (file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
+        $line = trim($line);
+        if ($line === '' || $line[0] === '#') {
+            continue;
+        }
+        if (!str_contains($line, '=')) {
+            continue;
+        }
+        [$key, $value] = explode('=', $line, 2);
+        $key = trim($key);
+        if ($key === '' || getenv($key) !== false) {
+            continue;
+        }
+        $value = trim($value);
+        if (strlen($value) > 1 && ($value[0] === '"' || $value[0] === "'") && str_ends_with($value, $value[0])) {
+            $value = substr($value, 1, -1);
+        }
+        putenv("{$key}={$value}");
+        $_ENV[$key] = $value;
+    }
+}
+
+// ---------------------------------------------------------------------
 // Error / exception handling
 // ---------------------------------------------------------------------
 $debugValue = getenv('APP_DEBUG');

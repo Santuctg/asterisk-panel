@@ -9,6 +9,9 @@ namespace App\Core;
  */
 final class Response
 {
+    /** Optional local file to stream instead of an in-memory body. */
+    private ?string $filePath = null;
+
     public function __construct(
         private string $body = '',
         private int $status = 200,
@@ -45,6 +48,18 @@ final class Response
         return new self('', $status, ['Location' => $to]);
     }
 
+    /**
+     * Stream a local file as the response body. Used when the web server
+     * cannot hand the file off (e.g. Apache/cPanel has no X-Accel-Redirect),
+     * so PHP serves the already-authorized file itself.
+     */
+    public static function file(string $path, array $headers = []): self
+    {
+        $response = new self('', 200, $headers);
+        $response->filePath = $path;
+        return $response;
+    }
+
     public function withHeader(string $name, string $value): self
     {
         $this->headers[$name] = $value;
@@ -56,6 +71,13 @@ final class Response
         http_response_code($this->status);
         foreach ($this->headers as $name => $value) {
             header($name . ': ' . $value);
+        }
+        if ($this->filePath !== null) {
+            if (!isset($this->headers['Content-Length']) && is_file($this->filePath)) {
+                header('Content-Length: ' . (string) filesize($this->filePath));
+            }
+            readfile($this->filePath);
+            return;
         }
         echo $this->body;
     }
