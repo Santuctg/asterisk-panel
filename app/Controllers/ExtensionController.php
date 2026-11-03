@@ -85,7 +85,7 @@ final class ExtensionController extends BaseController
         $v = Validator::make($data, [
             'extension' => 'required|digits_between:2,6|unique:extensions,extension,,tenant_id',
             'name'      => 'required|max:120',
-            'secret'    => 'required|min:8|max:128',
+            'secret'    => 'required',
             'cid_number'=> 'nullable|digits_between:3,16',
             'ring_timeout' => 'nullable|integer',
         ]);
@@ -162,7 +162,7 @@ final class ExtensionController extends BaseController
         $v = Validator::make($data + ['id' => $row['id']], [
             'extension' => 'required|digits_between:2,6',
             'name'      => 'required|max:120',
-            'secret'    => 'required|min:8|max:128',
+            'secret'    => 'required',
         ]);
 
         if ($v->fails()) {

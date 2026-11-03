@@ -65,7 +65,7 @@ $val    = static fn (string $key, $default = '') => $row[$key] ?? old($key, $def
                 $secretVal = $isNew ? '' : $row['secret'];
                 echo field_text('secret', 'SIP password', $secretVal, [
                     'required' => true,
-                    'hint'     => 'The phone authenticates with this. Leave blank on edit to keep the current one.',
+                    'hint'     => 'Any non-empty password is accepted. The phone must use this exact value.',
                 ]);
                 ?>
                 <div class="field">
