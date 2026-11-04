@@ -38,3 +38,23 @@ foreach ([
     }
     echo 'PASS: ' . $description . PHP_EOL;
 }
+
+$extension = $db->insert('extensions', [
+    'tenant_id' => $tenant, 'extension' => '201', 'name' => 'Desk 201', 'secret' => 'test-secret', 'enabled' => 1,
+]);
+$ringGroup = $db->insert('ring_groups', [
+    'tenant_id' => $tenant, 'extension' => '600', 'name' => 'Sales', 'enabled' => 1,
+]);
+$db->insert('ring_group_members', ['ring_group_id' => $ringGroup, 'extension_id' => $extension, 'ordering' => 0]);
+$_GET['tab'] = 'inbound';
+$html = (new App\Controllers\RouteController())->index(new App\Core\Request('GET', '/routes'))->body();
+foreach ([
+    [str_contains($html, 'data-type="extension"') && str_contains($html, '201 — Desk 201'), 'extension destination group renders'],
+    [str_contains($html, 'data-type="ringgroup"') && str_contains($html, '600 — Sales'), 'ring group destination group renders'],
+    [str_contains($html, 'destination.replaceChildren()'), 'destination selector rebuilds by selected type'],
+] as [$ok, $description]) {
+    if (!$ok) {
+        throw new RuntimeException('FAIL: ' . $description);
+    }
+    echo 'PASS: ' . $description . PHP_EOL;
+}

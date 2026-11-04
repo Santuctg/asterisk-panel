@@ -378,15 +378,28 @@ $activeTab = $_GET['tab'] ?? 'inbound';
         var destination = form.elements[destinationName];
         if (!type || !destination) return;
 
+        var placeholder = destination.querySelector('option[value=""]');
+        placeholder = placeholder ? placeholder.cloneNode(true) : null;
+        var groups = {};
+        destination.querySelectorAll('optgroup[data-type]').forEach(function (group) {
+            groups[group.getAttribute('data-type')] = group.cloneNode(true);
+        });
+
         var apply = function () {
             var selected = type.value;
-            destination.querySelectorAll('optgroup[data-type]').forEach(function (group) {
-                group.hidden = group.getAttribute('data-type') !== selected;
-            });
-            var current = destination.options[destination.selectedIndex];
-            if (current && current.parentElement && current.parentElement.hidden) {
-                destination.value = '';
+            var currentValue = destination.value;
+            destination.replaceChildren();
+            if (placeholder) destination.appendChild(placeholder.cloneNode(true));
+            if (groups[selected]) {
+                destination.appendChild(groups[selected].cloneNode(true));
+                destination.value = currentValue;
+            } else if (selected !== 'external' && selected !== 'hangup') {
+                var empty = document.createElement('option');
+                empty.disabled = true;
+                empty.textContent = 'No ' + type.options[type.selectedIndex].text.toLowerCase() + ' destinations available';
+                destination.appendChild(empty);
             }
+            if (!destination.value) destination.value = '';
         };
         type.addEventListener('change', apply);
         apply();
@@ -442,7 +455,12 @@ $activeTab = $_GET['tab'] ?? 'inbound';
 
               cfg.fields.forEach(function (k) {
                   var el = form.elements[k];
-                  if (el && data[k] !== undefined && data[k] !== null) el.value = data[k];
+                  if (el && data[k] !== undefined && data[k] !== null) {
+                      el.value = data[k];
+                      if (['dest_type', 'open_type', 'closed_type'].indexOf(k) !== -1) {
+                          el.dispatchEvent(new Event('change'));
+                      }
+                  }
               });
               refreshDestinationFilters(form);
              if (cfg.modal === 'trunkModal') {
