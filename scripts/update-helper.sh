@@ -6,6 +6,10 @@ APP=/opt/asterisk-panel
 BRANCH=main
 BACKUPS=/root/asterisk-panel-update-backups
 
+version_from_file() {
+    sed -n "s/.*'version'[[:space:]]*=>[[:space:]]*'\([^']*\)'.*/\1/p" "$1" | head -n 1
+}
+
 status() {
     local current latest
     current="$(sed -n "s/.*'version'[[:space:]]*=>[[:space:]]*'\([^']*\)'.*/\1/p" "$APP/resources/config/app.php" | head -n 1)"
@@ -22,13 +26,21 @@ update() {
         echo 'Already up to date.'
         exit 0
     fi
-    local stamp backup
+    local repo_head remote_head app_version repo_version stamp backup
+    repo_head="$(git -C "$REPO" rev-parse HEAD)"
+    remote_head="$(git -C "$REPO" rev-parse "origin/$BRANCH")"
+    app_version="$(version_from_file "$APP/resources/config/app.php")"
+    repo_version="$(git -C "$REPO" show "origin/$BRANCH:resources/config/app.php" | sed -n "s/.*'version'[[:space:]]*=>[[:space:]]*'\([^']*\)'.*/\1/p" | head -n 1)"
+    if [[ "$repo_head" == "$remote_head" && "$app_version" == "$repo_version" ]]; then
+        echo 'Already up to date.'
+        exit 0
+    fi
     stamp="$(date +%Y%m%d%H%M%S)"
     backup="$BACKUPS/$stamp"
     install -d -m 0700 "$backup"
     tar -czf "$backup/application.tar.gz" -C "$APP" --exclude=storage --exclude=.env .
     cp -a "$APP/storage" "$backup/storage" 2>/dev/null || true
-    git -C "$REPO" pull --ff-only origin "$BRANCH"
+    if [[ "$repo_head" != "$remote_head" ]]; then git -C "$REPO" pull --ff-only origin "$BRANCH"; fi
     find "$REPO" -type f -name '*.php' -print0 | xargs -0 -n1 php -l >/dev/null
     rsync -a --delete --exclude=storage/ --exclude=.env "$REPO/" "$APP/"
     DB_DRIVER=sqlite DB_NAME="$APP/storage/database/asterisk_panel.sqlite" php "$APP/scripts/migrate.php"
