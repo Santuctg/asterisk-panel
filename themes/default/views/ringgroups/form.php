@@ -59,10 +59,19 @@ $selected = array_map(
                     'hint' => 'Total time before falling through to voicemail.',
                 ]); ?>
 
-                <?php echo field_text('ringback', 'Call tune while ringing', $val('ringback'), [
-                    'placeholder' => 'e.g. moh or moh:sales',
-                    'hint'        => 'Leave blank for normal ringing. Use moh for the default class or moh:class_name for a custom Music on Hold class.',
-                ]); ?>
+                <?php
+                $ringback = (string) $val('ringback');
+                $tuneOptions = ['' => 'Normal ringing', 'moh' => 'Default Music on Hold'];
+                foreach ((array) ($mohClasses ?? []) as $class) {
+                    $tuneOptions['moh:' . $class['name']] = 'Music on Hold: ' . $class['name'];
+                }
+                if ($ringback !== '' && !isset($tuneOptions[$ringback])) {
+                    $tuneOptions[$ringback] = $ringback;
+                }
+                echo field_select('ringback', 'Call tune while ringing', $tuneOptions, $ringback, [
+                    'hint' => 'Create/upload a Music on Hold class first, then select it here.',
+                ]);
+                ?>
 
                 <div class="span-2">
                     <?php echo field_check('enabled', 'Group active',

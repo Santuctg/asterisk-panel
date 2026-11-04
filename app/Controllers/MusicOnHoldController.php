@@ -59,6 +59,10 @@ final class MusicOnHoldController extends BaseController
         }
 
         $id = $this->db()->insert('moh_classes', $data);
+        $upload = $this->uploadAudio($data['name'], $data['directory'], $request->files('audio'));
+        if ($upload['error'] !== '') {
+            Flash::warning($upload['error']);
+        }
         $this->audit('moh.create', 'moh_class', $id);
         $this->applyToAsterisk('moh');
 
@@ -91,6 +95,10 @@ final class MusicOnHoldController extends BaseController
         }
 
         $this->db()->update('moh_classes', (int) $row['id'], $data);
+        $upload = $this->uploadAudio($data['name'], $data['directory'], $request->files('audio'));
+        if ($upload['error'] !== '') {
+            Flash::warning($upload['error']);
+        }
         $this->audit('moh.update', 'moh_class', (int) $row['id']);
         $this->applyToAsterisk('moh');
 
@@ -112,5 +120,56 @@ final class MusicOnHoldController extends BaseController
 
         Flash::success('Music-on-hold class deleted.');
         return Response::redirect('/moh');
+    }
+
+    /** @return array{count:int,error:string} */
+    private function uploadAudio(string $name, string $directory, ?array $files): array
+    {
+        if (!$files || !isset($files['name']) || !is_array($files['name'])) {
+            return ['count' => 0, 'error' => ''];
+        }
+
+        $root = rtrim((string) config('asterisk.moh_path', '/var/lib/asterisk/moh'), '/');
+        $dir = trim($directory) !== '' ? trim($directory) : $root . '/' . $name;
+        $rootReal = realpath($root);
+        $dirParent = dirname($dir);
+        if ($rootReal === false || !is_dir($dirParent) && !@mkdir($dirParent, 0750, true)) {
+            return ['count' => 0, 'error' => 'Audio directory is not available for upload.'];
+        }
+
+        $dirRealParent = realpath($dirParent);
+        if ($dirRealParent === false || ($dirRealParent !== $rootReal && !str_starts_with($dirRealParent, $rootReal . DIRECTORY_SEPARATOR))) {
+            return ['count' => 0, 'error' => 'Audio uploads must stay inside the Asterisk Music on Hold directory.'];
+        }
+        if (!is_dir($dir) && !@mkdir($dir, 0750, true)) {
+            return ['count' => 0, 'error' => 'Could not create the audio directory.'];
+        }
+
+        $allowed = ['wav', 'gsm', 'ulaw', 'alaw', 'g722', 'sln', 'sln16', 'sln48', 'sln96', 'sln192', 'mp3', 'ogg'];
+        $count = 0;
+        $errors = [];
+        foreach ($files['name'] as $i => $original) {
+            $error = (int) ($files['error'][$i] ?? UPLOAD_ERR_NO_FILE);
+            if ($error === UPLOAD_ERR_NO_FILE) { continue; }
+            if ($error !== UPLOAD_ERR_OK) { $errors[] = basename((string) $original); continue; }
+
+            $filename = basename((string) $original);
+            $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+            if ($filename === '' || !in_array($extension, $allowed, true) || !is_uploaded_file($files['tmp_name'][$i])) {
+                $errors[] = $filename ?: 'unnamed file';
+                continue;
+            }
+            if ((int) ($files['size'][$i] ?? 0) > 25 * 1024 * 1024) {
+                $errors[] = $filename;
+                continue;
+            }
+
+            $safe = preg_replace('/[^A-Za-z0-9._-]+/', '_', $filename) ?: ('track_' . $i . '.' . $extension);
+            if (@move_uploaded_file($files['tmp_name'][$i], $dir . '/' . $safe)) { $count++; }
+            else { $errors[] = $filename; }
+        }
+
+        if ($errors === []) { return ['count' => $count, 'error' => '']; }
+        return ['count' => $count, 'error' => 'Some audio files could not be uploaded: ' . implode(', ', array_slice($errors, 0, 3)) . '.'];
     }
 }

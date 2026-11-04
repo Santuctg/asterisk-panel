@@ -73,7 +73,7 @@ require dirname(__DIR__) . '/partials/fields.php';
 
 <div class="modal-overlay" id="mohModal" hidden>
     <div class="modal">
-        <form method="post" action="/moh" id="mohForm">
+        <form method="post" action="/moh" id="mohForm" enctype="multipart/form-data">
             <?= csrf() ?>
             <div class="modal-head">
                 <h2 id="mohTitle">New music-on-hold class</h2>
@@ -88,6 +88,12 @@ require dirname(__DIR__) . '/partials/fields.php';
                     <?php echo field_text('directory', 'Audio directory (optional)', '', [
                         'hint' => 'Defaults to <MOH root>/<class name>.',
                     ]); ?>
+                    <div class="field span-2">
+                        <label for="mohAudio">Audio files</label>
+                        <input id="mohAudio" type="file" name="audio[]" multiple
+                               accept=".wav,.gsm,.ulaw,.alaw,.g722,.sln,.sln16,.sln48,.sln96,.sln192,.mp3,.ogg">
+                        <div class="hint">Upload one or more audio files (maximum 25 MB each).</div>
+                    </div>
                     <div class="span-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
                         <?php echo field_check('random', 'Randomize playback order', true); ?>
                         <?php echo field_check('shuffle', 'Shuffle', false); ?>

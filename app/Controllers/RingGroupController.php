@@ -44,6 +44,7 @@ final class RingGroupController extends BaseController
         return $this->view('ringgroups/form', [
             'row'        => null,
             'extensions' => $this->extensionOptions(),
+            'mohClasses' => $this->db()->all('SELECT name FROM moh_classes ORDER BY name'),
             'next'       => $this->suggestNext(),
         ]);
     }
@@ -113,6 +114,7 @@ final class RingGroupController extends BaseController
         return $this->view('ringgroups/form', [
             'row'        => $row,
             'extensions' => $this->extensionOptions(),
+            'mohClasses' => $this->db()->all('SELECT name FROM moh_classes ORDER BY name'),
             'next'       => [],
         ]);
     }
