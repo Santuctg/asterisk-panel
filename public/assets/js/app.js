@@ -83,6 +83,28 @@
         });
     });
 
+    // ---- Bulk-select rows (checkbox column + select-all) ------------------
+    var bulkSync = function () {
+        var boxes = document.querySelectorAll('.cdr-check');
+        var submit = document.querySelector('[data-bulk-submit]');
+        if (!boxes.length || !submit) return;
+        var checked = document.querySelectorAll('.cdr-check:checked').length;
+        submit.disabled = checked === 0;
+        submit.textContent = checked ? 'Delete selected (' + checked + ')' : 'Delete selected';
+        var master = document.querySelector('[data-select-all]');
+        if (master) {
+            master.checked = checked === boxes.length;
+            master.indeterminate = checked > 0 && checked < boxes.length;
+        }
+    };
+    document.addEventListener('change', function (e) {
+        if (e.target && e.target.matches && e.target.matches('[data-select-all]')) {
+            document.querySelectorAll('.cdr-check').forEach(function (cb) { cb.checked = e.target.checked; });
+        }
+        if (e.target && e.target.matches && e.target.matches('.cdr-check, [data-select-all]')) bulkSync();
+    });
+    bulkSync();
+
     // ---- Copy to clipboard ------------------------------------------------
     document.addEventListener('click', function (e) {
         var btn = e.target.closest('[data-copy]');

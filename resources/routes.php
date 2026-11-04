@@ -130,6 +130,7 @@ $router->delete('/conferences/{id}', [ConferenceController::class, 'destroy'], [
 // CDR / call history
 $router->get('/cdr', [CdrController::class, 'index'], [Auth::require('cdr.view')]);
 $router->get('/cdr/{id}/recording', [CdrController::class, 'recording'], [Auth::require('cdr.view')]);
+$router->post('/cdr/bulk-delete', [CdrController::class, 'bulkDelete'], [Auth::require('cdr.delete'), Csrf::middleware(...)]);
 $router->delete('/cdr', [CdrController::class, 'clear'], [Auth::require('cdr.delete'), Csrf::middleware(...)]);
 $router->delete('/cdr/{id}', [CdrController::class, 'destroy'], [Auth::require('cdr.delete'), Csrf::middleware(...)]);
 

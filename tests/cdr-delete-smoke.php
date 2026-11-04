@@ -36,4 +36,21 @@ if ((int)$db->scalar('SELECT COUNT(*) FROM cdr WHERE id = ?', [$b1]) !== 1) thro
 $controller->clear(new App\Core\Request('DELETE', '/cdr'));
 if ((int)$db->scalar('SELECT COUNT(*) FROM cdr WHERE tenant_id = ?', [$a]) !== 0) throw new RuntimeException('Tenant CDR clear failed');
 if ((int)$db->scalar('SELECT COUNT(*) FROM cdr WHERE tenant_id = ?', [$b]) !== 1) throw new RuntimeException('Tenant CDR clear crossed scope');
+
+// Bulk delete: own records go, other tenants' records stay.
+$m1 = $db->insert('cdr', ['tenant_id'=>$a,'calldate'=>date('Y-m-d H:i:s'),'src'=>'2001','dst'=>'2002','uniqueid'=>'m1']);
+$m2 = $db->insert('cdr', ['tenant_id'=>$a,'calldate'=>date('Y-m-d H:i:s'),'src'=>'2002','dst'=>'2003','uniqueid'=>'m2']);
+$m3 = $db->insert('cdr', ['tenant_id'=>$b,'calldate'=>date('Y-m-d H:i:s'),'src'=>'2001','dst'=>'2002','uniqueid'=>'m3']);
+$page = $controller->index(new App\Core\Request('GET', '/cdr'));
+if (!str_contains($page->body(), 'Delete selected')) throw new RuntimeException('CDR bulk delete button missing');
+if (!str_contains($page->body(), 'data-select-all')) throw new RuntimeException('CDR select-all control missing');
+$bulk = new App\Core\Request('POST', '/cdr/bulk-delete', [], ['ids' => [$m1, $m2, $m3, 'junk', 0, -5]]);
+$controller->bulkDelete($bulk);
+if ((int)$db->scalar('SELECT COUNT(*) FROM cdr WHERE id IN (?,?)', [$m1, $m2]) !== 0) throw new RuntimeException('Bulk delete removed no own records');
+if ((int)$db->scalar('SELECT COUNT(*) FROM cdr WHERE id = ?', [$m3]) !== 1) throw new RuntimeException('Bulk delete crossed tenant scope');
+// Empty / all-invalid selections must delete nothing.
+$before = (int)$db->scalar('SELECT COUNT(*) FROM cdr WHERE tenant_id = ?', [$a]);
+$controller->bulkDelete(new App\Core\Request('POST', '/cdr/bulk-delete', [], ['ids' => []]));
+$controller->bulkDelete(new App\Core\Request('POST', '/cdr/bulk-delete', [], ['ids' => ['junk', 0]]));
+if ((int)$db->scalar('SELECT COUNT(*) FROM cdr WHERE tenant_id = ?', [$a]) !== $before) throw new RuntimeException('Invalid bulk selection deleted records');
 echo "All tenant-scoped CDR delete checks passed.\n";

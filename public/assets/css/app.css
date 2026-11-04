@@ -284,6 +284,9 @@ code, .mono { font-family: var(--mono); font-size: 12.5px; }
     overflow: hidden;
 }
 .card + .card { margin-top: 18px; }
+/* Inside a grid the gap already provides spacing; the sibling margin would
+   offset the second card and shrink its stretched height by 18px. */
+.grid > .card + .card { margin-top: 0; }
 .card-head {
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
     padding: 14px 18px; border-bottom: 1px solid var(--border);
@@ -382,6 +385,21 @@ code, .mono { font-family: var(--mono); font-size: 12.5px; }
 .verification-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; margin-top: 12px; }.verification-grid > div { display: grid; grid-template-columns: 28px 1fr; column-gap: 9px; padding: 13px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }.verification-grid b { grid-row: span 2; color: var(--success-500); }.verification-grid strong { font-size: 12px; }.verification-grid small { color: var(--text-muted); font-size: 10px; }
 .update-job { margin-top: 12px; padding: 18px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }.job-head { display: flex; justify-content: space-between; align-items: center; }.job-head h3 { font-size: 14px; }.job-head small { color: var(--text-muted); }.job-steps { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin: 20px 0 15px; }.job-steps span { display: flex; flex-direction: column; align-items: center; gap: 5px; color: var(--text-muted); font-size: 10px; }.job-steps i { width: 25px; height: 25px; display: grid; place-items: center; border: 1px solid var(--border-strong); border-radius: 50%; font-style: normal; }.job-steps .done { color: var(--success-500); }.job-steps .done i { border-color: var(--success-500); }.job-version { display: flex; justify-content: space-between; padding: 12px; border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted); font-size: 12px; }.job-version strong { color: var(--text); }.job-action { display: flex; justify-content: flex-end; margin-top: 12px; }.job-success { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--success-500); border-radius: 6px; color: var(--success-500); font-size: 12px; }
 .whitelist-form { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: end; }
+
+/* ---------- Fail2ban ---------- */
+/* All jail cards share one row height, and the action cards fill theirs so
+   both columns always line up. */
+.fail2ban-jails { grid-auto-rows: 1fr; }
+.fail2ban-jails > .card,
+.fail2ban-actions > .card { display: flex; flex-direction: column; }
+.fail2ban-jails > .card > .card-body,
+.fail2ban-actions > .card > .card-body { flex: 1; }
+/* Compact 4-up stat tiles: stack value over label and let labels wrap so no
+   text spills past the tile border. */
+.fail2ban-jails .grid-4 { gap: 12px; }
+.fail2ban-jails .stat { padding: 14px 12px; gap: 8px; }
+.fail2ban-jails .stat-body { flex: 1; }
+.fail2ban-jails .stat-label { font-size: 11.5px; line-height: 1.35; }
 .whitelist-list { display: grid; gap: 8px; }
 .whitelist-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 11px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-alt); }
 .whitelist-row code { font-family: var(--mono); font-size: 13px; color: var(--text); }
@@ -470,6 +488,9 @@ tbody tr { transition: background .1s; }
 tbody tr:hover { background: var(--surface-alt); }
 td.actions { text-align: right; white-space: nowrap; }
 td.actions form { display: inline; }
+/* Bulk-select checkbox column (Call History) */
+th.col-check, td.col-check { width: 38px; text-align: center; padding-right: 0; }
+th.col-check input, td.col-check input { accent-color: var(--brand-600); width: 15px; height: 15px; cursor: pointer; vertical-align: middle; }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 .muted { color: var(--text-muted); }
 .nowrap { white-space: nowrap; }

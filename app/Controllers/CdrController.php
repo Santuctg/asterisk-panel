@@ -110,6 +110,48 @@ final class CdrController extends BaseController
         return Response::redirect('/cdr');
     }
 
+    /** POST /cdr/bulk-delete — remove multiple tenant-scoped records. */
+    public function bulkDelete(Request $request): Response
+    {
+        $tid = $this->tenantId();
+        if (!$tid) { return Response::redirect('/cdr'); }
+
+        $ids = $request->input('ids');
+        if (!is_array($ids) || $ids === []) {
+            Flash::error('Select at least one call record to delete.');
+            return Response::redirect('/cdr');
+        }
+        $ids = array_filter(array_unique(array_map('intval', $ids)), static fn (int $id): bool => $id > 0);
+        if ($ids === []) {
+            Flash::error('Select at least one call record to delete.');
+            return Response::redirect('/cdr');
+        }
+
+        $ids   = array_values($ids);
+        $marks = implode(',', array_fill(0, count($ids), '?'));
+        $rows  = $this->db()->all(
+            "SELECT id, userfield FROM cdr WHERE tenant_id = ? AND id IN ({$marks})",
+            array_merge([$tid], $ids)
+        );
+        if ($rows === []) {
+            Flash::error('No matching call records found.');
+            return Response::redirect('/cdr');
+        }
+
+        foreach ($rows as $row) { $this->deleteRecording((string) ($row['userfield'] ?? '')); }
+
+        $rowIds  = array_map(static fn (array $r): int => (int) $r['id'], $rows);
+        $marks2  = implode(',', array_fill(0, count($rowIds), '?'));
+        $count   = $this->db()->run(
+            "DELETE FROM cdr WHERE tenant_id = ? AND id IN ({$marks2})",
+            array_merge([$tid], $rowIds)
+        )->rowCount();
+
+        $this->audit('cdr.bulk_delete', 'tenant', $tid, ['records' => $count]);
+        Flash::success("Deleted {$count} call record(s).");
+        return Response::redirect('/cdr');
+    }
+
     /** DELETE /cdr — clear call history for only the active tenant. */
     public function clear(Request $request): Response
     {

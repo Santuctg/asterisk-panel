@@ -19,10 +19,16 @@ $answeredRate = ($stats['total'] ?? 0) > 0
         <div class="subtitle">Call detail records for the active tenant</div>
     </div>
     <?php if (auth()->can('cdr.delete') && $total > 0): ?>
-        <form method="post" action="/cdr">
-            <?= csrf() ?><input type="hidden" name="_method" value="DELETE">
-            <button class="btn btn-ghost" data-confirm-btn="Delete all call history and recordings for this tenant?">Delete all history</button>
-        </form>
+        <div class="page-actions">
+            <form method="post" action="/cdr/bulk-delete" id="cdrBulkForm">
+                <?= csrf() ?>
+                <button class="btn btn-danger" data-bulk-submit data-confirm-btn="Delete the selected call records and their recordings?">Delete selected</button>
+            </form>
+            <form method="post" action="/cdr">
+                <?= csrf() ?><input type="hidden" name="_method" value="DELETE">
+                <button class="btn btn-ghost" data-confirm-btn="Delete all call history and recordings for this tenant?">Delete all history</button>
+            </form>
+        </div>
     <?php endif; ?>
 </div>
 
@@ -78,6 +84,9 @@ $answeredRate = ($stats['total'] ?? 0) > 0
                 <table>
                     <thead>
                         <tr>
+                            <?php if (auth()->can('cdr.delete')): ?>
+                                <th class="col-check"><input type="checkbox" data-select-all=".cdr-check" aria-label="Select all rows"></th>
+                            <?php endif; ?>
                             <th>Date &amp; time</th>
                             <th>Source</th>
                             <th>Destination</th>
@@ -101,6 +110,9 @@ $answeredRate = ($stats['total'] ?? 0) > 0
                             };
                             ?>
                             <tr>
+                                <?php if (auth()->can('cdr.delete')): ?>
+                                    <td class="col-check"><input type="checkbox" class="cdr-check" name="ids[]" value="<?= (int) $c['id'] ?>" form="cdrBulkForm"></td>
+                                <?php endif; ?>
                                 <td class="nowrap muted text-xs"><?= e(format_date($c['calldate'])) ?></td>
                                 <td class="mono"><?= e($c['src']) ?></td>
                                 <td class="mono"><?= e($c['dst']) ?></td>
