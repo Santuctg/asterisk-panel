@@ -92,6 +92,14 @@ if (!function_exists('csrf_field')) {
     }
 }
 
+// Short alias used by the existing form views.
+if (!function_exists('csrf')) {
+    function csrf(): string
+    {
+        return csrf_field();
+    }
+}
+
 if (!function_exists('asterisk')) {
     function asterisk(): AsteriskManager
     {
