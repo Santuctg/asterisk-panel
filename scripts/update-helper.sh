@@ -22,10 +22,6 @@ update() {
     flock -n 9 || { echo 'Another update is already running.' >&2; exit 2; }
     git -C "$REPO" fetch --prune origin "$BRANCH"
     git -C "$REPO" merge-base --is-ancestor HEAD "origin/$BRANCH" || { echo 'Update is not a fast-forward; refusing.' >&2; exit 3; }
-    if [[ "$(git -C "$REPO" rev-parse HEAD)" == "$(git -C "$REPO" rev-parse "origin/$BRANCH")" ]]; then
-        echo 'Already up to date.'
-        exit 0
-    fi
     local repo_head remote_head app_version repo_version stamp backup
     repo_head="$(git -C "$REPO" rev-parse HEAD)"
     remote_head="$(git -C "$REPO" rev-parse "origin/$BRANCH")"
