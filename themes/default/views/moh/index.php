@@ -7,8 +7,8 @@ require dirname(__DIR__) . '/partials/fields.php';
 
 <div class="page-head">
     <div>
-        <h1>Music on Hold</h1>
-        <div class="subtitle">Audio classes played to callers on hold or in a queue</div>
+        <h1>Audio</h1>
+        <div class="subtitle">Upload and manage audio used for queues, ring groups, IVR and callers on hold</div>
     </div>
     <div class="page-actions">
         <button class="btn btn-primary" data-modal-open="mohModal">

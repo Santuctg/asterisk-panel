@@ -31,7 +31,7 @@ $user = $auth->user();
         ['label' => 'Call Parking', 'href' => '/parking',        'icon' => 'park',    'ability' => 'parking.view'],
         ['label' => 'IVR Menus',    'href' => '/ivr',            'icon' => 'menu',    'ability' => 'ivr.view'],
         ['label' => 'Call Routing', 'href' => '/routes',         'icon' => 'route',   'ability' => 'route.view'],
-        ['label' => 'Music on Hold','href' => '/moh',            'icon' => 'music',   'ability' => 'moh.view'],
+        ['label' => 'Audio','href' => '/moh',                    'icon' => 'music',   'ability' => 'moh.view'],
         ['label' => 'Call Center',  'href' => '/call-center',    'icon' => 'headset', 'ability' => 'callcenter.view'],
         ['label' => 'Conferences',  'href' => '/conferences',    'icon' => 'conf',    'ability' => 'conference.view'],
         ['label' => 'Call History', 'href' => '/cdr',            'icon' => 'clock',   'ability' => 'cdr.view'],

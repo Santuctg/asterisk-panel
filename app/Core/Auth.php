@@ -162,7 +162,7 @@ final class Auth
             'parking.view' => 'Call parking — view', 'parking.manage' => 'Call parking — create/edit/delete',
             'ivr.view' => 'IVR menus — view', 'ivr.manage' => 'IVR menus — create/edit/delete',
             'route.view' => 'Call routing — view', 'route.manage' => 'Call routing — create/edit/delete',
-            'moh.view' => 'Music on hold — view', 'moh.manage' => 'Music on hold — create/edit/delete',
+            'moh.view' => 'Audio — view', 'moh.manage' => 'Audio — create/edit/delete',
             'callcenter.view' => 'Call center — view', 'callcenter.manage' => 'Call center — create/edit/delete',
             'conference.view' => 'Conferences — view', 'conference.manage' => 'Conferences — create/edit/delete',
             'cdr.view' => 'Call history — view',

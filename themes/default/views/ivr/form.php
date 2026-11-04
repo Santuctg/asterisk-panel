@@ -69,13 +69,7 @@ $keys = $row['keys'] ?? (json_decode((string) old('keys', '[]'), true) ?: []);
 
                 <?php
                 // Destination for the timeout action, if one was chosen.
-                $timeoutDestOpts = [];
-                foreach ($destinations as $type => $list) {
-                    foreach ($list as $opt) {
-                        $timeoutDestOpts[] = $opt;
-                    }
-                }
-                echo field_select('timeout_dest_id', 'Timeout destination', $timeoutDestOpts, $val('timeout_dest_id'), [
+                echo field_select('timeout_dest_id', 'Timeout destination', $destinations, $val('timeout_dest_id'), [
                     'placeholder' => 'Choose…',
                 ]);
                 ?>

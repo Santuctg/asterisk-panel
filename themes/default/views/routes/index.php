@@ -98,13 +98,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                                 'hint' => 'Match on the caller ID as well.',
                             ]); ?>
                             <?php echo field_select('dest_type', 'Destination type', $typeLabels, 'extension', ['required' => true]); ?>
-                            <?php
-                            $flat = [];
-                            foreach ($destinations as $type => $list) {
-                                foreach ($list as $opt) { $flat[] = $opt; }
-                            }
-                            echo field_select('dest_id', 'Destination', $flat, null, ['placeholder' => 'Choose…']);
-                            ?>
+                            <?php echo field_select('dest_id', 'Destination', $destinations, null, ['placeholder' => 'Choose…']); ?>
                             <?php echo field_text('priority', 'Priority', 0, ['type' => 'number',
                                 'hint' => 'Lower numbers are evaluated first.']); ?>
                             <div class="span-2"><?php echo field_check('enabled', 'Route active', true); ?></div>
@@ -359,14 +353,10 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                             <?php echo field_text('start_hour', 'Start hour (0-23)', '', ['type' => 'number']); ?>
                             <?php echo field_text('end_hour', 'End hour (0-23)', '', ['type' => 'number']); ?>
                             <?php
-                            $flat = [];
-                            foreach ($destinations as $type => $list) {
-                                foreach ($list as $opt) { $flat[] = $opt; }
-                            }
                             echo field_select('open_type', 'When in hours', $typeLabels, 'extension', ['required' => true]);
-                            echo field_select('open_dest_id', 'In-hours destination', $flat, null, ['placeholder' => 'Choose…']);
+                            echo field_select('open_dest_id', 'In-hours destination', $destinations, null, ['placeholder' => 'Choose…']);
                             echo field_select('closed_type', 'When out of hours', $typeLabels, 'extension', ['required' => true]);
-                            echo field_select('closed_dest_id', 'Out-of-hours destination', $flat, null, ['placeholder' => 'Choose…']);
+                            echo field_select('closed_dest_id', 'Out-of-hours destination', $destinations, null, ['placeholder' => 'Choose…']);
                             ?>
                             <div class="span-2"><?php echo field_check('enabled', 'Condition active', true); ?></div>
                         </div>
