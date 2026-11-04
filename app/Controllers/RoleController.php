@@ -18,7 +18,6 @@ final class RoleController extends BaseController
     {
         $tid = $this->requireTenant();
         if (!$tid) { return Response::redirect('/dashboard'); }
-        $this->ensureBuiltIns($tid);
         $rows = $this->db()->all(
             'SELECT r.*, (SELECT COUNT(*) FROM users u WHERE u.tenant_id = r.tenant_id AND u.role = r.slug) AS user_count
              FROM roles r WHERE r.tenant_id = ? ORDER BY r.name', [$tid]
@@ -89,7 +88,6 @@ final class RoleController extends BaseController
     {
         $row = $this->findScoped((int) $request->params['id']);
         if (!$row) { return Response::redirect('/roles'); }
-        if(in_array($row['slug'],['admin','user'],true)){Flash::error('Built-in Admin and User roles cannot be deleted.');return Response::redirect('/roles');}
         $assigned = (int) $this->db()->scalar(
             'SELECT COUNT(*) FROM users WHERE tenant_id = ? AND role = ?', [(int) $row['tenant_id'], $row['slug']]
         );
@@ -116,12 +114,4 @@ final class RoleController extends BaseController
         return $tid ? $this->db()->one('SELECT * FROM roles WHERE id = ? AND tenant_id = ?', [$id, $tid]) : null;
     }
 
-    private function ensureBuiltIns(int $tenantId): void
-    {
-        foreach(['admin'=>'Admin','user'=>'User'] as $slug=>$name){
-            if(!(int)$this->db()->scalar('SELECT COUNT(*) FROM roles WHERE tenant_id=? AND slug=?',[$tenantId,$slug])){
-                $this->db()->insert('roles',['tenant_id'=>$tenantId,'name'=>$name,'slug'=>$slug,'permissions'=>json_encode(Auth::defaultPermissions($slug),JSON_THROW_ON_ERROR),'created_at'=>date('Y-m-d H:i:s')]);
-            }
-        }
-    }
 }
