@@ -18,7 +18,7 @@ use App\Controllers\{
     DeviceController, RingGroupController, ParkingController, IvrController,
     RouteController, MusicOnHoldController, CallCenterController,
     ConferenceController, CdrController, TenantController, UserController, RoleController, GlobalAdminController, Fail2banController,
-    SystemController, SslController, ProvisionController, LiveListenController, WebPhoneController, TenantSslController
+    SystemController, SslController, ProvisionController, LiveListenController, WebPhoneController, TenantSslController, TenantSecurityController
 };
 use App\Core\Auth;
 use App\Core\Csrf;
@@ -33,9 +33,6 @@ $router->get('/prov/{file}', [ProvisionController::class, 'serve']);
 
 /** Everything below requires an authenticated session. */
 $auth    = [Auth::require()];
-$admin   = [Auth::require('extension.manage')];
-$cc      = [Auth::require('callcenter.manage')];
-$read    = [Auth::require('cdr.view')];
 $csrf    = [Csrf::middleware(...)];
 
 // Dashboard + tenant switching
@@ -46,93 +43,93 @@ $router->get('/live-listen', [LiveListenController::class, 'index'], [Auth::requ
 $router->post('/live-listen/start', [LiveListenController::class, 'start'], [Auth::require('call.listen'), Csrf::middleware(...)]);
 
 // Browser WebRTC softphone
-$router->get('/web-phone', [WebPhoneController::class, 'index'], $auth);
+$router->get('/web-phone', [WebPhoneController::class, 'index'], [Auth::require('webphone.use')]);
 
 // Extensions
-$router->get('/extensions', [ExtensionController::class, 'index'], $admin);
-$router->get('/extensions/create', [ExtensionController::class, 'create'], $admin);
-$router->post('/extensions', [ExtensionController::class, 'store'], array_merge($admin, $csrf));
-$router->get('/extensions/{id}/edit', [ExtensionController::class, 'edit'], $admin);
-$router->post('/extensions/{id}', [ExtensionController::class, 'update'], array_merge($admin, $csrf));
-$router->delete('/extensions/{id}', [ExtensionController::class, 'destroy'], array_merge($admin, $csrf));
-$router->post('/extensions/{id}/regenerate-secret', [ExtensionController::class, 'regenerateSecret'], array_merge($admin, $csrf));
+$router->get('/extensions', [ExtensionController::class, 'index'], [Auth::require('extension.view')]);
+$router->get('/extensions/create', [ExtensionController::class, 'create'], [Auth::require('extension.manage')]);
+$router->post('/extensions', [ExtensionController::class, 'store'], [Auth::require('extension.manage'), Csrf::middleware(...)]);
+$router->get('/extensions/{id}/edit', [ExtensionController::class, 'edit'], [Auth::require('extension.manage')]);
+$router->post('/extensions/{id}', [ExtensionController::class, 'update'], [Auth::require('extension.manage'), Csrf::middleware(...)]);
+$router->delete('/extensions/{id}', [ExtensionController::class, 'destroy'], [Auth::require('extension.manage'), Csrf::middleware(...)]);
+$router->post('/extensions/{id}/regenerate-secret', [ExtensionController::class, 'regenerateSecret'], [Auth::require('extension.manage'), Csrf::middleware(...)]);
 
 // Voicemail (to email) + mailboxes
-$router->get('/voicemail', [VoicemailController::class, 'index'], $admin);
-$router->get('/voicemail/create', [VoicemailController::class, 'create'], $admin);
-$router->post('/voicemail', [VoicemailController::class, 'store'], array_merge($admin, $csrf));
-$router->get('/voicemail/{id}/edit', [VoicemailController::class, 'edit'], $admin);
-$router->post('/voicemail/{id}', [VoicemailController::class, 'update'], array_merge($admin, $csrf));
-$router->delete('/voicemail/{id}', [VoicemailController::class, 'destroy'], array_merge($admin, $csrf));
+$router->get('/voicemail', [VoicemailController::class, 'index'], [Auth::require('voicemail.view')]);
+$router->get('/voicemail/create', [VoicemailController::class, 'create'], [Auth::require('voicemail.manage')]);
+$router->post('/voicemail', [VoicemailController::class, 'store'], [Auth::require('voicemail.manage'), Csrf::middleware(...)]);
+$router->get('/voicemail/{id}/edit', [VoicemailController::class, 'edit'], [Auth::require('voicemail.manage')]);
+$router->post('/voicemail/{id}', [VoicemailController::class, 'update'], [Auth::require('voicemail.manage'), Csrf::middleware(...)]);
+$router->delete('/voicemail/{id}', [VoicemailController::class, 'destroy'], [Auth::require('voicemail.manage'), Csrf::middleware(...)]);
 
 // Devices / provisioning
-$router->get('/devices', [DeviceController::class, 'index'], $admin);
-$router->get('/devices/create', [DeviceController::class, 'create'], $admin);
-$router->post('/devices', [DeviceController::class, 'store'], array_merge($admin, $csrf));
-$router->get('/devices/{id}/edit', [DeviceController::class, 'edit'], $admin);
-$router->post('/devices/{id}', [DeviceController::class, 'update'], array_merge($admin, $csrf));
-$router->delete('/devices/{id}', [DeviceController::class, 'destroy'], array_merge($admin, $csrf));
-$router->post('/devices/{id}/resync', [DeviceController::class, 'resync'], array_merge($admin, $csrf));
+$router->get('/devices', [DeviceController::class, 'index'], [Auth::require('device.view')]);
+$router->get('/devices/create', [DeviceController::class, 'create'], [Auth::require('device.manage')]);
+$router->post('/devices', [DeviceController::class, 'store'], [Auth::require('device.manage'), Csrf::middleware(...)]);
+$router->get('/devices/{id}/edit', [DeviceController::class, 'edit'], [Auth::require('device.manage')]);
+$router->post('/devices/{id}', [DeviceController::class, 'update'], [Auth::require('device.manage'), Csrf::middleware(...)]);
+$router->delete('/devices/{id}', [DeviceController::class, 'destroy'], [Auth::require('device.manage'), Csrf::middleware(...)]);
+$router->post('/devices/{id}/resync', [DeviceController::class, 'resync'], [Auth::require('device.manage'), Csrf::middleware(...)]);
 
 // Ring groups
-$router->get('/ring-groups', [RingGroupController::class, 'index'], $admin);
-$router->get('/ring-groups/create', [RingGroupController::class, 'create'], $admin);
-$router->post('/ring-groups', [RingGroupController::class, 'store'], array_merge($admin, $csrf));
-$router->get('/ring-groups/{id}/edit', [RingGroupController::class, 'edit'], $admin);
-$router->post('/ring-groups/{id}', [RingGroupController::class, 'update'], array_merge($admin, $csrf));
-$router->delete('/ring-groups/{id}', [RingGroupController::class, 'destroy'], array_merge($admin, $csrf));
+$router->get('/ring-groups', [RingGroupController::class, 'index'], [Auth::require('ringgroup.view')]);
+$router->get('/ring-groups/create', [RingGroupController::class, 'create'], [Auth::require('ringgroup.manage')]);
+$router->post('/ring-groups', [RingGroupController::class, 'store'], [Auth::require('ringgroup.manage'), Csrf::middleware(...)]);
+$router->get('/ring-groups/{id}/edit', [RingGroupController::class, 'edit'], [Auth::require('ringgroup.manage')]);
+$router->post('/ring-groups/{id}', [RingGroupController::class, 'update'], [Auth::require('ringgroup.manage'), Csrf::middleware(...)]);
+$router->delete('/ring-groups/{id}', [RingGroupController::class, 'destroy'], [Auth::require('ringgroup.manage'), Csrf::middleware(...)]);
 
 // Call parking
-$router->get('/parking', [ParkingController::class, 'index'], $admin);
-$router->post('/parking', [ParkingController::class, 'store'], array_merge($admin, $csrf));
-$router->post('/parking/{id}', [ParkingController::class, 'update'], array_merge($admin, $csrf));
-$router->delete('/parking/{id}', [ParkingController::class, 'destroy'], array_merge($admin, $csrf));
+$router->get('/parking', [ParkingController::class, 'index'], [Auth::require('parking.view')]);
+$router->post('/parking', [ParkingController::class, 'store'], [Auth::require('parking.manage'), Csrf::middleware(...)]);
+$router->post('/parking/{id}', [ParkingController::class, 'update'], [Auth::require('parking.manage'), Csrf::middleware(...)]);
+$router->delete('/parking/{id}', [ParkingController::class, 'destroy'], [Auth::require('parking.manage'), Csrf::middleware(...)]);
 
 // IVR menus
-$router->get('/ivr', [IvrController::class, 'index'], $admin);
-$router->get('/ivr/create', [IvrController::class, 'create'], $admin);
-$router->post('/ivr', [IvrController::class, 'store'], array_merge($admin, $csrf));
-$router->get('/ivr/{id}/edit', [IvrController::class, 'edit'], $admin);
-$router->post('/ivr/{id}', [IvrController::class, 'update'], array_merge($admin, $csrf));
-$router->delete('/ivr/{id}', [IvrController::class, 'destroy'], array_merge($admin, $csrf));
+$router->get('/ivr', [IvrController::class, 'index'], [Auth::require('ivr.view')]);
+$router->get('/ivr/create', [IvrController::class, 'create'], [Auth::require('ivr.manage')]);
+$router->post('/ivr', [IvrController::class, 'store'], [Auth::require('ivr.manage'), Csrf::middleware(...)]);
+$router->get('/ivr/{id}/edit', [IvrController::class, 'edit'], [Auth::require('ivr.manage')]);
+$router->post('/ivr/{id}', [IvrController::class, 'update'], [Auth::require('ivr.manage'), Csrf::middleware(...)]);
+$router->delete('/ivr/{id}', [IvrController::class, 'destroy'], [Auth::require('ivr.manage'), Csrf::middleware(...)]);
 
 // Call routing (inbound + outbound + time conditions)
-$router->get('/routes', [RouteController::class, 'index'], $admin);
-$router->post('/routes/inbound', [RouteController::class, 'storeInbound'], array_merge($admin, $csrf));
-$router->post('/routes/inbound/{id}', [RouteController::class, 'updateInbound'], array_merge($admin, $csrf));
-$router->delete('/routes/inbound/{id}', [RouteController::class, 'destroyInbound'], array_merge($admin, $csrf));
-$router->post('/routes/outbound', [RouteController::class, 'storeOutbound'], array_merge($admin, $csrf));
-$router->post('/routes/outbound/{id}', [RouteController::class, 'updateOutbound'], array_merge($admin, $csrf));
-$router->delete('/routes/outbound/{id}', [RouteController::class, 'destroyOutbound'], array_merge($admin, $csrf));
-$router->post('/routes/trunks', [RouteController::class, 'storeTrunk'], array_merge($admin, $csrf));
-$router->post('/routes/trunks/{id}', [RouteController::class, 'updateTrunk'], array_merge($admin, $csrf));
-$router->delete('/routes/trunks/{id}', [RouteController::class, 'destroyTrunk'], array_merge($admin, $csrf));
-$router->post('/routes/time', [RouteController::class, 'storeTime'], array_merge($admin, $csrf));
-$router->post('/routes/time/{id}', [RouteController::class, 'updateTime'], array_merge($admin, $csrf));
-$router->delete('/routes/time/{id}', [RouteController::class, 'destroyTime'], array_merge($admin, $csrf));
+$router->get('/routes', [RouteController::class, 'index'], [Auth::require('route.view')]);
+$router->post('/routes/inbound', [RouteController::class, 'storeInbound'], [Auth::require('route.manage'), Csrf::middleware(...)]);
+$router->post('/routes/inbound/{id}', [RouteController::class, 'updateInbound'], [Auth::require('route.manage'), Csrf::middleware(...)]);
+$router->delete('/routes/inbound/{id}', [RouteController::class, 'destroyInbound'], [Auth::require('route.manage'), Csrf::middleware(...)]);
+$router->post('/routes/outbound', [RouteController::class, 'storeOutbound'], [Auth::require('route.manage'), Csrf::middleware(...)]);
+$router->post('/routes/outbound/{id}', [RouteController::class, 'updateOutbound'], [Auth::require('route.manage'), Csrf::middleware(...)]);
+$router->delete('/routes/outbound/{id}', [RouteController::class, 'destroyOutbound'], [Auth::require('route.manage'), Csrf::middleware(...)]);
+$router->post('/routes/trunks', [RouteController::class, 'storeTrunk'], [Auth::require('route.manage'), Csrf::middleware(...)]);
+$router->post('/routes/trunks/{id}', [RouteController::class, 'updateTrunk'], [Auth::require('route.manage'), Csrf::middleware(...)]);
+$router->delete('/routes/trunks/{id}', [RouteController::class, 'destroyTrunk'], [Auth::require('route.manage'), Csrf::middleware(...)]);
+$router->post('/routes/time', [RouteController::class, 'storeTime'], [Auth::require('route.manage'), Csrf::middleware(...)]);
+$router->post('/routes/time/{id}', [RouteController::class, 'updateTime'], [Auth::require('route.manage'), Csrf::middleware(...)]);
+$router->delete('/routes/time/{id}', [RouteController::class, 'destroyTime'], [Auth::require('route.manage'), Csrf::middleware(...)]);
 
 // Music on hold
-$router->get('/moh', [MusicOnHoldController::class, 'index'], $admin);
-$router->post('/moh', [MusicOnHoldController::class, 'store'], array_merge($admin, $csrf));
-$router->post('/moh/{id}', [MusicOnHoldController::class, 'update'], array_merge($admin, $csrf));
-$router->delete('/moh/{id}', [MusicOnHoldController::class, 'destroy'], array_merge($admin, $csrf));
+$router->get('/moh', [MusicOnHoldController::class, 'index'], [Auth::require('moh.view')]);
+$router->post('/moh', [MusicOnHoldController::class, 'store'], [Auth::require('moh.manage'), Csrf::middleware(...) ]);
+$router->post('/moh/{id}', [MusicOnHoldController::class, 'update'], [Auth::require('moh.manage'), Csrf::middleware(...) ]);
+$router->delete('/moh/{id}', [MusicOnHoldController::class, 'destroy'], [Auth::require('moh.manage'), Csrf::middleware(...) ]);
 
 // Call center (queues + agents)
-$router->get('/call-center', [CallCenterController::class, 'index'], $cc);
-$router->post('/call-center', [CallCenterController::class, 'store'], array_merge($cc, $csrf));
-$router->post('/call-center/{id}', [CallCenterController::class, 'update'], array_merge($cc, $csrf));
-$router->delete('/call-center/{id}', [CallCenterController::class, 'destroy'], array_merge($cc, $csrf));
-$router->post('/call-center/{id}/agents', [CallCenterController::class, 'syncAgents'], array_merge($cc, $csrf));
+$router->get('/call-center', [CallCenterController::class, 'index'], [Auth::require('callcenter.view')]);
+$router->post('/call-center', [CallCenterController::class, 'store'], [Auth::require('callcenter.manage'), Csrf::middleware(...) ]);
+$router->post('/call-center/{id}', [CallCenterController::class, 'update'], [Auth::require('callcenter.manage'), Csrf::middleware(...) ]);
+$router->delete('/call-center/{id}', [CallCenterController::class, 'destroy'], [Auth::require('callcenter.manage'), Csrf::middleware(...) ]);
+$router->post('/call-center/{id}/agents', [CallCenterController::class, 'syncAgents'], [Auth::require('callcenter.manage'), Csrf::middleware(...) ]);
 
 // Conferences
-$router->get('/conferences', [ConferenceController::class, 'index'], $admin);
-$router->post('/conferences', [ConferenceController::class, 'store'], array_merge($admin, $csrf));
-$router->post('/conferences/{id}', [ConferenceController::class, 'update'], array_merge($admin, $csrf));
-$router->delete('/conferences/{id}', [ConferenceController::class, 'destroy'], array_merge($admin, $csrf));
+$router->get('/conferences', [ConferenceController::class, 'index'], [Auth::require('conference.view')]);
+$router->post('/conferences', [ConferenceController::class, 'store'], [Auth::require('conference.manage'), Csrf::middleware(...) ]);
+$router->post('/conferences/{id}', [ConferenceController::class, 'update'], [Auth::require('conference.manage'), Csrf::middleware(...) ]);
+$router->delete('/conferences/{id}', [ConferenceController::class, 'destroy'], [Auth::require('conference.manage'), Csrf::middleware(...) ]);
 
 // CDR / call history
-$router->get('/cdr', [CdrController::class, 'index'], $read);
-$router->get('/cdr/{id}/recording', [CdrController::class, 'recording'], $read);
+$router->get('/cdr', [CdrController::class, 'index'], [Auth::require('cdr.view')]);
+$router->get('/cdr/{id}/recording', [CdrController::class, 'recording'], [Auth::require('cdr.view')]);
 $router->delete('/cdr', [CdrController::class, 'clear'], [Auth::require('cdr.delete'), Csrf::middleware(...)]);
 $router->delete('/cdr/{id}', [CdrController::class, 'destroy'], [Auth::require('cdr.delete'), Csrf::middleware(...)]);
 
@@ -148,33 +145,36 @@ $router->post('/tenants/{id}/ssl/issue', [TenantSslController::class, 'issue'], 
 $router->post('/tenants/{id}/ssl/reset', [TenantSslController::class, 'reset'], [Auth::require('tenant.manage'), Csrf::middleware(...)]);
 
 // Users (admin+)
-$router->get('/users', [UserController::class, 'index'], [Auth::require('user.manage')]);
+$router->get('/users', [UserController::class, 'index'], [Auth::require('user.view')]);
 $router->post('/users', [UserController::class, 'store'], [Auth::require('user.manage'), Csrf::middleware(...)]);
 $router->post('/users/{id}', [UserController::class, 'update'], [Auth::require('user.manage'), Csrf::middleware(...)]);
 $router->delete('/users/{id}', [UserController::class, 'destroy'], [Auth::require('user.manage'), Csrf::middleware(...)]);
 
 // Tenant-scoped custom roles
-$router->get('/roles', [RoleController::class, 'index'], [Auth::require('role.manage')]);
+$router->get('/roles', [RoleController::class, 'index'], [Auth::require('role.view')]);
 $router->post('/roles', [RoleController::class, 'store'], [Auth::require('role.manage'), Csrf::middleware(...)]);
 $router->post('/roles/{id}', [RoleController::class, 'update'], [Auth::require('role.manage'), Csrf::middleware(...)]);
 $router->delete('/roles/{id}', [RoleController::class, 'destroy'], [Auth::require('role.manage'), Csrf::middleware(...)]);
+$router->get('/tenant-security', [TenantSecurityController::class, 'index'], [Auth::require('tenant_security.view')]);
+$router->post('/tenant-security', [TenantSecurityController::class, 'store'], [Auth::require('tenant_security.manage'), Csrf::middleware(...)]);
+$router->delete('/tenant-security/{id}', [TenantSecurityController::class, 'destroy'], [Auth::require('tenant_security.manage'), Csrf::middleware(...)]);
 
 // Global control-plane accounts and host security (superadmin only)
 $router->get('/global-admins', [GlobalAdminController::class, 'index'], [Auth::require('tenant.manage')]);
 $router->post('/global-admins', [GlobalAdminController::class, 'store'], [Auth::require('tenant.manage'), Csrf::middleware(...)]);
 $router->post('/global-admins/{id}', [GlobalAdminController::class, 'update'], [Auth::require('tenant.manage'), Csrf::middleware(...)]);
 $router->delete('/global-admins/{id}', [GlobalAdminController::class, 'destroy'], [Auth::require('tenant.manage'), Csrf::middleware(...)]);
-$router->get('/fail2ban', [Fail2banController::class, 'index'], [Auth::require('tenant.manage')]);
-$router->post('/fail2ban/ban', [Fail2banController::class, 'ban'], [Auth::require('tenant.manage'), Csrf::middleware(...)]);
-$router->post('/fail2ban/unban', [Fail2banController::class, 'unban'], [Auth::require('tenant.manage'), Csrf::middleware(...)]);
+$router->get('/fail2ban', [Fail2banController::class, 'index'], [Auth::require('security.fail2ban')]);
+$router->post('/fail2ban/ban', [Fail2banController::class, 'ban'], [Auth::require('security.fail2ban'), Csrf::middleware(...)]);
+$router->post('/fail2ban/unban', [Fail2banController::class, 'unban'], [Auth::require('security.fail2ban'), Csrf::middleware(...)]);
 
 // System: status, apply config, settings, audit log
-$router->get('/system/status', [SystemController::class, 'status'], $auth);
-$router->post('/system/apply', [SystemController::class, 'apply'], array_merge($auth, $csrf));
-$router->get('/system/settings', [SystemController::class, 'settings'], [Auth::require('tenant.view')]);
-$router->post('/system/settings', [SystemController::class, 'saveSettings'], [Auth::require('tenant.view'), Csrf::middleware(...)]);
-$router->get('/system/audit', [SystemController::class, 'auditLog'], [Auth::require('tenant.view')]);
-$router->get('/system/audit-feed', [SystemController::class, 'auditFeed'], [Auth::require('tenant.view')]);
+$router->get('/system/status', [SystemController::class, 'status'], [Auth::require('system_status.view')]);
+$router->post('/system/apply', [SystemController::class, 'apply'], [Auth::require('system.apply'), Csrf::middleware(...)]);
+$router->get('/system/settings', [SystemController::class, 'settings'], [Auth::require('system_settings.view')]);
+$router->post('/system/settings', [SystemController::class, 'saveSettings'], [Auth::require('system_settings.manage'), Csrf::middleware(...)]);
+$router->get('/system/audit', [SystemController::class, 'auditLog'], [Auth::require('audit.view')]);
+$router->get('/system/audit-feed', [SystemController::class, 'auditFeed'], [Auth::require('audit.view')]);
 $router->get('/system/ssl', [SslController::class, 'index'], [Auth::require('tenant.manage')]);
 $router->post('/system/ssl/register', [SslController::class, 'register'], [Auth::require('tenant.manage'), Csrf::middleware(...)]);
 $router->post('/system/ssl/verify', [SslController::class, 'verify'], [Auth::require('tenant.manage'), Csrf::middleware(...)]);

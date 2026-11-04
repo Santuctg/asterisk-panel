@@ -30,8 +30,20 @@ final class TenantHost
 
         $tenant = $db->one('SELECT id FROM tenants WHERE enabled = 1 AND LOWER(domain) = ?', [$host]);
         if ($tenant) {
-            return $role !== 'superadmin' && (int) ($user['tenant_id'] ?? 0) === (int) $tenant['id'];
+            return $role === 'superadmin' || (int) ($user['tenant_id'] ?? 0) === (int) $tenant['id'];
         }
         return false;
+    }
+
+    public static function tenantIdForRequest(): ?int
+    {
+        $host = self::requestHost();
+        if ($host === '') { return null; }
+        $primary = strtolower((string) Config::get('app.primary_host', ''));
+        if ($primary !== '' && hash_equals($primary, $host)) { return null; }
+        $id = App::getInstance()->db()->scalar(
+            'SELECT id FROM tenants WHERE enabled = 1 AND LOWER(domain) = ?', [$host]
+        );
+        return $id ? (int) $id : null;
     }
 }

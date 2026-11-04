@@ -42,13 +42,15 @@ $allows = static function (string $host, int $userId) use ($db): bool {
 $check($allows('a.example.test', $adminA), 'tenant A user may use tenant A domain');
 $check(!$allows('b.example.test', $adminA), 'tenant A user cannot use tenant B domain');
 $check(!$allows('panel.example.test', $adminA), 'domain-bound tenant user cannot use main domain');
-$check(!$allows('a.example.test', $super), 'super admin cannot use tenant domain');
+$check($allows('a.example.test', $super), 'super admin may use tenant domain');
 $check($allows('panel.example.test', $super), 'super admin may use main domain');
 $check($allows('panel.example.test', $legacy), 'domain-less tenant user may use main domain');
 $check(!$allows('unknown.example.test', $super), 'unknown host fails closed');
 
 $_SERVER['HTTP_HOST'] = 'a.example.test';
 $check((new App\Core\Auth())->attempt('admin-a', 'correct-horse'), 'matching tenant login succeeds');
+$app->auth()->logout();
+$check((new App\Core\Auth())->attempt('rootadmin', 'correct-horse'), 'super admin login succeeds on tenant domain');
 $_SERVER['HTTP_HOST'] = 'b.example.test';
 $check(!(new App\Core\Auth())->attempt('admin-a', 'correct-horse'), 'cross-tenant login is rejected');
 $_SERVER['HTTP_HOST'] = 'panel.example.test';
@@ -139,5 +141,14 @@ $customUsers->store(new App\Core\Request('POST', '/users', [], [
 ]));
 $check((int)$db->scalar("SELECT COUNT(*) FROM users WHERE username='forged-admin'") === 0,
     'custom user manager cannot create tenant admin');
+
+$_SERVER['HTTP_HOST'] = 'a.example.test';
+$security = new App\Controllers\TenantSecurityController();
+$security->store(new App\Core\Request('POST', '/tenant-security', [], ['ip'=>'203.0.113.77','reason'=>'test block']));
+$check((int)$db->scalar('SELECT COUNT(*) FROM tenant_login_bans WHERE tenant_id = ? AND ip = ?', [$tenantA,'203.0.113.77']) === 1,
+    'tenant admin can block an IP for own tenant');
+$check((new App\Services\TenantSecurity())->isBlocked($tenantA, '203.0.113.77')
+    && !(new App\Services\TenantSecurity())->isBlocked($tenantB, '203.0.113.77'),
+    'tenant login block is isolated per tenant');
 
 echo "All tenant authentication and role checks passed.\n";

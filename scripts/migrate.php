@@ -15,6 +15,19 @@ $pdo = $db->pdo();
 // New tables are always safe to ensure.
 $schema = require BASE_PATH . '/resources/config/schema.php';
 $db->exec($schema['roles']);
+$db->exec($schema['tenant_login_bans']);
+
+foreach ($db->all('SELECT id FROM tenants') as $tenant) {
+    foreach (['admin'=>'Admin','user'=>'User'] as $slug=>$name) {
+        if (!(int)$db->scalar('SELECT COUNT(*) FROM roles WHERE tenant_id = ? AND slug = ?', [(int)$tenant['id'],$slug])) {
+            $db->insert('roles', [
+                'tenant_id'=>(int)$tenant['id'], 'name'=>$name, 'slug'=>$slug,
+                'permissions'=>json_encode(App\Core\Auth::defaultPermissions($slug), JSON_THROW_ON_ERROR),
+                'created_at'=>date('Y-m-d H:i:s'),
+            ]);
+        }
+    }
+}
 
 if ((string) $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite') {
     $hasGlobalUsernameUnique = false;

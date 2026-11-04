@@ -7,6 +7,7 @@ namespace App\Controllers;
 use App\Core\Request;
 use App\Core\Response;
 use App\Core\Session;
+use App\Services\TenantHost;
 
 /**
  * Dashboard: system health, quick counts, live channels and per-tenant
@@ -85,6 +86,8 @@ final class DashboardController extends BaseController
         if (!auth()->isSuperAdmin()) {
             $user = $this->user();
             $tid  = (int) ($user['tenant_id'] ?? 0);
+        } elseif ($hostTenant = TenantHost::tenantIdForRequest()) {
+            $tid = $hostTenant;
         }
 
         if ($tid) {
@@ -103,6 +106,9 @@ final class DashboardController extends BaseController
         $user = $this->user();
 
         if (auth()->isSuperAdmin()) {
+            if ($hostTenant = TenantHost::tenantIdForRequest()) {
+                return $this->db()->all('SELECT id, name, context FROM tenants WHERE id = ? AND enabled = 1', [$hostTenant]);
+            }
             return $this->db()->all('SELECT id, name, context FROM tenants WHERE enabled = 1 ORDER BY name');
         }
 

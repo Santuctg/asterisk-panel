@@ -10,6 +10,8 @@ use App\Core\Logger;
 use App\Core\Request;
 use App\Core\Response;
 use App\Core\Session;
+use App\Services\TenantHost;
+use App\Services\TenantSecurity;
 
 /**
  * Login / logout / profile flow.
@@ -34,6 +36,13 @@ final class AuthController extends BaseController
     {
         $username = $request->str('username');
         $password = (string) $request->input('password', '');
+
+        $hostTenant = TenantHost::tenantIdForRequest();
+        if ($hostTenant && (new TenantSecurity())->isBlocked($hostTenant, $request->ip())) {
+            Logger::warning('Tenant login blocked', ['ip'=>$request->ip(), 'tenant_id'=>$hostTenant]);
+            Flash::error('Login from this IP address is blocked for this tenant.');
+            return Response::redirect('/login');
+        }
 
         // Basic throttling to slow brute-force attempts.
         $throttleKey = 'login:' . md5($request->ip());
@@ -69,6 +78,8 @@ final class AuthController extends BaseController
         // Seed the active tenant from the user's own tenant, if any.
         if (!empty($user['tenant_id'])) {
             Session::put('active_tenant', (int) $user['tenant_id']);
+        } elseif ($hostTenant) {
+            Session::put('active_tenant', $hostTenant);
         }
 
         $this->audit('auth.login', 'user', (int) $user['id']);

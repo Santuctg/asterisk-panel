@@ -113,6 +113,13 @@ if (!function_exists('tenant_id')) {
             return !empty($user['tenant_id']) ? (int) $user['tenant_id'] : null;
         }
 
+        // On a tenant hostname, a superadmin is pinned to that hostname's
+        // tenant. The main hostname retains the global tenant switcher.
+        if ($user && $auth->isSuperAdmin()) {
+            $hostTenant = \App\Services\TenantHost::tenantIdForRequest();
+            if ($hostTenant) { return $hostTenant; }
+        }
+
         $tid = $_SESSION['active_tenant'] ?? null;
         if ($tid) {
             return (int) $tid;

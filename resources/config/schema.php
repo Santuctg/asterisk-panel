@@ -62,6 +62,17 @@ return [
             UNIQUE(tenant_id, slug)
         )',
 
+    'tenant_login_bans' => '
+        CREATE TABLE IF NOT EXISTS tenant_login_bans (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            tenant_id  INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+            ip         VARCHAR(45) NOT NULL,
+            reason     VARCHAR(160),
+            created_by INTEGER,
+            created_at DATETIME,
+            UNIQUE(tenant_id, ip)
+        )',
+
     'extensions' => '
         CREATE TABLE IF NOT EXISTS extensions (
             id                 INTEGER PRIMARY KEY AUTOINCREMENT,

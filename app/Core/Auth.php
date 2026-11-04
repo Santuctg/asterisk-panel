@@ -130,31 +130,23 @@ final class Auth
             return true;
         }
 
-        $matrix = [
-            'admin' => [
-                'dashboard.view', 'extension.manage', 'voicemail.manage', 'device.manage',
-                'ringgroup.manage', 'parking.manage', 'ivr.manage', 'route.manage',
-                'moh.manage', 'callcenter.manage', 'conference.manage', 'cdr.view',
-                'cdr.delete', 'user.manage', 'role.manage', 'call.listen',
-            ],
-            'user' => [
-                'dashboard.view', 'cdr.view',
-            ],
-        ];
-
-        if (isset($matrix[$role])) {
-            return in_array($ability, $matrix[$role], true);
-        }
-
         $user = $this->user();
         if (!$user || empty($user['tenant_id'])) { return false; }
         $json = App::getInstance()->db()->scalar(
             'SELECT permissions FROM roles WHERE tenant_id = ? AND slug = ?',
             [(int) $user['tenant_id'], $role]
         );
-        if (!is_string($json)) { return false; }
-        $permissions = json_decode($json, true);
-        return is_array($permissions) && in_array($ability, $permissions, true);
+        $permissions = is_string($json) ? json_decode($json, true) : null;
+        if (!is_array($permissions) && in_array($role, ['admin','user'], true)) {
+            $permissions = self::defaultPermissions($role);
+        }
+        if (!is_array($permissions)) { return false; }
+        if (in_array($ability, $permissions, true)) { return true; }
+        // Manage permission always includes the corresponding read-only view.
+        if (str_ends_with($ability, '.view')) {
+            return in_array(substr($ability, 0, -5).'.manage', $permissions, true);
+        }
+        return false;
     }
 
     /** Permissions that may be granted by a tenant-scoped custom role. */
@@ -162,22 +154,35 @@ final class Auth
     {
         return [
             'dashboard.view' => 'View dashboard',
-            'extension.manage' => 'Manage extensions',
-            'voicemail.manage' => 'Manage voicemail',
-            'device.manage' => 'Manage devices',
-            'ringgroup.manage' => 'Manage ring groups',
-            'parking.manage' => 'Manage call parking',
-            'ivr.manage' => 'Manage IVR menus',
-            'route.manage' => 'Manage call routing',
-            'moh.manage' => 'Manage music on hold',
-            'callcenter.manage' => 'Manage call center',
-            'conference.manage' => 'Manage conferences',
-            'cdr.view' => 'View call history',
+            'webphone.use' => 'Use Web Phone',
+            'extension.view' => 'Extensions — view', 'extension.manage' => 'Extensions — create/edit/delete',
+            'voicemail.view' => 'Voicemail — view', 'voicemail.manage' => 'Voicemail — create/edit/delete',
+            'device.view' => 'Devices — view', 'device.manage' => 'Devices — create/edit/delete',
+            'ringgroup.view' => 'Ring groups — view', 'ringgroup.manage' => 'Ring groups — create/edit/delete',
+            'parking.view' => 'Call parking — view', 'parking.manage' => 'Call parking — create/edit/delete',
+            'ivr.view' => 'IVR menus — view', 'ivr.manage' => 'IVR menus — create/edit/delete',
+            'route.view' => 'Call routing — view', 'route.manage' => 'Call routing — create/edit/delete',
+            'moh.view' => 'Music on hold — view', 'moh.manage' => 'Music on hold — create/edit/delete',
+            'callcenter.view' => 'Call center — view', 'callcenter.manage' => 'Call center — create/edit/delete',
+            'conference.view' => 'Conferences — view', 'conference.manage' => 'Conferences — create/edit/delete',
+            'cdr.view' => 'Call history — view',
             'cdr.delete' => 'Delete call history',
             'call.listen' => 'Use live listen',
-            'user.manage' => 'Manage tenant users',
-            'role.manage' => 'Manage custom roles',
+            'user.view' => 'Users — view', 'user.manage' => 'Users — create/edit/delete',
+            'role.view' => 'Roles — view', 'role.manage' => 'Roles — create/edit/delete',
+            'tenant_security.view' => 'Tenant login security — view',
+            'tenant_security.manage' => 'Tenant login security — block/unblock IPs',
+            'system_status.view' => 'System status — view', 'system.apply' => 'Apply Asterisk configuration',
+            'system_settings.view' => 'Tenant settings — view', 'system_settings.manage' => 'Tenant settings — edit',
+            'audit.view' => 'Audit log — view',
         ];
+    }
+
+    public static function defaultPermissions(string $role): array
+    {
+        if ($role === 'admin') { return array_keys(self::assignableAbilities()); }
+        if ($role === 'user') { return ['dashboard.view','webphone.use','cdr.view']; }
+        return [];
     }
 
     /**
