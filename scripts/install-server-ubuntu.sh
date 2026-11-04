@@ -208,6 +208,7 @@ runuser -u www-data -- env \
 echo "[6/11] Configuring Asterisk AMI and managed includes..."
 install -d -o www-data -g asterisk -m 2775 /etc/asterisk/asterisk_panel
 install -d -o asterisk -g asterisk -m 2770 /var/spool/asterisk/monitor/asterisk-panel
+install -d -o asterisk -g asterisk -m 2775 /var/lib/asterisk/moh
 install -o root -g asterisk -m 0644 "$INSTALL_DIR/resources/deploy/asterisk/pjsip-base.conf" /etc/asterisk/asterisk_panel/pjsip_base.conf
 install -d -o root -g asterisk -m 0750 /etc/asterisk/manager.d
 cat >/etc/asterisk/manager.d/asterisk-panel.conf <<EOF

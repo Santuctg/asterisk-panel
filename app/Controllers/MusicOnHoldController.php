@@ -141,9 +141,10 @@ final class MusicOnHoldController extends BaseController
         if ($dirRealParent === false || ($dirRealParent !== $rootReal && !str_starts_with($dirRealParent, $rootReal . DIRECTORY_SEPARATOR))) {
             return ['count' => 0, 'error' => 'Audio uploads must stay inside the Asterisk Music on Hold directory.'];
         }
-        if (!is_dir($dir) && !@mkdir($dir, 0750, true)) {
+        if (!is_dir($dir) && !@mkdir($dir, 02775, true)) {
             return ['count' => 0, 'error' => 'Could not create the audio directory.'];
         }
+        @chmod($dir, 02775);
 
         $allowed = ['wav', 'gsm', 'ulaw', 'alaw', 'g722', 'sln', 'sln16', 'sln48', 'sln96', 'sln192', 'mp3', 'ogg'];
         $count = 0;
@@ -165,8 +166,11 @@ final class MusicOnHoldController extends BaseController
             }
 
             $safe = preg_replace('/[^A-Za-z0-9._-]+/', '_', $filename) ?: ('track_' . $i . '.' . $extension);
-            if (@move_uploaded_file($files['tmp_name'][$i], $dir . '/' . $safe)) { $count++; }
-            else { $errors[] = $filename; }
+            $target = $dir . '/' . $safe;
+            if (@move_uploaded_file($files['tmp_name'][$i], $target)) {
+                @chmod($target, 0640);
+                $count++;
+            } else { $errors[] = $filename; }
         }
 
         if ($errors === []) { return ['count' => $count, 'error' => '']; }
