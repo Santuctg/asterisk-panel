@@ -7,10 +7,10 @@ BRANCH=main
 BACKUPS=/root/asterisk-panel-update-backups
 
 status() {
-    local current remote
-    current="$(git -C "$REPO" rev-parse --short HEAD)"
-    remote="$(git -C "$REPO" ls-remote origin "refs/heads/$BRANCH" | awk '{print substr($1,1,7)}')"
-    printf 'current=%s\nremote=%s\nbranch=%s\n' "$current" "$remote" "$BRANCH"
+    local current latest
+    current="$(sed -n "s/.*'version'[[:space:]]*=>[[:space:]]*'\([^']*\)'.*/\1/p" "$APP/resources/config/app.php" | head -n 1)"
+    latest="$(git -C "$REPO" show "origin/$BRANCH:resources/config/app.php" 2>/dev/null | sed -n "s/.*'version'[[:space:]]*=>[[:space:]]*'\([^']*\)'.*/\1/p" | head -n 1)"
+    printf 'current_version=%s\nlatest_version=%s\n' "${current:-unknown}" "${latest:-unknown}"
 }
 
 update() {

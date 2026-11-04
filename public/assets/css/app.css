@@ -289,6 +289,7 @@ code, .mono { font-family: var(--mono); font-size: 12.5px; }
     padding: 14px 18px; border-bottom: 1px solid var(--border);
 }
 .card-head h2 { font-size: 15px; }
+.card-subtitle { margin: 3px 0 0; color: var(--text-muted); font-size: 12px; }
 .card-body { padding: 18px; }
 .card-body.tight { padding: 0; }
 .card-foot {
@@ -357,6 +358,13 @@ code, .mono { font-family: var(--mono); font-size: 12.5px; }
 .permission-group { padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-alt); }
 .permission-group h3 { margin: 0 0 10px; font-size: 13px; color: var(--text); }
 .permission-group .check { display: flex; gap: 8px; align-items: flex-start; padding: 6px 0; }
+.version-box { padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-alt); }
+.version-label { display: block; color: var(--text-muted); font-size: 12px; margin-bottom: 6px; }
+.version-box strong { font-size: 22px; color: var(--brand-700); }
+.whitelist-form { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: end; }
+.whitelist-list { display: grid; gap: 8px; }
+.whitelist-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 11px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-alt); }
+.whitelist-row code { font-family: var(--mono); font-size: 13px; color: var(--text); }
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field > label { font-size: 12.5px; font-weight: 600; color: var(--gray-700); }
 [data-theme="dark"] .field > label { color: var(--text-muted); }
