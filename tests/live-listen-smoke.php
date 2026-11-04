@@ -48,6 +48,11 @@ $db->insert('ring_group_members', ['ring_group_id' => $ringGroup, 'extension_id'
 $dialplan = $gen->renderDialplan();
 $check(str_contains($dialplan, '[panel-listen-only]'), 'browser dialplan cannot call out');
 $check(str_contains($dialplan, 'Dial(PJSIP/tenant_a_1001,25,TtHm(sales))'), 'ring group call tune uses selected MOH class');
+$liveFeed = (new App\Controllers\DashboardController())->liveCalls(new App\Core\Request('GET', '/dashboard/live-calls'));
+$liveData = json_decode($liveFeed->body(), true);
+$check($liveFeed->status() === 200 && isset($liveData['online'], $liveData['count'], $liveData['channels']), 'live calls polling feed responds');
+$dashboard = (new App\Controllers\DashboardController())->index(new App\Core\Request('GET', '/dashboard'));
+$check(str_contains($dashboard->body(), '/dashboard/live-calls') && str_contains($dashboard->body(), 'setTimeout(poll'), 'dashboard polls live calls automatically');
 
 $snapshot = App\Services\Asterisk\AsteriskManager::parseConciseChannels(
     'PJSIP/tenant_a_1001-00000001!tenant_a!1001!1!Up!Dial!PJSIP/trunk!Caller!acct!0!00:20!PJSIP/trunk-00000002!uid' . "\n" .

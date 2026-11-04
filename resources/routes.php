@@ -38,6 +38,7 @@ $csrf    = [Csrf::middleware(...)];
 // Dashboard + tenant switching
 $router->get('/', [DashboardController::class, 'index'], $auth);
 $router->get('/dashboard', [DashboardController::class, 'index'], $auth);
+$router->get('/dashboard/live-calls', [DashboardController::class, 'liveCalls'], $auth);
 $router->post('/dashboard/switch-tenant', [DashboardController::class, 'switchTenant'], array_merge($auth, $csrf));
 $router->get('/live-listen', [LiveListenController::class, 'index'], [Auth::require('call.listen')]);
 $router->post('/live-listen/start', [LiveListenController::class, 'start'], [Auth::require('call.listen'), Csrf::middleware(...)]);

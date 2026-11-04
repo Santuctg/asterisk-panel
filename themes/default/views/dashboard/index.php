@@ -6,7 +6,7 @@
  */
 require dirname(__DIR__) . '/partials/fields.php';
 
-$tile = function (string $icon, string $tone, int|string $value, string $label, string $href = '') {
+$tile = function (string $icon, string $tone, int|string $value, string $label, string $href = '', string $valueId = '') {
     ob_start();
     ?>
     <a href="<?= e($href) ?>" class="stat" style="text-decoration:none;color:inherit">
@@ -14,7 +14,7 @@ $tile = function (string $icon, string $tone, int|string $value, string $label, 
             <?= \App\Core\View::fragment('icons/' . $icon) ?>
         </div>
         <div class="stat-body">
-            <div class="stat-value"><?= e((string) $value) ?></div>
+            <div class="stat-value"<?= $valueId !== '' ? ' id="' . e($valueId) . '"' : '' ?>><?= e((string) $value) ?></div>
             <div class="stat-label"><?= e($label) ?></div>
         </div>
     </a>
@@ -60,7 +60,7 @@ $tile = function (string $icon, string $tone, int|string $value, string $label, 
     <?= $tile('pulse',    $online ? 'green' : 'red',
               $online ? $activeChannels : '—',
               $online ? 'Active calls' : 'Offline',
-              '/system/status') ?>
+              '/system/status', 'activeCallsCount') ?>
     <?= $tile('users',    'green',  $registered, 'Registered phones', '/devices') ?>
 </div>
 
@@ -76,11 +76,11 @@ $tile = function (string $icon, string $tone, int|string $value, string $label, 
     <div class="card">
         <div class="card-head">
             <h2>Active calls</h2>
-            <span class="badge <?= $online ? 'green' : 'gray' ?>">
+            <span id="activeCallsStatus" class="badge <?= $online ? 'green' : 'gray' ?>">
                 <span class="dot"></span><?= $online ? 'Live' : 'Offline' ?>
             </span>
         </div>
-        <div class="card-body tight">
+        <div class="card-body tight" id="activeCallsBody">
             <?php if (!$online): ?>
                 <?= \App\Core\View::fragment('partials/empty', [
                     'icon' => 'pulse', 'title' => 'No connection',
@@ -185,3 +185,75 @@ $tile = function (string $icon, string $tone, int|string $value, string $label, 
         </div>
     </div>
 </div>
+
+<script>
+(function () {
+    var body = document.getElementById('activeCallsBody');
+    var status = document.getElementById('activeCallsStatus');
+    var count = document.getElementById('activeCallsCount');
+    if (!body || !status || !count) return;
+
+    function cell(row, value, className) {
+        var td = document.createElement('td');
+        if (className) td.className = className;
+        td.textContent = value || '—';
+        row.appendChild(td);
+    }
+
+    function render(data) {
+        count.textContent = data.online ? String(data.count || 0) : '—';
+        count.closest('.stat-body').querySelector('.stat-label').textContent = data.online ? 'Active calls' : 'Offline';
+        status.className = 'badge ' + (data.online ? 'green' : 'gray');
+        status.replaceChildren();
+        var dot = document.createElement('span');
+        dot.className = 'dot';
+        status.appendChild(dot);
+        status.appendChild(document.createTextNode(data.online ? 'Live' : 'Offline'));
+
+        body.replaceChildren();
+        if (!data.online || !data.channels || data.channels.length === 0) {
+            var empty = document.createElement('div');
+            empty.className = 'empty';
+            var title = document.createElement('strong');
+            title.textContent = data.online ? 'No active calls' : 'No connection';
+            var message = document.createElement('p');
+            message.textContent = data.online ? 'Calls in progress will appear here automatically.' : 'Asterisk is currently unreachable.';
+            empty.appendChild(title);
+            empty.appendChild(message);
+            body.appendChild(empty);
+            return;
+        }
+
+        var wrap = document.createElement('div');
+        wrap.className = 'table-wrap';
+        var table = document.createElement('table');
+        table.innerHTML = '<thead><tr><th>Channel</th><th>Caller</th><th>App</th><th class="num">Duration</th></tr></thead>';
+        var tbody = document.createElement('tbody');
+        data.channels.forEach(function (channel) {
+            var row = document.createElement('tr');
+            cell(row, channel.name, 'mono text-xs');
+            cell(row, channel.caller, '');
+            cell(row, channel.app, '');
+            cell(row, channel.duration, 'num mono');
+            tbody.appendChild(row);
+        });
+        table.appendChild(tbody);
+        wrap.appendChild(table);
+        body.appendChild(wrap);
+    }
+
+    async function poll() {
+        try {
+            var response = await fetch('/dashboard/live-calls', {
+                headers: { 'Accept': 'application/json' }, cache: 'no-store'
+            });
+            if (response.ok) render(await response.json());
+        } catch (error) {
+            // Keep the last good snapshot during a temporary network failure.
+        } finally {
+            window.setTimeout(poll, document.hidden ? 15000 : 5000);
+        }
+    }
+    window.setTimeout(poll, 5000);
+})();
+</script>

@@ -77,6 +77,30 @@ final class DashboardController extends BaseController
         ]);
     }
 
+    /** GET /dashboard/live-calls — tenant-scoped polling feed. */
+    public function liveCalls(Request $request): Response
+    {
+        $tid = $this->tenantId();
+        $online = false;
+        $channels = [];
+
+        try {
+            $mgr = asterisk();
+            $online = $mgr->isOnline();
+            if ($online && $tid) {
+                $channels = $mgr->tenantChannels($tid, 30);
+            }
+        } catch (\Throwable $e) {
+            \App\Core\Logger::info('Live calls feed: Asterisk unavailable', ['error' => $e->getMessage()]);
+        }
+
+        return $this->json([
+            'online' => $online,
+            'count' => count($channels),
+            'channels' => array_values($channels),
+        ]);
+    }
+
     /** POST /dashboard/switch-tenant */
     public function switchTenant(Request $request): Response
     {

@@ -12,6 +12,9 @@ version_from_file() {
 
 status() {
     local current latest
+    exec 9>/run/asterisk-panel-update.lock
+    flock 9
+    git -C "$REPO" fetch --quiet --prune origin "$BRANCH"
     current="$(sed -n "s/.*'version'[[:space:]]*=>[[:space:]]*'\([^']*\)'.*/\1/p" "$APP/resources/config/app.php" | head -n 1)"
     latest="$(git -C "$REPO" show "origin/$BRANCH:resources/config/app.php" 2>/dev/null | sed -n "s/.*'version'[[:space:]]*=>[[:space:]]*'\([^']*\)'.*/\1/p" | head -n 1)"
     printf 'current_version=%s\nlatest_version=%s\n' "${current:-unknown}" "${latest:-unknown}"
@@ -40,6 +43,7 @@ update() {
     find "$REPO" -type f -name '*.php' -print0 | xargs -0 -n1 php -l >/dev/null
     rsync -a --delete --exclude=storage/ --exclude=.env "$REPO/" "$APP/"
     DB_DRIVER=sqlite DB_NAME="$APP/storage/database/asterisk_panel.sqlite" php "$APP/scripts/migrate.php"
+    install -o root -g root -m 0755 "$REPO/scripts/update-helper.sh" /usr/local/sbin/asterisk-panel-update
     systemctl restart php8.3-fpm
     systemctl restart asterisk-panel-cdr.timer
     printf 'updated=%s\nbackup=%s\n' "$(git -C "$REPO" rev-parse --short HEAD)" "$backup"
