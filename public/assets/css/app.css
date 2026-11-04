@@ -361,6 +361,26 @@ code, .mono { font-family: var(--mono); font-size: 12.5px; }
 .version-box { padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-alt); }
 .version-label { display: block; color: var(--text-muted); font-size: 12px; margin-bottom: 6px; }
 .version-box strong { font-size: 22px; color: var(--brand-700); }
+.update-page-head { margin-bottom: 10px; }
+.update-shell { max-width: 1140px; margin: 0 auto; padding: 2px 0 30px; }
+.update-hero { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 24px; border: 1px solid var(--border); border-radius: var(--radius); background: linear-gradient(120deg, var(--surface), var(--surface-alt)); }
+.update-hero h2 { margin: 8px 0 5px; font-size: 20px; }
+.update-hero p { margin: 0; color: var(--text-muted); font-size: 12px; }
+.eyebrow { color: var(--success-500); font: 700 10px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+.status-dot { display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: var(--success-500); }
+.update-check { white-space: nowrap; }
+.update-card-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; margin-top: 12px; }
+.update-stat { display: flex; gap: 12px; align-items: center; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.update-stat-icon { width: 38px; height: 38px; display: grid; place-items: center; flex: 0 0 38px; border: 1px solid var(--border-strong); border-radius: 9px; color: var(--brand-600); font-weight: 700; }
+.update-stat span, .update-stat small { display: block; color: var(--text-muted); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }
+.update-stat strong { display: block; margin: 4px 0; font-size: 17px; }
+.update-stat small { text-transform: none; letter-spacing: 0; font-size: 11px; }
+.update-ok strong { color: var(--success-500); }.update-needed strong { color: var(--warning-500); }
+.release-row { display: flex; align-items: center; gap: 13px; margin-top: 12px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.github-mark { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--border-strong); border-radius: 9px; font-size: 10px; font-weight: 800; }
+.release-info { flex: 1; }.release-info span, .release-info small { display: block; color: var(--text-muted); font-size: 10px; }.release-info strong { display: block; margin: 3px 0; font-size: 13px; }.release-link { color: var(--brand-600); font-size: 11px; }.release-badge, .job-status { padding: 5px 9px; border: 1px solid var(--success-500); border-radius: 999px; color: var(--success-500); font: 700 10px var(--mono); white-space: nowrap; }.job-status.job-ready { color: var(--warning-500); border-color: var(--warning-500); }
+.verification-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; margin-top: 12px; }.verification-grid > div { display: grid; grid-template-columns: 28px 1fr; column-gap: 9px; padding: 13px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }.verification-grid b { grid-row: span 2; color: var(--success-500); }.verification-grid strong { font-size: 12px; }.verification-grid small { color: var(--text-muted); font-size: 10px; }
+.update-job { margin-top: 12px; padding: 18px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }.job-head { display: flex; justify-content: space-between; align-items: center; }.job-head h3 { font-size: 14px; }.job-head small { color: var(--text-muted); }.job-steps { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin: 20px 0 15px; }.job-steps span { display: flex; flex-direction: column; align-items: center; gap: 5px; color: var(--text-muted); font-size: 10px; }.job-steps i { width: 25px; height: 25px; display: grid; place-items: center; border: 1px solid var(--border-strong); border-radius: 50%; font-style: normal; }.job-steps .done { color: var(--success-500); }.job-steps .done i { border-color: var(--success-500); }.job-version { display: flex; justify-content: space-between; padding: 12px; border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted); font-size: 12px; }.job-version strong { color: var(--text); }.job-action { display: flex; justify-content: flex-end; margin-top: 12px; }.job-success { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--success-500); border-radius: 6px; color: var(--success-500); font-size: 12px; }
 .whitelist-form { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: end; }
 .whitelist-list { display: grid; gap: 8px; }
 .whitelist-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 11px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-alt); }
@@ -585,7 +605,9 @@ td.actions form { display: inline; }
     .app-shell.sidebar-open .sidebar { transform: none; }
     .main { margin-left: 0; }
     #sidebarToggle { display: grid; }
-    .grid-2, .grid-3, .grid-4, .form-grid, .permission-grid { grid-template-columns: 1fr; }
+    .grid-2, .grid-3, .grid-4, .form-grid, .permission-grid, .update-card-grid, .verification-grid { grid-template-columns: 1fr; }
+    .update-hero, .release-row { align-items: flex-start; flex-direction: column; }
+    .release-badge { align-self: flex-start; }
     .role-row { grid-template-columns: 1fr; }
     .role-actions { justify-content: flex-start; }
     .role-editor { position: static; width: min(100%, 560px); margin-top: 10px; }

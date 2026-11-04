@@ -65,7 +65,11 @@ final class SystemController extends BaseController
         $current = (string) ($status['current_version'] ?? config('app.version', ''));
         $latest = (string) ($status['latest_version'] ?? '');
         $hasUpdate = $current !== '' && $latest !== '' && $latest !== 'unknown' && version_compare($latest, $current, '>');
-        return $this->view('system/update', ['status' => $status, 'error' => $error, 'hasUpdate' => $hasUpdate, 'repo' => config('app.github_repo', '')]);
+        $repo = rtrim((string) config('app.github_repo', ''), '/');
+        return $this->view('system/update', [
+            'status' => $status, 'error' => $error, 'hasUpdate' => $hasUpdate,
+            'repo' => $repo, 'releaseUrl' => $repo . '/releases/latest',
+        ]);
     }
 
     public function applyUpdate(Request $request): Response
