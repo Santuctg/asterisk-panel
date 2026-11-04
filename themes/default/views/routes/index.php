@@ -373,6 +373,39 @@ $activeTab = $_GET['tab'] ?? 'inbound';
 
 <script>
 (function () {
+    function bindDestinationFilter(form, typeName, destinationName) {
+        var type = form.elements[typeName];
+        var destination = form.elements[destinationName];
+        if (!type || !destination) return;
+
+        var apply = function () {
+            var selected = type.value;
+            destination.querySelectorAll('optgroup[data-type]').forEach(function (group) {
+                group.hidden = group.getAttribute('data-type') !== selected;
+            });
+            var current = destination.options[destination.selectedIndex];
+            if (current && current.parentElement && current.parentElement.hidden) {
+                destination.value = '';
+            }
+        };
+        type.addEventListener('change', apply);
+        apply();
+    }
+
+    var inboundForm = document.getElementById('inboundForm');
+    var timeForm = document.getElementById('timeForm');
+    if (inboundForm) bindDestinationFilter(inboundForm, 'dest_type', 'dest_id');
+    if (timeForm) {
+        bindDestinationFilter(timeForm, 'open_type', 'open_dest_id');
+        bindDestinationFilter(timeForm, 'closed_type', 'closed_dest_id');
+    }
+    function refreshDestinationFilters(form) {
+        ['dest_type', 'open_type', 'closed_type'].forEach(function (name) {
+            var select = form.elements[name];
+            if (select) select.dispatchEvent(new Event('change'));
+        });
+    }
+
     // Generic modal populate-on-edit for the four tabs.
     var configs = [
         { modal: 'inboundModal',  form: 'inboundForm',  title: 'inboundTitle',  submit: 'inboundSubmit',
@@ -407,10 +440,11 @@ $activeTab = $_GET['tab'] ?? 'inbound';
             title.textContent = 'Edit ' + cfg.label;
             submit.textContent = 'Save changes';
 
-             cfg.fields.forEach(function (k) {
-                 var el = form.elements[k];
-                 if (el && data[k] !== undefined && data[k] !== null) el.value = data[k];
-             });
+              cfg.fields.forEach(function (k) {
+                  var el = form.elements[k];
+                  if (el && data[k] !== undefined && data[k] !== null) el.value = data[k];
+              });
+              refreshDestinationFilters(form);
              if (cfg.modal === 'trunkModal') {
                  form.elements.sip_trunk_auth_id.value = data.username || '';
                  form.elements.sip_trunk_auth_secret.value = '';
@@ -429,6 +463,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                 form.action = cfg.action;
                 title.textContent = 'Add ' + cfg.label;
                 submit.textContent = 'Add';
+                refreshDestinationFilters(form);
             });
         });
     });

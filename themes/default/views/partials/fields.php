@@ -54,7 +54,8 @@ if (!function_exists('field_select')) {
         if ($isGrouped) {
             foreach ($options as $groupLabel => $group) {
                 if (!is_array($group)) continue;
-                $html .= '<optgroup label="' . e((string) $groupLabel) . '" data-type="' . e((string) $groupLabel) . '">';
+                 $groupText = ucwords(str_replace(['_', '-'], ' ', (string) $groupLabel));
+                 $html .= '<optgroup label="' . e($groupText) . '" data-type="' . e((string) $groupLabel) . '">';
                 foreach ($group as $opt) {
                     $val   = $opt['id'] ?? ($opt['value'] ?? $k);
                     $lab   = $opt['label'] ?? ($opt['name'] ?? $val);
