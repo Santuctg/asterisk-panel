@@ -62,7 +62,10 @@ final class SystemController extends BaseController
     {
         $status = []; $error = null;
         try { $status = (new UpdateService())->status(); } catch (\Throwable $e) { $error = $e->getMessage(); }
-        return $this->view('system/update', ['status' => $status, 'error' => $error, 'repo' => config('app.github_repo', '')]);
+        $current = (string) ($status['current_version'] ?? config('app.version', ''));
+        $latest = (string) ($status['latest_version'] ?? '');
+        $hasUpdate = $current !== '' && $latest !== '' && $latest !== 'unknown' && version_compare($latest, $current, '>');
+        return $this->view('system/update', ['status' => $status, 'error' => $error, 'hasUpdate' => $hasUpdate, 'repo' => config('app.github_repo', '')]);
     }
 
     public function applyUpdate(Request $request): Response

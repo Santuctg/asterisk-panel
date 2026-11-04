@@ -1,9 +1,4 @@
-<?php require dirname(__DIR__) . '/partials/fields.php'; ?>
-<div class="page-head">
-    <div><h1>Roles</h1><div class="subtitle">Granular view and management permissions for the active tenant</div></div>
-</div>
-
-<?php
+<?php require dirname(__DIR__) . '/partials/fields.php';
 $permissionGroups = [
     'Core panel' => ['dashboard.view', 'webphone.use'],
     'Telephony' => ['extension.view','extension.manage','voicemail.view','voicemail.manage','device.view','device.manage','ringgroup.view','ringgroup.manage','parking.view','parking.manage','ivr.view','ivr.manage','route.view','route.manage','moh.view','moh.manage','callcenter.view','callcenter.manage','conference.view','conference.manage'],
@@ -11,56 +6,24 @@ $permissionGroups = [
     'People & access' => ['user.view','user.manage','role.view','role.manage','tenant_security.view','tenant_security.manage'],
     'System' => ['system_status.view','system.apply','system_settings.view','system_settings.manage','audit.view'],
 ];
-$grouped = static function (array $abilities) use ($permissionGroups): array {
-    $out = [];
-    foreach ($permissionGroups as $group => $keys) {
-        $items = [];
-        foreach ($keys as $key) if (isset($abilities[$key])) $items[$key] = $abilities[$key];
-        if ($items) $out[$group] = $items;
-    }
-    return $out;
-};
-$abilityGroups = $grouped($abilities);
+$groups = [];
+foreach ($permissionGroups as $group => $keys) {
+    foreach ($keys as $key) if (isset($abilities[$key])) $groups[$group][$key] = $abilities[$key];
+}
 ?>
+<div class="page-head"><div><h1>Roles &amp; Permissions</h1><div class="subtitle">Customize panel access for administrators and operators</div></div></div>
 
-<?php if(auth()->can('role.manage')): ?>
-<form method="post" action="/roles" class="card mb-4">
-    <?= csrf() ?>
-    <div class="card-head"><h2>Create role</h2></div>
-    <div class="card-body">
-        <?= field_text('name', 'Role name', '', ['required' => true, 'placeholder' => 'e.g. Call supervisor']) ?>
-        <div class="field mt-3"><label>Permissions</label></div>
-        <div class="grid grid-2">
-            <?php foreach ($abilityGroups as $group => $items): ?><section class="permission-group"><h3><?= e($group) ?></h3><?php foreach ($items as $ability => $label): ?><label class="check"><input type="checkbox" name="permissions[]" value="<?= e($ability) ?>"> <span><?= e($label) ?></span></label><?php endforeach; ?></section><?php endforeach; ?>
-        </div>
-    </div>
-    <div class="card-foot"><button class="btn btn-primary">Create role</button></div>
-</form>
-<?php endif; ?>
+<?php if (auth()->can('role.manage')): ?>
+<details class="card role-create mb-4"><summary class="card-head role-create-summary"><div><h2>Access roles</h2><p class="card-subtitle">Custom roles can be configured permission by permission.</p></div><span class="btn btn-primary">+ Add role</span></summary>
+<form method="post" action="/roles"><div class="card-body"><div class="role-create-name"><?= field_text('name', 'Role name', '', ['required' => true, 'placeholder' => 'e.g. Call supervisor']) ?></div><div class="permission-grid mt-3"><?php foreach ($groups as $group => $items): ?><section class="permission-group"><h3><?= e($group) ?></h3><?php foreach ($items as $ability => $label): ?><label class="check"><input type="checkbox" name="permissions[]" value="<?= e($ability) ?>"><span><?= e($label) ?></span></label><?php endforeach; ?></section><?php endforeach; ?></div></div><div class="card-foot"><button class="btn btn-primary">Create role</button></div><?= csrf() ?></form></details>
+<?php else: ?><div class="card role-section-head"><div class="card-head"><div><h2>Access roles</h2><p class="card-subtitle">Roles assigned in this tenant.</p></div></div></div><?php endif; ?>
 
-<div class="card">
-    <div class="card-head"><h2>Admin, User and custom roles</h2></div>
-    <div class="card-body tight">
-        <?php if (!$rows): ?>
-            <?= \App\Core\View::fragment('partials/empty', ['icon'=>'user','title'=>'No custom roles','message'=>'Create a role and select only the permissions it needs.']) ?>
-        <?php else: ?>
-            <?php foreach ($rows as $role): ?>
-                <?php $canEdit=auth()->can('role.manage')&&(!$role['built_in']||auth()->isAdmin()); ?>
-                <form method="post" action="/roles/<?= (int) $role['id'] ?>" class="card mb-3">
-                    <?= csrf() ?>
-                    <div class="card-body">
-                        <div class="form-grid">
-                            <?= field_text('name', 'Role name', $role['name'], ['required' => true,'readonly'=>$role['built_in']||!$canEdit]) ?>
-                            <div class="field"><label>Assigned users</label><div><?= (int) $role['user_count'] ?></div></div>
-                        </div>
-                        <div class="grid grid-2 mt-3"><?php foreach ($abilityGroups as $group => $items): ?><section class="permission-group"><h3><?= e($group) ?></h3><?php foreach ($items as $ability => $label): ?><label class="check"><input type="checkbox" name="permissions[]" value="<?= e($ability) ?>" <?= in_array($ability, $role['permissions_list'], true) ? 'checked' : '' ?> <?= $canEdit?'':'disabled' ?>> <span><?= e($label) ?></span></label><?php endforeach; ?></section><?php endforeach; ?></div>
-                    </div>
-                    <div class="card-foot">
-                        <?php if($canEdit): ?><button class="btn btn-primary">Save role</button><?php endif; ?>
-                        <?php if(!$role['built_in']&&$canEdit): ?><button class="btn btn-ghost" formmethod="post" formaction="/roles/<?= (int) $role['id'] ?>" name="_method" value="DELETE" data-confirm-btn="Delete this role?" <?= (int)$role['user_count'] > 0 ? 'disabled' : '' ?>>Delete</button><?php endif; ?>
-                    </div>
-                </form>
-            <?php endforeach; ?>
-        <?php endif; ?>
-    </div>
+<div class="role-list">
+<?php foreach ($rows as $role): $canEdit = auth()->can('role.manage') && (!$role['built_in'] || auth()->isAdmin()); ?>
+<article class="role-row">
+    <div class="role-summary"><div class="role-title"><h2><?= e($role['name']) ?></h2><?php if ($role['built_in']): ?><span class="role-badge">BUILT-IN</span><?php endif; ?></div><p class="role-description"><?= $role['built_in'] ? 'Built-in tenant role. Permissions can be adjusted by an Admin.' : 'Custom tenant access role.' ?></p><div class="role-meta"><span><?= count($role['permissions_list']) ?> permissions</span><span><?= (int) $role['user_count'] ?> panel users</span></div></div>
+    <div class="role-permissions"><?php if (!$role['permissions_list']): ?><span class="muted">No permissions</span><?php else: foreach ($role['permissions_list'] as $permission): ?><span class="permission-chip"><?= e($permission) ?></span><?php endforeach; endif; ?></div>
+    <div class="role-actions"><?php if ($canEdit): ?><details><summary class="btn btn-sm">Edit</summary><form method="post" action="/roles/<?= (int) $role['id'] ?>" class="role-editor"><?= csrf() ?><?php if (!$role['built_in']): ?><?= field_text('name', 'Role name', $role['name'], ['required' => true]) ?><?php endif; ?><?php foreach ($groups as $group => $items): ?><section class="permission-group"><h3><?= e($group) ?></h3><?php foreach ($items as $ability => $label): ?><label class="check"><input type="checkbox" name="permissions[]" value="<?= e($ability) ?>" <?= in_array($ability, $role['permissions_list'], true) ? 'checked' : '' ?>><span><?= e($label) ?></span></label><?php endforeach; ?></section><?php endforeach; ?><button class="btn btn-primary">Save permissions</button></form></details><?php else: ?><span class="role-locked">Locked</span><?php endif; ?><?php if (!$role['built_in'] && $canEdit): ?><form method="post" action="/roles/<?= (int) $role['id'] ?>"><?= csrf() ?><input type="hidden" name="_method" value="DELETE"><button class="btn btn-sm btn-danger" data-confirm-btn="Delete this role?" <?= (int) $role['user_count'] > 0 ? 'disabled' : '' ?>>Delete</button></form><?php endif; ?></div>
+</article>
+<?php endforeach; ?>
 </div>
