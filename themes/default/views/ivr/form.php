@@ -7,7 +7,7 @@ require dirname(__DIR__) . '/partials/fields.php';
 
 $isNew  = empty($row);
 $action = $isNew ? '/ivr' : '/ivr/' . (int) $row['id'];
-$val    = static fn (string $key, $default = '') => $row[$key] ?? old($key, $destinations[$key] ?? $default);
+$val    = static fn (string $key, $default = '') => $row[$key] ?? old($key, $default);
 
 // Human labels for each destination type.
 $typeLabels = [
