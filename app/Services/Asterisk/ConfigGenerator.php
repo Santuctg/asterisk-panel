@@ -521,11 +521,29 @@ final class ConfigGenerator
             }
 
             $out .= " same => n,Set(__RINGSTRATEGY={$strategy})\n";
-            $out .= " same => n,Dial({$members},{$g['timeout']},TtHm)\n";
+            $dialOptions = 'TtH' . $this->ringbackDialOption((string) ($g['ringback'] ?? ''));
+            $out .= " same => n,Dial({$members},{$g['timeout']},{$dialOptions})\n";
             $out .= " same => n,Hangup()\n\n";
         }
 
         return $out;
+    }
+
+    /** Convert the panel's ringback tune value into a safe Dial() option. */
+    private function ringbackDialOption(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '' || $value === 'ring') {
+            return '';
+        }
+
+        // Accept the old form too, while exposing the simpler moh[:class] form.
+        if (preg_match('/^(?:moh|local_stream=moh)(?::|=)?([A-Za-z0-9_-]+)?$/', $value, $m)) {
+            $class = $m[1] ?? 'default';
+            return 'm(' . $class . ')';
+        }
+
+        return '';
     }
 
     private function dialplanQueueEntries(int $tid, string $ctx, bool $record = false): string

@@ -23,7 +23,7 @@ $user = $db->insert('users', [
     'tenant_id' => $tid, 'username' => 'adminA', 'password' => password_hash('test-pass', PASSWORD_DEFAULT),
     'role' => 'admin', 'active' => 1,
 ]);
-$db->insert('extensions', ['tenant_id' => $tid, 'extension' => '1001', 'name' => 'Target', 'secret' => 'test-secret', 'enabled' => 1]);
+$targetExtension = $db->insert('extensions', ['tenant_id' => $tid, 'extension' => '1001', 'name' => 'Target', 'secret' => 'test-secret', 'enabled' => 1]);
 $db->insert('extensions', ['tenant_id' => $tid, 'extension' => '2002', 'name' => 'Supervisor', 'secret' => 'test-secret2', 'enabled' => 1]);
 $db->insert('extensions', ['tenant_id' => $other, 'extension' => '1001', 'name' => 'Other', 'secret' => 'test-secret3', 'enabled' => 1]);
 $app->auth()->login($user);
@@ -40,7 +40,14 @@ $check($app->auth()->can('call.listen'), 'tenant admin may listen');
 $gen = new App\Services\Asterisk\ConfigGenerator();
 $pjsip = $gen->renderPjsipEndpoints();
 $check(str_contains($pjsip, '[tenant_a_2002-web]') && str_contains($pjsip, 'context = panel-listen-only'), 'separate browser endpoints are restricted');
-$check(str_contains($gen->renderDialplan(), '[panel-listen-only]'), 'browser dialplan cannot call out');
+$ringGroup = $db->insert('ring_groups', [
+    'tenant_id' => $tid, 'extension' => '600', 'name' => 'Sales',
+    'timeout' => 25, 'ringback' => 'moh:sales', 'enabled' => 1,
+]);
+$db->insert('ring_group_members', ['ring_group_id' => $ringGroup, 'extension_id' => $targetExtension, 'ordering' => 0]);
+$dialplan = $gen->renderDialplan();
+$check(str_contains($dialplan, '[panel-listen-only]'), 'browser dialplan cannot call out');
+$check(str_contains($dialplan, 'Dial(PJSIP/tenant_a_1001,25,TtHm(sales))'), 'ring group call tune uses selected MOH class');
 
 $snapshot = App\Services\Asterisk\AsteriskManager::parseConciseChannels(
     'PJSIP/tenant_a_1001-00000001!tenant_a!1001!1!Up!Dial!PJSIP/trunk!Caller!acct!0!00:20!PJSIP/trunk-00000002!uid' . "\n" .

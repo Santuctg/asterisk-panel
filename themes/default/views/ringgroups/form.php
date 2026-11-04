@@ -59,9 +59,9 @@ $selected = array_map(
                     'hint' => 'Total time before falling through to voicemail.',
                 ]); ?>
 
-                <?php echo field_text('ringback', 'Ringback tone / file', $val('ringback'), [
-                    'placeholder' => 'e.g. local_stream=moh',
-                    'hint'        => 'Optional audio played to the caller while ringing.',
+                <?php echo field_text('ringback', 'Call tune while ringing', $val('ringback'), [
+                    'placeholder' => 'e.g. moh or moh:sales',
+                    'hint'        => 'Leave blank for normal ringing. Use moh for the default class or moh:class_name for a custom Music on Hold class.',
                 ]); ?>
 
                 <div class="span-2">
