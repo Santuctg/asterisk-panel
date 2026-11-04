@@ -40,7 +40,7 @@ $user = $auth->user();
         ['label' => 'Roles',        'href' => '/roles',          'icon' => 'users',   'ability' => 'role.view'],
         ['label' => 'Tenant Security','href' => '/tenant-security','icon' => 'shield', 'ability' => 'tenant_security.view'],
         ['label' => 'Global Admins','href' => '/global-admins',  'icon' => 'user',    'ability' => 'tenant.manage'],
-        ['label' => 'Fail2ban',      'href' => '/fail2ban',       'icon' => 'shield',  'ability' => 'tenant.manage'],
+        ['label' => 'Fail2ban',      'href' => '/fail2ban',       'icon' => 'shield',  'ability' => 'security.fail2ban'],
         ['label' => 'System',       'href' => '/system/status',  'icon' => 'cog',     'ability' => null,
             'children' => [
                 ['label' => 'Status',      'href' => '/system/status'],
@@ -49,6 +49,7 @@ $user = $auth->user();
                 ['label' => 'Audit Log',   'href' => '/system/audit'],
             ],
         ],
+        ['label' => 'System Update', 'href' => '/system/update', 'icon' => 'refresh', 'ability' => 'system.update'],
     ];
 
     $canSee = static fn (array $item): bool => empty($item['ability']) || \App\Core\App::getInstance()->auth()->can($item['ability']);
@@ -122,14 +123,17 @@ $user = $auth->user();
                 // Tenant switcher (multi-tenant installs).
                 $tenants = [];
                 if (\App\Core\App::getInstance()->auth()->isSuperAdmin()) {
-                    $tenants = \App\Core\App::getInstance()->db()->all('SELECT id, name FROM tenants WHERE enabled = 1 ORDER BY name');
+                    $hostTenant = \App\Services\TenantHost::tenantIdForRequest();
+                    $tenants = $hostTenant
+                        ? \App\Core\App::getInstance()->db()->all('SELECT id, name FROM tenants WHERE id = ? AND enabled = 1', [$hostTenant])
+                        : \App\Core\App::getInstance()->db()->all('SELECT id, name FROM tenants WHERE enabled = 1 ORDER BY name');
                 } else {
                     $tid = $user['tenant_id'] ?? null;
                     if ($tid) {
                         $tenants = \App\Core\App::getInstance()->db()->all('SELECT id, name FROM tenants WHERE id = ?', [$tid]);
                     }
                 }
-                $activeTenant = $_SESSION['active_tenant'] ?? null;
+                $activeTenant = function_exists('tenant_id') ? tenant_id() : ($_SESSION['active_tenant'] ?? null);
                 ?>
                 <?php if (count($tenants) > 1): ?>
                     <form method="post" action="/dashboard/switch-tenant" class="tenant-switch">

@@ -354,6 +354,9 @@ code, .mono { font-family: var(--mono); font-size: 12.5px; }
 /* ---------- Forms ---------- */
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; }
 .form-grid .span-2 { grid-column: 1 / -1; }
+.permission-group { padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-alt); }
+.permission-group h3 { margin: 0 0 10px; font-size: 13px; color: var(--text); }
+.permission-group .check { display: flex; gap: 8px; align-items: flex-start; padding: 6px 0; }
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field > label { font-size: 12.5px; font-weight: 600; color: var(--gray-700); }
 [data-theme="dark"] .field > label { color: var(--text-muted); }

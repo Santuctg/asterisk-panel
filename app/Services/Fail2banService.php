@@ -27,6 +27,22 @@ final class Fail2banService
         if ($code !== 0) { throw new \RuntimeException('Fail2ban action failed: ' . trim($output)); }
     }
 
+    public function whitelist(): array
+    {
+        [$code, $output] = $this->run(['whitelist']);
+        if ($code !== 0) { throw new \RuntimeException('Fail2ban whitelist helper failed: ' . trim($output)); }
+        return array_values(array_filter(array_map('trim', preg_split('/\R/', $output) ?: []), static fn(string $ip): bool => filter_var($ip, FILTER_VALIDATE_IP) !== false));
+    }
+
+    public function whitelistAction(string $action, string $ip): void
+    {
+        if (!in_array($action, ['whitelist-add', 'whitelist-remove'], true) || filter_var($ip, FILTER_VALIDATE_IP) === false) {
+            throw new \RuntimeException('Enter a valid IPv4 or IPv6 address.');
+        }
+        [$code, $output] = $this->run([$action, $ip]);
+        if ($code !== 0) { throw new \RuntimeException('Fail2ban whitelist action failed: ' . trim($output)); }
+    }
+
     public static function parseStatus(string $output): array
     {
         $result = [];

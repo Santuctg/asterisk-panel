@@ -8,6 +8,7 @@ use App\Core\Flash;
 use App\Core\Request;
 use App\Core\Response;
 use App\Services\Asterisk\SipPort;
+use App\Services\UpdateService;
 
 /**
  * System pages: live Asterisk status, "apply config", panel settings and
@@ -55,6 +56,23 @@ final class SystemController extends BaseController
             'queues'     => $queues,
             'configDir'  => $gen->dir(),
         ]);
+    }
+
+    public function update(Request $request): Response
+    {
+        $status = []; $error = null;
+        try { $status = (new UpdateService())->status(); } catch (\Throwable $e) { $error = $e->getMessage(); }
+        return $this->view('system/update', ['status' => $status, 'error' => $error, 'repo' => config('app.github_repo', '')]);
+    }
+
+    public function applyUpdate(Request $request): Response
+    {
+        try {
+            $result = (new UpdateService())->update();
+            $this->audit('system.update', 'system', null, ['result' => $result]);
+            Flash::success('Update completed successfully.');
+        } catch (\Throwable $e) { Flash::error('Update failed: ' . $e->getMessage()); }
+        return Response::redirect('/system/update');
     }
 
     /** POST /system/apply — regenerate config + reload Asterisk. */

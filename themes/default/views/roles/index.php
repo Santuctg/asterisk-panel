@@ -3,6 +3,26 @@
     <div><h1>Roles</h1><div class="subtitle">Granular view and management permissions for the active tenant</div></div>
 </div>
 
+<?php
+$permissionGroups = [
+    'Core panel' => ['dashboard.view', 'webphone.use'],
+    'Telephony' => ['extension.view','extension.manage','voicemail.view','voicemail.manage','device.view','device.manage','ringgroup.view','ringgroup.manage','parking.view','parking.manage','ivr.view','ivr.manage','route.view','route.manage','moh.view','moh.manage','callcenter.view','callcenter.manage','conference.view','conference.manage'],
+    'Reports & tools' => ['cdr.view','cdr.delete','call.listen'],
+    'People & access' => ['user.view','user.manage','role.view','role.manage','tenant_security.view','tenant_security.manage'],
+    'System' => ['system_status.view','system.apply','system_settings.view','system_settings.manage','audit.view'],
+];
+$grouped = static function (array $abilities) use ($permissionGroups): array {
+    $out = [];
+    foreach ($permissionGroups as $group => $keys) {
+        $items = [];
+        foreach ($keys as $key) if (isset($abilities[$key])) $items[$key] = $abilities[$key];
+        if ($items) $out[$group] = $items;
+    }
+    return $out;
+};
+$abilityGroups = $grouped($abilities);
+?>
+
 <?php if(auth()->can('role.manage')): ?>
 <form method="post" action="/roles" class="card mb-4">
     <?= csrf() ?>
@@ -10,10 +30,8 @@
     <div class="card-body">
         <?= field_text('name', 'Role name', '', ['required' => true, 'placeholder' => 'e.g. Call supervisor']) ?>
         <div class="field mt-3"><label>Permissions</label></div>
-        <div class="form-grid">
-            <?php foreach ($abilities as $ability => $label): ?>
-                <label class="check"><input type="checkbox" name="permissions[]" value="<?= e($ability) ?>"> <span><?= e($label) ?></span></label>
-            <?php endforeach; ?>
+        <div class="grid grid-2">
+            <?php foreach ($abilityGroups as $group => $items): ?><section class="permission-group"><h3><?= e($group) ?></h3><?php foreach ($items as $ability => $label): ?><label class="check"><input type="checkbox" name="permissions[]" value="<?= e($ability) ?>"> <span><?= e($label) ?></span></label><?php endforeach; ?></section><?php endforeach; ?>
         </div>
     </div>
     <div class="card-foot"><button class="btn btn-primary">Create role</button></div>
@@ -34,10 +52,8 @@
                         <div class="form-grid">
                             <?= field_text('name', 'Role name', $role['name'], ['required' => true,'readonly'=>$role['built_in']||!$canEdit]) ?>
                             <div class="field"><label>Assigned users</label><div><?= (int) $role['user_count'] ?></div></div>
-                            <?php foreach ($abilities as $ability => $label): ?>
-                                <label class="check"><input type="checkbox" name="permissions[]" value="<?= e($ability) ?>" <?= in_array($ability, $role['permissions_list'], true) ? 'checked' : '' ?> <?= $canEdit?'':'disabled' ?>> <span><?= e($label) ?></span></label>
-                            <?php endforeach; ?>
                         </div>
+                        <div class="grid grid-2 mt-3"><?php foreach ($abilityGroups as $group => $items): ?><section class="permission-group"><h3><?= e($group) ?></h3><?php foreach ($items as $ability => $label): ?><label class="check"><input type="checkbox" name="permissions[]" value="<?= e($ability) ?>" <?= in_array($ability, $role['permissions_list'], true) ? 'checked' : '' ?> <?= $canEdit?'':'disabled' ?>> <span><?= e($label) ?></span></label><?php endforeach; ?></section><?php endforeach; ?></div>
                     </div>
                     <div class="card-foot">
                         <?php if($canEdit): ?><button class="btn btn-primary">Save role</button><?php endif; ?>

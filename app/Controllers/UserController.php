@@ -217,7 +217,7 @@ final class UserController extends BaseController
     {
         $options = ['user' => 'User'];
         if (in_array(auth()->role(), ['admin', 'superadmin'], true)) {
-            $options['admin'] = 'Tenant admin';
+            $options['admin'] = 'Admin';
         }
         if ($tenantId) {
             foreach ($this->db()->all('SELECT slug, name FROM roles WHERE tenant_id = ? ORDER BY name', [$tenantId]) as $role) {

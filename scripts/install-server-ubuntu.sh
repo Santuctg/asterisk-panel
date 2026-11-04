@@ -441,6 +441,7 @@ fail2ban-client ping >/dev/null
 fail2ban-client status asterisk >/dev/null
 fail2ban-client status asterisk-panel-login >/dev/null
 bash "$INSTALL_DIR/scripts/install-security-helper.sh" --web-user www-data
+bash "$INSTALL_DIR/scripts/install-update-helper.sh" www-data
 
 echo "[11/11] Installing the web SSL helper..."
 bash "$INSTALL_DIR/scripts/install-web-ssl-helper.sh" --web-user www-data --php-socket "$PHP_SOCKET"

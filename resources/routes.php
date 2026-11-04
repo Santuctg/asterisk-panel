@@ -166,10 +166,14 @@ $router->post('/global-admins/{id}', [GlobalAdminController::class, 'update'], [
 $router->delete('/global-admins/{id}', [GlobalAdminController::class, 'destroy'], [Auth::require('tenant.manage'), Csrf::middleware(...)]);
 $router->get('/fail2ban', [Fail2banController::class, 'index'], [Auth::require('security.fail2ban')]);
 $router->post('/fail2ban/ban', [Fail2banController::class, 'ban'], [Auth::require('security.fail2ban'), Csrf::middleware(...)]);
-$router->post('/fail2ban/unban', [Fail2banController::class, 'unban'], [Auth::require('security.fail2ban'), Csrf::middleware(...)]);
+$router->post('/fail2ban/unban', [Fail2banController::class, 'unban'], [Auth::require('security.fail2ban'), Csrf::middleware(...) ]);
+$router->post('/fail2ban/whitelist/add', [Fail2banController::class, 'whitelistAdd'], [Auth::require('security.fail2ban'), Csrf::middleware(...) ]);
+$router->post('/fail2ban/whitelist/remove', [Fail2banController::class, 'whitelistRemove'], [Auth::require('security.fail2ban'), Csrf::middleware(...) ]);
 
 // System: status, apply config, settings, audit log
 $router->get('/system/status', [SystemController::class, 'status'], [Auth::require('system_status.view')]);
+$router->get('/system/update', [SystemController::class, 'update'], [Auth::require('system.update')]);
+$router->post('/system/update', [SystemController::class, 'applyUpdate'], [Auth::require('system.update'), Csrf::middleware(...) ]);
 $router->post('/system/apply', [SystemController::class, 'apply'], [Auth::require('system.apply'), Csrf::middleware(...)]);
 $router->get('/system/settings', [SystemController::class, 'settings'], [Auth::require('system_settings.view')]);
 $router->post('/system/settings', [SystemController::class, 'saveSettings'], [Auth::require('system_settings.manage'), Csrf::middleware(...)]);
