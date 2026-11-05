@@ -149,6 +149,9 @@ final class AnnouncementController extends BaseController
             return ['error' => 'The announcement directory is not writable.'];
         }
         @chmod($dir, 02775);
+        if (!is_writable($dir)) {
+            return ['error' => 'The announcement directory is not writable. Ask the server administrator to correct its ownership.'];
+        }
         $base = 'announcement_' . bin2hex(random_bytes(8));
         $filename = $base . '.wav';
         $target = $dir . '/' . $filename;
