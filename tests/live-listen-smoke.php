@@ -80,13 +80,34 @@ $check((int) $db->scalar('SELECT COUNT(*) FROM trunk_status_history WHERE trunk_
 $tracker->recordStatuses(['trunk-' . $trackedTrunk => 'Rejected']);
 $check((int) $db->scalar('SELECT COUNT(*) FROM trunk_status_history WHERE trunk_id = ?', [$trackedTrunk]) === 2
     && (int) $db->scalar('SELECT COUNT(*) FROM trunk_status_history WHERE trunk_id = ? AND ended_at IS NULL', [$trackedTrunk]) === 1, 'trunk state changes create persistent history');
-$db->insert('outbound_routes', [
+$outboundRoute = $db->insert('outbound_routes', [
     'tenant_id' => $tid, 'name' => 'Outside via 9', 'prefix' => '9', 'match_pattern' => '_X.',
     'trunk_id' => $trackedTrunk, 'priority' => 0, 'enabled' => 1,
 ]);
+$db->update('extensions', $targetExtension, ['outbound_route_id' => $outboundRoute]);
 $outboundDialplan = $gen->renderDialplan();
-$check(str_contains($outboundDialplan, 'exten => _9X.,1,NoOp(Outbound: Outside via 9)')
-    && str_contains($outboundDialplan, 'Dial(PJSIP/trunk-' . $trackedTrunk . '/${EXTEN:1},30,Tt)'), 'outbound dial prefix is matched and stripped');
+$outboundPjsip = $gen->renderPjsipEndpoints();
+$check(str_contains($outboundDialplan, '[tenant_a-outbound]')
+    && str_contains($outboundDialplan, '${PANEL_OUTBOUND_ROUTE_ID}"="' . $outboundRoute)
+    && str_contains($outboundDialplan, '[tenant_a-outbound-' . $outboundRoute . ']')
+    && str_contains($outboundDialplan, 'exten => _9X.,1,NoOp(Outbound: Outside via 9)')
+    && str_contains($outboundDialplan, 'Dial(PJSIP/trunk-' . $trackedTrunk . '/${EXTEN:1},30,Tt)')
+    && str_contains($outboundPjsip, 'set_var = PANEL_OUTBOUND_ROUTE_ID=' . $outboundRoute), 'assigned outbound route is enforced and its prefix is stripped');
+$check(substr_count($outboundPjsip, 'set_var = PANEL_OUTBOUND_ROUTE_ID=' . $outboundRoute) === 2,
+    'outbound permission applies to the desk phone and calling web endpoint only');
+
+$registeredForA = App\Controllers\DashboardController::registeredPhoneCount(
+    [['extension' => '1001'], ['extension' => '2002']],
+    [
+        '1001@tenant-a.example.test' => 'Avail',
+        'tenant_a_2002-phone-web' => 'Avail',
+        '1001@tenant-b.example.test' => 'Avail',
+        'trunk-1-aor' => 'Avail',
+    ],
+    'tenant-a.example.test',
+    'tenant_a'
+);
+$check($registeredForA === 2, 'dashboard registered-phone count excludes trunks and other tenants');
 
 // Extension registration history works the same way as trunk history.
 $extTracker = new App\Services\Asterisk\ExtensionStatusTracker();

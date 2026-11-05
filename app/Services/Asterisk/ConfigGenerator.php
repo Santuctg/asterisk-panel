@@ -159,6 +159,9 @@ final class ConfigGenerator
             $out .= "auth = {$name}\n";
             $out .= "aors = {$name}\n";
             $out .= "identify_by = username,auth_username\n";
+            if (!empty($ext['outbound_route_id'])) {
+                $out .= "set_var = PANEL_OUTBOUND_ROUTE_ID={$ext['outbound_route_id']}\n";
+            }
             // Always emit a callerid so the display name comes from the
             // caller's configured name, never the called extension's number.
             $cidName = $this->esc((string) ($ext['cid_name'] ?: $ext['name'] ?: $ext['extension']));
@@ -213,6 +216,9 @@ final class ConfigGenerator
             $out .= "[{$phone}]\n";
             $out .= "type = endpoint\ntransport = panel-transport-ws\n";
             $out .= "context = {$ctx}\nauth = {$phone}\naors = {$phone}\n";
+            if (!empty($ext['outbound_route_id'])) {
+                $out .= "set_var = PANEL_OUTBOUND_ROUTE_ID={$ext['outbound_route_id']}\n";
+            }
             $out .= "webrtc = yes\ndtls_auto_generate_cert = yes\ndirect_media = no\n";
             $out .= "allow = !all,opus,ulaw,alaw\nidentify_by = username,auth_username\n\n";
             $out .= "[{$phone}]\ntype = auth\nauth_type = userpass\n";
@@ -452,8 +458,16 @@ final class ConfigGenerator
         );
 
         $out  = "[{$ctx}-outbound]\n";
-        $out .= "exten => _X.,1,NoOp(Outbound)\n";
-        $out .= " same => n,Gosub({$this->dialplanLocalDial($ctx)})\n\n";
+        $out .= "exten => _X.,1,NoOp(Outbound access check)\n";
+        foreach ($routes as $r) {
+            $out .= " same => n,GotoIf(\$[\"\${PANEL_OUTBOUND_ROUTE_ID}\"=\"{$r['id']}\"]?route-{$r['id']})\n";
+        }
+        $out .= " same => n,NoOp(Outbound calling denied: no enabled route assigned)\n";
+        $out .= " same => n,Hangup(21)\n";
+        foreach ($routes as $r) {
+            $out .= " same => n(route-{$r['id']}),Goto({$ctx}-outbound-{$r['id']},\${EXTEN},1)\n";
+        }
+        $out .= "\n";
 
         foreach ($routes as $r) {
             $prefix  = $r['prefix'] ?? '';
@@ -461,6 +475,7 @@ final class ConfigGenerator
             $trunk   = $this->trunkChannel((int) $r['trunk_id']);
             $dialed  = $prefix !== '' ? '${EXTEN:' . strlen((string) $prefix) . '}' : '${EXTEN}';
 
+            $out .= "[{$ctx}-outbound-{$r['id']}]\n";
             $out .= "; {$r['name']}\n";
             $out .= "exten => {$pattern},1,NoOp(Outbound: {$r['name']})\n";
             if ($this->shouldRecord((int) ($r['record'] ?? 0), $record)) {
@@ -472,11 +487,6 @@ final class ConfigGenerator
         }
 
         return $out;
-    }
-
-    private function dialplanLocalDial(string $ctx): string
-    {
-        return "{$ctx}-local,1";
     }
 
     private function dialplanExtensions(int $tid, string $ctx, bool $record, string $realm): string

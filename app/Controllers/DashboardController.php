@@ -37,6 +37,7 @@ final class DashboardController extends BaseController
         $channels = [];
         $astVersion = 'unavailable';
         $activeChannels = 0;
+        $registered = 0;
 
         try {
             $mgr  = asterisk();
@@ -45,6 +46,21 @@ final class DashboardController extends BaseController
                 $astVersion    = $mgr->version()['version'] ?? 'unknown';
                 $channels      = $tid ? $mgr->tenantChannels($tid, 12) : [];
                 $activeChannels = count($channels);
+                if ($tid) {
+                    $tenant = $db->one('SELECT context, domain FROM tenants WHERE id = ?', [$tid]) ?? [];
+                    $extensions = $db->all(
+                        'SELECT extension FROM extensions WHERE tenant_id = ? AND enabled = 1',
+                        [$tid]
+                    );
+                    $realm = strtolower(rtrim(trim((string) ($tenant['domain'] ?? '')), '.'))
+                        ?: (string) ($tenant['context'] ?? '');
+                    $registered = self::registeredPhoneCount(
+                        $extensions,
+                        $mgr->contactStatuses(),
+                        $realm,
+                        (string) ($tenant['context'] ?? '')
+                    );
+                }
             }
         } catch (\Throwable $e) {
             \App\Core\Logger::info('Dashboard: Asterisk unavailable', ['error' => $e->getMessage()]);
@@ -55,14 +71,6 @@ final class DashboardController extends BaseController
             'SELECT * FROM cdr WHERE tenant_id = ? ORDER BY calldate DESC LIMIT 10',
             [$tid]
         );
-
-        // Registrations snapshot.
-        $registered = 0;
-        try {
-            $registered = $online ? asterisk()->registeredEndpoints() : 0;
-        } catch (\Throwable) {
-            $registered = 0;
-        }
 
         return $this->view('dashboard/index', [
             'tid'             => $tid,
@@ -75,6 +83,32 @@ final class DashboardController extends BaseController
             'recentCalls'     => $recentCalls,
             'tenants'         => $this->tenantOptions(),
         ]);
+    }
+
+    /** Count each enabled extension once, using only the active tenant's AORs. */
+    public static function registeredPhoneCount(array $extensions, array $contacts, string $realm, string $context): int
+    {
+        $context = preg_replace('/[^a-zA-Z0-9_]/', '_', $context) ?: '';
+        $count = 0;
+
+        foreach ($extensions as $extension) {
+            $number = (string) ($extension['extension'] ?? '');
+            if ($number === '') {
+                continue;
+            }
+            $keys = [
+                $number . '@' . $realm,
+                $context . '_' . $number . '-phone-web',
+            ];
+            foreach ($keys as $key) {
+                if (isset($contacts[$key])) {
+                    $count++;
+                    break;
+                }
+            }
+        }
+
+        return $count;
     }
 
     /** GET /dashboard/live-calls — tenant-scoped polling feed. */

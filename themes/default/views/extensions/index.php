@@ -48,6 +48,7 @@ require dirname(__DIR__) . '/partials/fields.php';
                             <th>Registration</th>
                             <th>Latency</th>
                             <th>Online for</th>
+                            <th>Outbound</th>
                             <th>Config</th>
                             <th class="actions">Actions</th>
                         </tr>
@@ -123,6 +124,13 @@ require dirname(__DIR__) . '/partials/fields.php';
                                         <div class="text-xs muted">since <?= e(format_date($r['online_since'], 'M j, g:i A')) ?></div>
                                     <?php else: ?>
                                         <span class="muted">—</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php if (!empty($r['outbound_route_name'])): ?>
+                                        <span class="badge blue"><?= e($r['outbound_route_name']) ?></span>
+                                    <?php else: ?>
+                                        <span class="badge gray">Internal only</span>
                                     <?php endif; ?>
                                 </td>
                                 <td>

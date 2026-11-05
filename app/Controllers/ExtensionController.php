@@ -19,6 +19,7 @@ final class ExtensionController extends BaseController
         'extension', 'name', 'secret', 'cid_name', 'cid_number',
         'vm_enabled', 'vm_on_busy', 'vm_on_noanswer', 'ring_timeout',
         'max_registrations', 'follow_me', 'enabled', 'description', 'record',
+        'outbound_route_id',
     ];
 
     /** GET /extensions */
@@ -45,10 +46,12 @@ final class ExtensionController extends BaseController
 
         $rows = $db->all(
             "SELECT e.*, v.id AS vm_id, v.email AS vm_email, v.attach AS vm_attach,
-                    d.mac AS device_mac, d.vendor AS device_vendor
+                    d.mac AS device_mac, d.vendor AS device_vendor,
+                    o.name AS outbound_route_name
              FROM extensions e
              LEFT JOIN voicemail v ON v.extension_id = e.id
              LEFT JOIN devices d ON d.extension_id = e.id
+             LEFT JOIN outbound_routes o ON o.id = e.outbound_route_id AND o.tenant_id = e.tenant_id
              WHERE {$where}
              ORDER BY e.extension
              LIMIT {$perPage} OFFSET {$offset}",
@@ -179,6 +182,7 @@ final class ExtensionController extends BaseController
             'row'       => null,
             'defaults'  => $defaults,
             'tenants'   => $this->tenantOptions(),
+            'outboundRoutes' => $this->outboundRouteOptions($this->tenantId()),
         ]);
     }
 
@@ -256,6 +260,7 @@ final class ExtensionController extends BaseController
             'row'      => $row,
             'defaults' => [],
             'tenants'  => $this->tenantOptions(),
+            'outboundRoutes' => $this->outboundRouteOptions((int) $row['tenant_id']),
         ]);
     }
 
@@ -365,8 +370,37 @@ final class ExtensionController extends BaseController
             'follow_me'         => $request->bool('follow_me') ? 1 : 0,
             'enabled'           => $request->bool('enabled', true) ? 1 : 0,
             'record'            => $request->int('record', 0),
+            'outbound_route_id' => $this->validOutboundRouteId($request->int('outbound_route_id'), $tid),
             'description'       => $request->str('description'),
         ];
+    }
+
+    private function outboundRouteOptions(?int $tid): array
+    {
+        if (!$tid) {
+            return [];
+        }
+
+        $options = [];
+        foreach ($this->db()->all(
+            'SELECT id, name FROM outbound_routes WHERE tenant_id = ? AND enabled = 1 ORDER BY priority, name',
+            [$tid]
+        ) as $route) {
+            $options[(int) $route['id']] = (string) $route['name'];
+        }
+        return $options;
+    }
+
+    private function validOutboundRouteId(int $routeId, int $tid): ?int
+    {
+        if ($routeId <= 0) {
+            return null;
+        }
+
+        return $this->db()->scalar(
+            'SELECT id FROM outbound_routes WHERE id = ? AND tenant_id = ? AND enabled = 1',
+            [$routeId, $tid]
+        ) ? $routeId : null;
     }
 
     /** Fetch an extension, scoped to the caller's tenant (or any if super). */

@@ -281,6 +281,12 @@ final class RouteController extends BaseController
         }
 
         $this->db()->update('outbound_routes', (int) $row['id'], $data);
+        if (!$data['enabled']) {
+            $this->db()->run(
+                'UPDATE extensions SET outbound_route_id = NULL WHERE tenant_id = ? AND outbound_route_id = ?',
+                [(int) $row['tenant_id'], (int) $row['id']]
+            );
+        }
         $this->audit('route.outbound.update', 'outbound_route', (int) $row['id']);
         $this->applyToAsterisk('route');
 
@@ -295,6 +301,10 @@ final class RouteController extends BaseController
             return Response::redirect('/routes?tab=outbound');
         }
 
+        $this->db()->run(
+            'UPDATE extensions SET outbound_route_id = NULL WHERE tenant_id = ? AND outbound_route_id = ?',
+            [(int) $row['tenant_id'], (int) $row['id']]
+        );
         $this->db()->delete('outbound_routes', (int) $row['id']);
         $this->audit('route.outbound.delete', 'outbound_route', (int) $row['id']);
         $this->applyToAsterisk('route');

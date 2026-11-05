@@ -91,6 +91,7 @@ return [
             enabled            INTEGER DEFAULT 1,
             description        TEXT,
             record             INTEGER DEFAULT 0,
+            outbound_route_id  INTEGER,
             created_at         DATETIME,
             updated_at         DATETIME,
             UNIQUE(tenant_id, extension)

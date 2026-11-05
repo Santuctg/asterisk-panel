@@ -14,6 +14,9 @@ $legacy->exec('CREATE TABLE users (
     email VARCHAR(160), password VARCHAR(255) NOT NULL, role VARCHAR(20), active INTEGER,
     last_login DATETIME, last_login_ip VARCHAR(45), created_at DATETIME, updated_at DATETIME
 )');
+$legacy->exec('CREATE TABLE extensions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, tenant_id INTEGER, extension VARCHAR(20), name VARCHAR(120), secret VARCHAR(128)
+)');
 $legacy->exec("INSERT INTO tenants(name,context,enabled) VALUES ('A','a',1),('B','b',1)");
 $legacy->exec("INSERT INTO users(tenant_id,username,password,role,active) VALUES (1,'admin','x','superadmin',1)");
 $legacy = null;
@@ -33,6 +36,7 @@ if ((int)$db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND 
 if ((int)$db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='cdr_import_log'") !== 1) throw new RuntimeException('CDR import ledger table missing');
 if ((int)$db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='trunk_status_history'") !== 1) throw new RuntimeException('Trunk status history table missing');
 if ((int)$db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='extension_status_history'") !== 1) throw new RuntimeException('Extension status history table missing');
+if (!in_array('outbound_route_id', array_column($db->all('PRAGMA table_info(extensions)'), 'name'), true)) throw new RuntimeException('Extension outbound route column missing');
 // Subsequent migrations must ignore the partial global-superadmin index.
 $migration = file_get_contents($base . '/scripts/migrate.php');
 if (!str_contains($migration, "index['partial']")) throw new RuntimeException('Partial-index idempotence guard missing');

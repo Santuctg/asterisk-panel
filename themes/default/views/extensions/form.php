@@ -1,7 +1,7 @@
 <?php
 /**
  * Extension create/edit form.
- * Expects: $row (null for create), $defaults (suggestNext), $tenants
+ * Expects: $row (null for create), $defaults (suggestNext), $tenants, $outboundRoutes
  */
 require dirname(__DIR__) . '/partials/fields.php';
 
@@ -90,6 +90,11 @@ $val    = static fn (string $key, $default = '') => $row[$key] ?? old($key, $def
                 <?php echo field_text('max_registrations', 'Max simultaneous registrations', $val('max_registrations', 1), [
                     'type' => 'number',
                     'hint' => 'Set higher to allow a desk phone + softphone at once.',
+                ]); ?>
+
+                <?php echo field_select('outbound_route_id', 'Outbound route', $outboundRoutes ?? [], $val('outbound_route_id'), [
+                    'placeholder' => 'Internal calls only',
+                    'hint' => 'Without an assigned route, this extension cannot make external calls.',
                 ]); ?>
 
                 <div class="span-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">

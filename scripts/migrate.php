@@ -21,9 +21,33 @@ $db->exec($schema['cdr_import_log']);
 $db->exec($schema['trunk_status_history']);
 $db->exec($schema['extension_status_history']);
 
+// Outbound calling is denied by default and enabled per extension by assigning
+// one tenant-scoped outbound route.
+$driver = (string) $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+if ($driver === 'sqlite') {
+    $hasExtensions = (int) $db->scalar(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'extensions'"
+    );
+    if ($hasExtensions) {
+        $extensionColumns = array_column($db->all('PRAGMA table_info(extensions)'), 'name');
+        if (!in_array('outbound_route_id', $extensionColumns, true)) {
+            $pdo->exec('ALTER TABLE extensions ADD COLUMN outbound_route_id INTEGER');
+        }
+    }
+} else {
+    $hasOutboundRoute = (int) $db->scalar(
+        'SELECT COUNT(*) FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+        ['extensions', 'outbound_route_id']
+    );
+    if (!$hasOutboundRoute) {
+        $pdo->exec('ALTER TABLE extensions ADD COLUMN outbound_route_id BIGINT NULL');
+    }
+}
+
 // Keep a permanent import ledger so clearing call history does not cause old
 // rows still present in Asterisk's Master.csv to be imported again.
-if ((string) $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite') {
+if ($driver === 'sqlite') {
     $db->run('INSERT OR IGNORE INTO cdr_import_log (uniqueid, tenant_id, imported_at)
               SELECT uniqueid, tenant_id, COALESCE(calldate, CURRENT_TIMESTAMP)
               FROM cdr WHERE uniqueid IS NOT NULL AND uniqueid <> ""');
@@ -33,7 +57,7 @@ if ((string) $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite') {
               FROM cdr WHERE uniqueid IS NOT NULL AND uniqueid <> ""');
 }
 
-if ((string) $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite') {
+if ($driver === 'sqlite') {
     $hasGlobalUsernameUnique = false;
     foreach ($db->all('PRAGMA index_list(users)') as $index) {
         if (!(int) ($index['unique'] ?? 0) || (int) ($index['partial'] ?? 0) === 1) { continue; }

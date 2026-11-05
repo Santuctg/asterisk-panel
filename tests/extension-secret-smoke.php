@@ -20,9 +20,11 @@ $check(substr_count($controller, "'secret'    => 'required',") === 2, 'create an
 
 $view = file_get_contents(BASE_PATH . '/themes/default/views/extensions/form.php');
 $check(str_contains($view, 'Any non-empty password is accepted.'), 'extension form explains unrestricted length');
+$check(str_contains($view, 'Outbound route') && str_contains($view, 'Internal calls only'), 'extension form defaults to internal-only calling');
 $check(!str_contains($view, 'Phone registration settings'), 'extension form omits phone registration settings card');
 $listView = file_get_contents(BASE_PATH . '/themes/default/views/extensions/index.php');
 $check(str_contains($listView, 'Registered') && str_contains($listView, 'Unregistered'), 'extension list shows registration state');
 $check(str_contains($listView, 'SIP login'), 'extension list shows username and tenant realm');
+$check(str_contains($listView, 'Internal only'), 'extension list shows outbound permission');
 
 echo "All extension SIP password checks passed.\n";
