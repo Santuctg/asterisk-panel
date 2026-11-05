@@ -47,6 +47,12 @@ final class CdrController extends BaseController
             "SELECT * FROM cdr WHERE {$where} ORDER BY calldate DESC LIMIT {$per} OFFSET {$offset}",
             $params
         );
+        foreach ($rows as &$row) {
+            $row['recording_available'] = (string) ($row['disposition'] ?? '') === 'ANSWERED'
+                && (int) ($row['billsec'] ?? 0) > 0
+                && $this->resolveRecording((string) ($row['userfield'] ?? '')) !== null;
+        }
+        unset($row);
 
         // Summary stats for the current filter.
         $stats = $db->one(
@@ -71,22 +77,15 @@ final class CdrController extends BaseController
             'SELECT id, userfield FROM cdr WHERE id = ? AND tenant_id = ?',
             [(int) $request->params['id'], $this->tenantId()]
         );
-        if (!$row || !str_starts_with((string) $row['userfield'], 'recording:')) {
+        if (!$row) {
             return Response::text('Recording not found.', 404);
         }
 
-        $filename = substr((string) $row['userfield'], strlen('recording:'));
-        if ($filename !== basename($filename)
-            || str_contains($filename, '..')
-            || !preg_match('/^[A-Za-z0-9_.-]+\.wav$/', $filename)) {
+        $recording = $this->resolveRecording((string) $row['userfield']);
+        if ($recording === null) {
             return Response::text('Recording not found.', 404);
         }
-
-        $dir = rtrim((string) Config::get('asterisk.recording_dir', '/var/spool/asterisk/monitor/asterisk-panel'), '/');
-        $file = $dir . '/' . $filename;
-        if (!is_file($file) || !is_readable($file)) {
-            return Response::text('Recording not found.', 404);
-        }
+        $filename = $recording['filename'];
 
         $disposition = $request->bool('inline') ? 'inline' : 'attachment';
 
@@ -97,6 +96,23 @@ final class CdrController extends BaseController
             'X-Content-Type-Options' => 'nosniff',
             'Cache-Control'       => 'private, no-store',
         ]));
+    }
+
+    /** Resolve a safe recording marker only when its protected file exists. */
+    private function resolveRecording(string $userfield): ?array
+    {
+        if (!str_starts_with($userfield, 'recording:')) {
+            return null;
+        }
+        $filename = substr($userfield, strlen('recording:'));
+        if ($filename !== basename($filename)
+            || str_contains($filename, '..')
+            || !preg_match('/^[A-Za-z0-9_.-]+\.wav$/', $filename)) {
+            return null;
+        }
+        $dir = rtrim((string) Config::get('asterisk.recording_dir', '/var/spool/asterisk/monitor/asterisk-panel'), '/');
+        $file = $dir . '/' . $filename;
+        return is_file($file) && is_readable($file) ? ['filename' => $filename, 'path' => $file] : null;
     }
 
     /** DELETE /cdr/{id} — remove one tenant-scoped record and recording. */

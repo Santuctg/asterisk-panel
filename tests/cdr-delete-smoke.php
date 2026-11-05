@@ -31,13 +31,24 @@ $app->auth()->login($admin);
 $controller = new App\Controllers\CdrController();
 $recordingId = $db->insert('cdr', [
     'tenant_id'=>$a,'calldate'=>date('Y-m-d H:i:s'),'src'=>'1001','dst'=>'1002',
-    'uniqueid'=>'recording-a','userfield'=>'recording:tenant-a.wav',
+    'uniqueid'=>'recording-a','disposition'=>'ANSWERED','billsec'=>12,'userfield'=>'recording:tenant-a.wav',
+]);
+$unansweredRecordingId = $db->insert('cdr', [
+    'tenant_id'=>$a,'calldate'=>date('Y-m-d H:i:s'),'src'=>'1003','dst'=>'1004',
+    'uniqueid'=>'recording-no-answer','disposition'=>'NO ANSWER','billsec'=>0,'userfield'=>'recording:tenant-a.wav',
+]);
+$missingRecordingId = $db->insert('cdr', [
+    'tenant_id'=>$a,'calldate'=>date('Y-m-d H:i:s'),'src'=>'1005','dst'=>'1006',
+    'uniqueid'=>'recording-missing','disposition'=>'ANSWERED','billsec'=>8,'userfield'=>'recording:missing.wav',
 ]);
 $page = $controller->index(new App\Core\Request('GET', '/cdr'));
 if (!str_contains($page->body(), 'Delete all history')) throw new RuntimeException('CDR delete controls missing');
 if (!str_contains($page->body(), 'data-modal-open="recordingPlaybackModal"')) throw new RuntimeException('Recording play button missing');
 if (!str_contains($page->body(), 'id="recordingPlaybackModal"')) throw new RuntimeException('Recording playback modal missing');
 if (!str_contains($page->body(), 'data-recording-src="/cdr/'.$recordingId.'/recording?inline=1"')) throw new RuntimeException('Modal recording URL missing');
+if (str_contains($page->body(), 'data-recording-src="/cdr/'.$unansweredRecordingId.'/recording?inline=1"')) throw new RuntimeException('Unanswered call exposed a play button');
+if (str_contains($page->body(), 'data-recording-src="/cdr/'.$missingRecordingId.'/recording?inline=1"')) throw new RuntimeException('Missing recording file exposed a play button');
+if (str_contains($page->body(), '<th class="num">Billable</th>')) throw new RuntimeException('Duplicate billable duration column remains');
 $inlineRequest = new App\Core\Request('GET', '/cdr/'.$recordingId.'/recording', ['inline' => '1']);
 $inlineRequest->params = ['id' => $recordingId];
 $inline = $controller->recording($inlineRequest);

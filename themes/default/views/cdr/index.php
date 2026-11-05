@@ -93,7 +93,6 @@ $answeredRate = ($stats['total'] ?? 0) > 0
                             <th>Context</th>
                             <th>Result</th>
                             <th class="num">Duration</th>
-                            <th class="num">Billable</th>
                             <th>Recording</th>
                             <th>Account</th>
                             <?php if (auth()->can('cdr.delete')): ?><th class="actions">Actions</th><?php endif; ?>
@@ -118,10 +117,9 @@ $answeredRate = ($stats['total'] ?? 0) > 0
                                 <td class="mono"><?= e($c['dst']) ?></td>
                                 <td class="muted"><?= e($c['dcontext']) ?></td>
                                 <td><span class="badge <?= $tone ?>"><?= e($c['disposition']) ?></span></td>
-                                <td class="num mono"><?= e(format_duration((int) $c['duration'])) ?></td>
                                 <td class="num mono"><?= e(format_duration((int) $c['billsec'])) ?></td>
                                 <td>
-                                    <?php if (str_starts_with((string) ($c['userfield'] ?? ''), 'recording:')): ?>
+                                    <?php if (!empty($c['recording_available'])): ?>
                                         <button type="button" class="btn btn-sm" data-modal-open="recordingPlaybackModal"
                                                 data-recording-src="/cdr/<?= (int) $c['id'] ?>/recording?inline=1"
                                                 data-recording-download="/cdr/<?= (int) $c['id'] ?>/recording"
