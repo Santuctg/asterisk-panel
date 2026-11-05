@@ -43,6 +43,7 @@ update() {
     find "$REPO" -type f -name '*.php' -print0 | xargs -0 -n1 php -l >/dev/null
     rsync -a --delete --exclude=storage/ --exclude=.env "$REPO/" "$APP/"
     install -d -o www-data -g asterisk -m 2775 /var/lib/asterisk/sounds/asterisk-panel /var/lib/asterisk/moh
+    ln -sfn /var/lib/asterisk/sounds/asterisk-panel /usr/share/asterisk/sounds/asterisk-panel
     find /var/lib/asterisk/sounds/asterisk-panel -mindepth 1 -maxdepth 1 -type d \
         -exec chown www-data:asterisk {} + -exec chmod 2775 {} +
     install -o root -g root -m 0644 "$APP/resources/deploy/nginx-recordings.conf" /etc/nginx/snippets/asterisk-panel-recordings.conf

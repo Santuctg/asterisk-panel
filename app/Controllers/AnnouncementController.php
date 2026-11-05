@@ -167,6 +167,35 @@ final class AnnouncementController extends BaseController
         return Response::redirect('/moh');
     }
 
+    /** Authorize a tenant prompt, then let Nginx stream it with range support. */
+    public function audio(Request $request): Response
+    {
+        $tid = $this->requireTenant();
+        $row = $this->db()->one(
+            'SELECT filename FROM announcements WHERE id = ? AND tenant_id = ? AND enabled = 1',
+            [(int) $request->params['id'], $tid]
+        );
+        if (!$row) { return Response::text('Audio not found.', 404); }
+        $filename = (string) $row['filename'];
+        if ($filename !== basename($filename) || !preg_match('/^[A-Za-z0-9_.-]+\.wav$/', $filename)) {
+            return Response::text('Audio not found.', 404);
+        }
+        $tenant = $this->db()->one('SELECT context FROM tenants WHERE id = ?', [$tid]);
+        if (!$tenant) { return Response::text('Audio not found.', 404); }
+        $context = preg_replace('/[^A-Za-z0-9_-]+/', '_', (string) $tenant['context']) ?: ('tenant_' . $tid);
+        $root = rtrim((string) config('asterisk.announcement_dir', '/var/lib/asterisk/sounds/asterisk-panel'), '/');
+        $path = $root . '/' . $context . '/' . $filename;
+        if (!is_file($path) || !is_readable($path)) { return Response::text('Audio not found.', 404); }
+        $disposition = $request->bool('download') ? 'attachment' : 'inline';
+        return new Response('', 200, [
+            'Content-Type' => 'audio/wav',
+            'Content-Disposition' => $disposition . '; filename="' . $filename . '"',
+            'X-Accel-Redirect' => '/_protected/announcements/' . rawurlencode($context) . '/' . rawurlencode($filename),
+            'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'private, no-store',
+        ]);
+    }
+
     /** @return array{filename:string,sound_path:string}|array{error:string} */
     private function upload(int $tenantId, ?array $file): array
     {

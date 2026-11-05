@@ -210,6 +210,7 @@ runuser -u www-data -- env \
 echo "[6/11] Configuring Asterisk AMI and managed includes..."
 install -d -o www-data -g asterisk -m 2775 /etc/asterisk/asterisk_panel
 install -d -o www-data -g asterisk -m 2775 /var/lib/asterisk/sounds/asterisk-panel
+ln -sfn /var/lib/asterisk/sounds/asterisk-panel /usr/share/asterisk/sounds/asterisk-panel
 install -d -o www-data -g asterisk -m 2775 /var/lib/asterisk/moh
 install -d -o asterisk -g asterisk -m 2770 /var/spool/asterisk/monitor/asterisk-panel
 install -d -o asterisk -g asterisk -m 2775 /var/lib/asterisk/moh

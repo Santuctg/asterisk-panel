@@ -123,6 +123,7 @@ $router->delete('/moh/{id}/tracks/{filename}', [MusicOnHoldController::class, 'd
 $router->post('/announcements', [AnnouncementController::class, 'store'], [Auth::require('moh.manage'), Csrf::middleware(...) ]);
 $router->post('/announcements/{id}', [AnnouncementController::class, 'update'], [Auth::require('moh.manage'), Csrf::middleware(...) ]);
 $router->delete('/announcements/{id}', [AnnouncementController::class, 'destroy'], [Auth::require('moh.manage'), Csrf::middleware(...) ]);
+$router->get('/announcements/{id}/audio', [AnnouncementController::class, 'audio'], [Auth::require('moh.view')]);
 
 // Call center (queues + agents)
 $router->get('/call-center', [CallCenterController::class, 'index'], [Auth::require('callcenter.view')]);

@@ -79,8 +79,9 @@ $announcementDestTypes = [
             <?php foreach ($announcements as $announcement): ?><tr>
                 <td><strong><?= e($announcement['name']) ?></strong></td><td><code class="text-xs"><?= e($announcement['filename']) ?></code></td><td><?= e($announcement['dest_label'] ?? 'Hang up') ?></td>
                 <td><span class="badge <?= $announcement['enabled'] ? 'green' : 'gray' ?>"><?= $announcement['enabled'] ? 'Active' : 'Disabled' ?></span></td>
-                <td class="actions"><button class="btn btn-sm" data-modal-open="announcementModal" data-edit='<?= e(json_encode($announcement, JSON_HEX_APOS | JSON_HEX_QUOT)) ?>'>Edit</button><form method="post" action="/announcements/<?= (int) $announcement['id'] ?>"><?= csrf() ?><input type="hidden" name="_method" value="DELETE"><button class="btn btn-sm btn-ghost moh-danger" data-confirm-btn="Delete this announcement?"><?= $this->fragment('icons/trash') ?></button></form></td>
+                <td class="actions"><button type="button" class="btn btn-sm" data-announcement-play="/announcements/<?= (int) $announcement['id'] ?>/audio">▶ Play</button><a class="btn btn-sm" href="/announcements/<?= (int) $announcement['id'] ?>/audio?download=1">Download</a><button class="btn btn-sm" data-modal-open="announcementModal" data-edit='<?= e(json_encode($announcement, JSON_HEX_APOS | JSON_HEX_QUOT)) ?>'>Edit</button><form method="post" action="/announcements/<?= (int) $announcement['id'] ?>"><?= csrf() ?><input type="hidden" name="_method" value="DELETE"><button class="btn btn-sm btn-ghost moh-danger" data-confirm-btn="Delete this announcement?"><?= $this->fragment('icons/trash') ?></button></form></td>
             </tr><?php endforeach; ?></tbody></table></div>
+            <audio id="announcementAudioPlayer" class="moh-audio-player" controls preload="none" hidden></audio>
         <?php endif; ?>
     </div>
 </section>
@@ -135,6 +136,10 @@ $announcementDestTypes = [
     var player = document.getElementById('mohAudioPlayer');
     document.querySelectorAll('[data-track-play]').forEach(function (button) { button.addEventListener('click', function () { if (!player) return; var url = button.getAttribute('data-track-play') + '?inline=1'; if (player.src && player.src.indexOf(url) !== -1 && !player.paused) { player.pause(); button.textContent = '▶ Play'; return; } document.querySelectorAll('[data-track-play]').forEach(function (item) { item.textContent = '▶ Play'; }); player.src = url; player.hidden = false; player.play().then(function () { button.textContent = '❚❚ Pause'; }).catch(function () {}); }); });
     if (player) player.addEventListener('ended', function () { document.querySelectorAll('[data-track-play]').forEach(function (item) { item.textContent = '▶ Play'; }); });
+
+    var announcementPlayer = document.getElementById('announcementAudioPlayer');
+    document.querySelectorAll('[data-announcement-play]').forEach(function (button) { button.addEventListener('click', function () { if (!announcementPlayer) return; var url = button.getAttribute('data-announcement-play'); if (announcementPlayer.src && announcementPlayer.src.indexOf(url) !== -1 && !announcementPlayer.paused) { announcementPlayer.pause(); button.textContent = '▶ Play'; return; } document.querySelectorAll('[data-announcement-play]').forEach(function (item) { item.textContent = '▶ Play'; }); announcementPlayer.src = url; announcementPlayer.hidden = false; announcementPlayer.play().then(function () { button.textContent = '❚❚ Pause'; }).catch(function () {}); }); });
+    if (announcementPlayer) announcementPlayer.addEventListener('ended', function () { document.querySelectorAll('[data-announcement-play]').forEach(function (item) { item.textContent = '▶ Play'; }); });
 
     var recordForm = document.getElementById('recordForm');
     if (recordForm) {
