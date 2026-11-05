@@ -85,6 +85,36 @@ final class AsteriskManager
         return $rows;
     }
 
+    /**
+     * AOR => ['status' => string, 'rtt' => float|null, 'count' => int].
+     * RTT is only numeric once the AOR is being qualified (OPTIONS keepalive).
+     */
+    public function contactDetails(): array
+    {
+        return self::parseContactDetails($this->ami->command('pjsip show contacts'));
+    }
+
+    public static function parseContactDetails(string $out): array
+    {
+        $rows = [];
+        foreach (explode("\n", $out) as $line) {
+            if (!preg_match('/^Contact:\s+(\S+)\s+(\S+)\s+(\S+)(?:\s+(\S+))?/', trim($line), $m)) { continue; }
+            if (str_starts_with($m[1], '<')) { continue; }
+            $aor = strstr($m[1], '/', true) ?: $m[1];
+            $rtt = isset($m[4]) && is_numeric($m[4]) ? round((float) $m[4], 1) : null;
+
+            if (!isset($rows[$aor])) {
+                $rows[$aor] = ['status' => $m[3], 'rtt' => $rtt, 'count' => 1];
+                continue;
+            }
+            // Multiple contacts on one AOR = multiple registered devices.
+            $rows[$aor]['count']++;
+            $rows[$aor]['status'] = $m[3];
+            $rows[$aor]['rtt'] = $rtt ?? $rows[$aor]['rtt'];
+        }
+        return $rows;
+    }
+
     /** Registration name => state for outbound SIP trunks. */
     public function outboundRegistrations(): array
     {

@@ -56,31 +56,112 @@ final class ExtensionController extends BaseController
         );
 
         $registrationAvailable = false;
-        $contactStatuses = [];
+        $contactDetails = [];
         try {
             $mgr = asterisk();
             $registrationAvailable = $mgr->isOnline();
-            if ($registrationAvailable) { $contactStatuses = $mgr->contactStatuses(); }
+            if ($registrationAvailable) { $contactDetails = $mgr->contactDetails(); }
         } catch (\Throwable) {
             $registrationAvailable = false;
         }
         $tenant = $db->one('SELECT context, domain FROM tenants WHERE id = ?', [$tid]) ?? [];
         $context = preg_replace('/[^a-zA-Z0-9_]/', '_', (string) ($tenant['context'] ?? '')) ?: '';
         $realm = strtolower(rtrim(trim((string) ($tenant['domain'] ?? '')), '.')) ?: (string) ($tenant['context'] ?? '');
+
+        // Live state for every extension in this tenant (list + monitor card).
+        $allExtensions = $db->all(
+            'SELECT id, extension, name, enabled FROM extensions WHERE tenant_id = ? ORDER BY extension',
+            [$tid]
+        );
+        $live = [];
+        foreach ($allExtensions as $ae) {
+            $keys = [
+                $ae['extension'] . '@' . $realm,
+                $context . '_' . $ae['extension'] . '-phone-web',
+                $context . '_' . $ae['extension'] . '-web',
+            ];
+            $state = ['status' => null, 'rtt' => null, 'devices' => 0];
+            foreach ($keys as $key) {
+                if (!isset($contactDetails[$key])) {
+                    continue;
+                }
+                $state['status'] ??= $contactDetails[$key]['status'];
+                $state['rtt']    ??= $contactDetails[$key]['rtt'];
+                $state['devices'] += $contactDetails[$key]['count'];
+            }
+            $live[(int) $ae['id']] = $state;
+        }
+
         foreach ($rows as &$row) {
-            $endpoint = $row['extension'] . '@' . $realm;
             $row['sip_username'] = $row['extension'];
             $row['sip_realm'] = $realm;
-            $row['registration_status'] = $contactStatuses[$endpoint]
-                ?? $contactStatuses[$context . '_' . $row['extension'] . '-phone-web']
-                ?? $contactStatuses[$context . '_' . $row['extension'] . '-web']
-                ?? null;
+            $state = $live[(int) $row['id']] ?? ['status' => null, 'rtt' => null, 'devices' => 0];
+            $row['registration_status'] = $state['status'];
+            $row['latency_ms'] = $state['rtt'];
+            $row['active_devices'] = $state['devices'];
         }
         unset($row);
+
+        // Current online duration per extension on this page.
+        $onlineSince = [];
+        $pageIds = array_map('intval', array_column($rows, 'id'));
+        if ($pageIds !== []) {
+            $ph = implode(',', array_fill(0, count($pageIds), '?'));
+            foreach ($db->all(
+                "SELECT extension_id, started_at FROM extension_status_history
+                 WHERE extension_id IN ({$ph}) AND ended_at IS NULL AND status = 'Registered'",
+                $pageIds
+            ) as $h) {
+                $onlineSince[(int) $h['extension_id']] = (string) $h['started_at'];
+            }
+        }
+        foreach ($rows as &$row) {
+            $since = $onlineSince[(int) $row['id']] ?? null;
+            $row['online_since'] = $since;
+            $row['online_seconds'] = $since ? max(0, time() - (strtotime($since) ?: time())) : null;
+        }
+        unset($row);
+
+        // 24h availability timeline + event history for the monitor cards.
+        $windowStart = date('Y-m-d H:i:s', time() - 86400);
+        $timeline = [];
+        foreach ($allExtensions as $ae) {
+            $id = (int) $ae['id'];
+            $timeline[$id] = [
+                'id' => $id,
+                'extension' => (string) $ae['extension'],
+                'name' => (string) $ae['name'],
+                'enabled' => (int) $ae['enabled'],
+                'state' => $live[$id] ?? ['status' => null, 'rtt' => null, 'devices' => 0],
+                'events' => [],
+            ];
+        }
+        foreach ($db->all(
+            'SELECT h.extension_id, h.status, h.started_at, h.ended_at
+             FROM extension_status_history h
+             WHERE h.tenant_id = ? AND (h.ended_at IS NULL OR h.ended_at >= ?)
+             ORDER BY h.started_at, h.id',
+            [$tid, $windowStart]
+        ) as $h) {
+            $eid = (int) $h['extension_id'];
+            if (isset($timeline[$eid])) {
+                $timeline[$eid]['events'][] = $h;
+            }
+        }
+
+        $monitorHistory = $db->all(
+            'SELECT h.status, h.started_at, h.ended_at, e.extension
+             FROM extension_status_history h
+             JOIN extensions e ON e.id = h.extension_id
+             WHERE h.tenant_id = ? ORDER BY h.started_at DESC, h.id DESC LIMIT 50',
+            [$tid]
+        );
 
         return $this->view('extensions/index', [
             'rows' => $rows, 'q' => $q, 'page' => $page, 'pages' => $pages, 'total' => $total,
             'registrationAvailable' => $registrationAvailable,
+            'timeline' => $timeline,
+            'monitorHistory' => $monitorHistory,
         ]);
     }
 

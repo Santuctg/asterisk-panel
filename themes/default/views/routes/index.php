@@ -232,7 +232,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
             <?php else: ?>
                 <div class="table-wrap">
                     <table>
-                         <thead><tr><th>Name</th><th>Host</th><th>Username</th><th>From domain</th><th>Registration</th><th>Uptime</th><th>Config</th><th class="actions">Actions</th></tr></thead>
+                         <thead><tr><th>Name</th><th>Host</th><th>Username</th><th>From domain</th><th>Registration</th><th>Uptime</th><th>Latency</th><th>Config</th><th class="actions">Actions</th></tr></thead>
                         <tbody>
                             <?php foreach ($trunks as $t): ?>
                                 <tr>
@@ -261,6 +261,16 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                                             <span class="muted">—</span>
                                         <?php endif; ?>
                                     </td>
+                                    <td>
+                                        <?php if ($t['latency_ms'] !== null): ?>
+                                            <span class="mono"><strong><?= e((string) $t['latency_ms']) ?></strong> ms</span>
+                                            <?php if ($t['active_contacts'] > 0): ?>
+                                                <div class="text-xs muted"><?= (int) $t['active_contacts'] ?> active contact<?= $t['active_contacts'] === 1 ? '' : 's' ?></div>
+                                            <?php endif; ?>
+                                        <?php else: ?>
+                                            <span class="muted">—</span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td><?= $t['enabled'] ? '<span class="badge green">On</span>' : '<span class="badge gray">Off</span>' ?></td>
                                     <td class="actions">
                                         <button class="btn btn-sm" data-modal-open="trunkModal"
@@ -280,6 +290,46 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                 </div>
             <?php endif; ?>
         </div>
+
+        <?php if (!empty($trunks)): ?>
+            <div class="card-head">
+                <h2>24-hour availability</h2>
+                <span class="tl-legend">
+                    <span><i class="ok"></i>Registered</span>
+                    <span><i class="down"></i>Unregistered / down</span>
+                    <span><i class="off"></i>Disabled</span>
+                    <span>sampled every minute</span>
+                </span>
+            </div>
+            <div class="card-body">
+                <?php foreach ($trunks as $t): $segments = status_timeline($t['timeline_events'] ?? []); ?>
+                    <div class="tl-row">
+                        <div class="tl-label">
+                            <strong><?= e($t['name']) ?></strong>
+                            <span class="mono"><?= e($t['host']) ?></span>
+                        </div>
+                        <div class="tl">
+                            <?php foreach ($segments as $seg): ?>
+                                <span class="tl-seg <?= e(status_timeline_class($seg['status'])) ?>"
+                                      style="left:<?= $seg['left'] ?>%;width:<?= $seg['width'] ?>%"
+                                      title="<?= e($seg['title']) ?>"></span>
+                            <?php endforeach; ?>
+                        </div>
+                        <div class="tl-meta">
+                            <?php if ($t['uptime_seconds'] !== null): ?>
+                                Up <?= e(format_duration((int) $t['uptime_seconds'])) ?> · since <?= e(format_date($t['status_since'], 'M j, g:i A')) ?>
+                            <?php elseif (!$t['enabled']): ?>
+                                Disabled
+                            <?php elseif (!$trunkStatusAvailable): ?>
+                                Asterisk unreachable
+                            <?php else: ?>
+                                No uptime recorded yet
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
 
         <?php if (!empty($trunkHistory)): ?>
             <div class="card-head"><h2>Registration uptime history</h2><span class="muted text-sm">Latest 50 state periods</span></div>

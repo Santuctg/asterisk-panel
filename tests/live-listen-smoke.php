@@ -88,6 +88,38 @@ $outboundDialplan = $gen->renderDialplan();
 $check(str_contains($outboundDialplan, 'exten => _9X.,1,NoOp(Outbound: Outside via 9)')
     && str_contains($outboundDialplan, 'Dial(PJSIP/trunk-' . $trackedTrunk . '/${EXTEN:1},30,Tt)'), 'outbound dial prefix is matched and stripped');
 
+// Extension registration history works the same way as trunk history.
+$extTracker = new App\Services\Asterisk\ExtensionStatusTracker();
+$extTracker->recordStatuses(['ext-' . $targetExtension => 'Registered']);
+$extTracker->recordStatuses(['ext-' . $targetExtension => 'Registered']);
+$check((int) $db->scalar('SELECT COUNT(*) FROM extension_status_history WHERE extension_id = ?', [$targetExtension]) === 1, 'unchanged extension state extends one uptime interval');
+$extTracker->recordStatuses(['ext-' . $targetExtension => 'Unregistered']);
+$check((int) $db->scalar('SELECT COUNT(*) FROM extension_status_history WHERE extension_id = ?', [$targetExtension]) === 2
+    && (int) $db->scalar('SELECT COUNT(*) FROM extension_status_history WHERE extension_id = ? AND ended_at IS NULL', [$targetExtension]) === 1, 'extension state changes create persistent history');
+
+// Latency (RTT) and active-device parsing for the monitoring columns.
+$contactDetails = App\Services\Asterisk\AsteriskManager::parseContactDetails(
+    "Contact: 1001@tenant-a.example.test/sip:1001@192.0.2.10 abc123 Avail 12.000\n" .
+    "Contact: 1001@tenant-a.example.test/sip:1001@192.0.2.11 def456 Avail 14.000\n" .
+    "Contact: trunk-1-aor/sip:198.51.100.10 ghi789 NonQual nan\n"
+);
+$check(($contactDetails['1001@tenant-a.example.test']['count'] ?? 0) === 2
+    && ($contactDetails['1001@tenant-a.example.test']['rtt'] ?? null) === 14.0
+    && array_key_exists('rtt', $contactDetails['trunk-1-aor'] ?? [])
+    && $contactDetails['trunk-1-aor']['rtt'] === null, 'contact latency and device-count parsing');
+
+// 24-hour availability timeline stays inside its window and classifies states.
+$timelineSegments = status_timeline([
+    ['status' => 'Registered', 'started_at' => date('Y-m-d H:i:s', time() - 3600), 'ended_at' => null],
+    ['status' => 'Unregistered', 'started_at' => date('Y-m-d H:i:s', time() - 7200), 'ended_at' => date('Y-m-d H:i:s', time() - 7000)],
+], time(), 24);
+$check(count($timelineSegments) === 2
+    && ($timelineSegments[0]['left'] + $timelineSegments[0]['width']) <= 100.001
+    && ($timelineSegments[1]['left'] + $timelineSegments[1]['width']) <= 100.001
+    && status_timeline_class('Registered') === 'ok'
+    && status_timeline_class('Unregistered') === 'down'
+    && status_timeline_class('Disabled') === 'off', 'availability timeline segments are clamped and classified');
+
 $snapshot = App\Services\Asterisk\AsteriskManager::parseConciseChannels(
     'PJSIP/1001@tenant-a.example.test-00000001!tenant_a!1001!1!Up!Dial!PJSIP/trunk!Caller!acct!0!00:20!PJSIP/trunk-00000002!uid' . "\n" .
     'PJSIP/2002@tenant-a.example.test-00000003!tenant_a!2002!1!Ringing!Dial!x!Caller!acct!0!00:02!!uid' . "\n" .

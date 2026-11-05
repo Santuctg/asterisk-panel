@@ -32,6 +32,7 @@ if ((int)$db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND 
 if ((int)$db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='tenant_login_bans'") !== 1) throw new RuntimeException('Tenant login bans table missing');
 if ((int)$db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='cdr_import_log'") !== 1) throw new RuntimeException('CDR import ledger table missing');
 if ((int)$db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='trunk_status_history'") !== 1) throw new RuntimeException('Trunk status history table missing');
+if ((int)$db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='extension_status_history'") !== 1) throw new RuntimeException('Extension status history table missing');
 // Subsequent migrations must ignore the partial global-superadmin index.
 $migration = file_get_contents($base . '/scripts/migrate.php');
 if (!str_contains($migration, "index['partial']")) throw new RuntimeException('Partial-index idempotence guard missing');

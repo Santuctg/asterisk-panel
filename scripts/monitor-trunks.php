@@ -8,7 +8,18 @@ require BASE_PATH . '/app/bootstrap.php';
 
 $app = App\Core\App::getInstance();
 $app->boot();
-$result = (new App\Services\Asterisk\TrunkStatusTracker())->sample();
-echo $result['available']
-    ? 'Recorded ' . count($result['statuses']) . " trunk status(es).\n"
-    : "Asterisk unavailable; trunk history left unchanged.\n";
+
+$trunks = (new App\Services\Asterisk\TrunkStatusTracker())->sample();
+$extensions = (new App\Services\Asterisk\ExtensionStatusTracker())->sample();
+
+$parts = [];
+if ($trunks['available']) {
+    $parts[] = count($trunks['statuses']) . ' trunk status(es)';
+}
+if ($extensions['available']) {
+    $parts[] = count($extensions['statuses']) . ' extension status(es)';
+}
+
+echo $parts
+    ? 'Recorded ' . implode(' and ', $parts) . ".\n"
+    : "Asterisk unavailable; status history left unchanged.\n";

@@ -143,6 +143,17 @@ return [
             last_checked_at DATETIME NOT NULL
         )',
 
+    'extension_status_history' => '
+        CREATE TABLE IF NOT EXISTS extension_status_history (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            extension_id    INTEGER NOT NULL REFERENCES extensions(id) ON DELETE CASCADE,
+            tenant_id       INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+            status          VARCHAR(40) NOT NULL,
+            started_at      DATETIME NOT NULL,
+            ended_at        DATETIME,
+            last_checked_at DATETIME NOT NULL
+        )',
+
     'devices' => '
         CREATE TABLE IF NOT EXISTS devices (
             id             INTEGER PRIMARY KEY AUTOINCREMENT,

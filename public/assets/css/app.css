@@ -658,3 +658,21 @@ th.col-check input:indeterminate::after, td.col-check input:indeterminate::after
     .main { margin-left: 0; }
     .card { box-shadow: none; border-color: #ddd; }
 }
+
+/* ---- Registration availability timeline (trunks & extensions) ---- */
+.tl { position: relative; height: 12px; min-width: 240px; border-radius: 6px; background: var(--gray-100); border: 1px solid var(--border); overflow: hidden; }
+.tl-seg { position: absolute; top: 0; bottom: 0; }
+.tl-seg.ok { background: var(--success-500); }
+.tl-seg.down { background: var(--danger-500); }
+.tl-seg.off { background: var(--gray-400); }
+.tl-row { display: grid; grid-template-columns: 220px 1fr 210px; gap: 14px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.tl-row:last-child { border-bottom: 0; }
+.tl-label strong { display: block; font-size: 13px; }
+.tl-label span { color: var(--text-muted); font-size: 11px; }
+.tl-meta { text-align: right; font-size: 11px; color: var(--text-muted); }
+.tl-legend { display: inline-flex; gap: 12px; align-items: center; font-size: 10px; color: var(--text-muted); white-space: nowrap; }
+.tl-legend i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; margin-right: 4px; }
+.tl-legend i.ok { background: var(--success-500); }
+.tl-legend i.down { background: var(--danger-500); }
+.tl-legend i.off { background: var(--gray-400); }
+@media (max-width: 1100px) { .tl-row { grid-template-columns: 1fr; } .tl-meta { text-align: left; } }

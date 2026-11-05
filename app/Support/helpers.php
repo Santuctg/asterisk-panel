@@ -165,6 +165,71 @@ if (!function_exists('format_duration')) {
     }
 }
 
+if (!function_exists('status_timeline')) {
+    /**
+     * Turn status-history rows into segments across a fixed window for the
+     * availability bar. Gaps (before monitoring began) simply stay empty.
+     *
+     * @param array<int, array{status: string, started_at: string, ended_at?: string|null}> $events
+     * @return array<int, array{left: float, width: float, status: string, title: string}>
+     */
+    function status_timeline(array $events, ?int $now = null, int $hours = 24): array
+    {
+        $now  = $now ?? time();
+        $from = $now - ($hours * 3600);
+        $span = $hours * 3600;
+        $segments = [];
+
+        foreach ($events as $ev) {
+            $start = strtotime((string) $ev['started_at']);
+            if ($start === false) {
+                continue;
+            }
+            $end = !empty($ev['ended_at']) ? (strtotime((string) $ev['ended_at']) ?: $now) : $now;
+            $start = max($start, $from);
+            $end = min($end, $now);
+            if ($end <= $start) {
+                continue;
+            }
+
+            $left  = ($start - $from) / $span * 100;
+            $width = ($end - $start) / $span * 100;
+            if ($left + $width > 100) {
+                $width = max(0.2, 100 - $left);
+            }
+
+            $segments[] = [
+                'left'   => round($left, 3),
+                'width'  => round(max(0.2, $width), 3),
+                'status' => (string) $ev['status'],
+                'title'  => sprintf(
+                    '%s · %s → %s',
+                    $ev['status'],
+                    date('M j, g:i A', $start),
+                    !empty($ev['ended_at']) ? date('M j, g:i A', $end) : 'now'
+                ),
+            ];
+        }
+
+        return $segments;
+    }
+}
+
+if (!function_exists('status_timeline_class')) {
+    /** CSS class for a timeline segment: up, down, or disabled. */
+    function status_timeline_class(string $status): string
+    {
+        $normalized = strtolower($status);
+        if (in_array($normalized, ['registered', 'avail', 'up'], true)) {
+            return 'ok';
+        }
+        if ($normalized === 'disabled') {
+            return 'off';
+        }
+        return 'down';
+    }
+}
+
 if (!function_exists('format_date')) {
     function format_date(?string $dt, string $format = 'M j, Y g:i A'): string
     {

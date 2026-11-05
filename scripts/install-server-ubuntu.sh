@@ -356,7 +356,7 @@ systemctl daemon-reload
 systemctl enable --now asterisk-panel-cdr.timer
 cat >/etc/systemd/system/asterisk-panel-trunk-monitor.service <<EOF
 [Unit]
-Description=Record Asterisk Panel trunk registration uptime
+Description=Record Asterisk Panel SIP status history (trunks and extensions)
 After=asterisk.service
 
 [Service]
@@ -371,7 +371,7 @@ ExecStart=/usr/bin/php ${INSTALL_DIR}/scripts/monitor-trunks.php
 EOF
 cat >/etc/systemd/system/asterisk-panel-trunk-monitor.timer <<'EOF'
 [Unit]
-Description=Check SIP trunk registration every minute
+Description=Sample SIP registration status every minute
 
 [Timer]
 OnBootSec=1min

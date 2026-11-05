@@ -43,23 +43,42 @@ final class RouteController extends BaseController
         $trunkStatusAvailable = false;
         $trunkRegistrations = [];
         $trunkHistory = [];
+        $trunkContacts = [];
+        $trunkTimeline = [];
         if ($request->str('tab', 'inbound') === 'trunks') {
             try {
-                $sample = (new TrunkStatusTracker())->sample(asterisk());
+                $mgr = asterisk();
+                $sample = (new TrunkStatusTracker())->sample($mgr);
                 $trunkStatusAvailable = $sample['available'];
                 $trunkRegistrations = $sample['statuses'];
+                if ($trunkStatusAvailable) {
+                    $trunkContacts = $mgr->contactDetails();
+                }
                 $trunkHistory = $db->all(
                     'SELECT h.*, t.name AS trunk_name FROM trunk_status_history h
                      JOIN trunks t ON t.id = h.trunk_id
                      WHERE h.tenant_id = ? ORDER BY h.started_at DESC, h.id DESC LIMIT 50',
                     [$tid]
                 );
+                $windowStart = date('Y-m-d H:i:s', time() - 86400);
+                foreach ($db->all(
+                    'SELECT h.trunk_id, h.status, h.started_at, h.ended_at
+                     FROM trunk_status_history h
+                     WHERE h.tenant_id = ? AND (h.ended_at IS NULL OR h.ended_at >= ?)
+                     ORDER BY h.started_at, h.id',
+                    [$tid, $windowStart]
+                ) as $h) {
+                    $trunkTimeline[(int) $h['trunk_id']][] = $h;
+                }
             } catch (\Throwable) {
                 $trunkStatusAvailable = false;
             }
         }
         foreach ($trunks as &$trunk) {
             $trunk['registration_status'] = $trunkRegistrations['trunk-' . $trunk['id']] ?? null;
+            $contact = $trunkContacts['trunk-' . $trunk['id'] . '-aor'] ?? null;
+            $trunk['latency_ms'] = $contact['rtt'] ?? null;
+            $trunk['active_contacts'] = $contact['count'] ?? 0;
             $current = $db->one(
                 'SELECT started_at, status FROM trunk_status_history
                  WHERE trunk_id = ? AND ended_at IS NULL ORDER BY id DESC LIMIT 1',
@@ -69,6 +88,7 @@ final class RouteController extends BaseController
             $trunk['uptime_seconds'] = $current && strcasecmp((string) $current['status'], 'Registered') === 0
                 ? max(0, time() - (strtotime((string) $current['started_at']) ?: time()))
                 : null;
+            $trunk['timeline_events'] = $trunkTimeline[(int) $trunk['id']] ?? [];
         }
         unset($trunk);
 
@@ -222,7 +242,7 @@ final class RouteController extends BaseController
 
         if ($v->fails()) {
             Flash::error($v->firstError());
-            return Response::redirect('/routes');
+            return Response::redirect('/routes?tab=outbound');
         }
 
         $id = $this->db()->insert('outbound_routes', $data);
@@ -230,14 +250,14 @@ final class RouteController extends BaseController
         $this->applyToAsterisk('route');
 
         Flash::success('Outbound route added.');
-        return Response::redirect('/routes');
+        return Response::redirect('/routes?tab=outbound');
     }
 
     public function updateOutbound(Request $request): Response
     {
         $row = $this->findScoped('outbound_routes', (int) $request->params['id']);
         if (!$row) {
-            return Response::redirect('/routes');
+            return Response::redirect('/routes?tab=outbound');
         }
 
         $data = [
@@ -258,7 +278,7 @@ final class RouteController extends BaseController
         ]);
         if ($v->fails()) {
             Flash::error($v->firstError());
-            return Response::redirect('/routes');
+            return Response::redirect('/routes?tab=outbound');
         }
 
         $this->db()->update('outbound_routes', (int) $row['id'], $data);
@@ -266,14 +286,14 @@ final class RouteController extends BaseController
         $this->applyToAsterisk('route');
 
         Flash::success('Outbound route updated.');
-        return Response::redirect('/routes');
+        return Response::redirect('/routes?tab=outbound');
     }
 
     public function destroyOutbound(Request $request): Response
     {
         $row = $this->findScoped('outbound_routes', (int) $request->params['id']);
         if (!$row) {
-            return Response::redirect('/routes');
+            return Response::redirect('/routes?tab=outbound');
         }
 
         $this->db()->delete('outbound_routes', (int) $row['id']);
@@ -281,7 +301,7 @@ final class RouteController extends BaseController
         $this->applyToAsterisk('route');
 
         Flash::success('Outbound route deleted.');
-        return Response::redirect('/routes');
+        return Response::redirect('/routes?tab=outbound');
     }
 
     // ----- trunks --------------------------------------------------------
@@ -309,7 +329,7 @@ final class RouteController extends BaseController
 
         if ($v->fails()) {
             Flash::error($v->firstError());
-            return Response::redirect('/routes');
+            return Response::redirect('/routes?tab=trunks');
         }
 
         $id = $this->db()->insert('trunks', $data);
@@ -317,14 +337,14 @@ final class RouteController extends BaseController
         $this->applyToAsterisk('trunk');
 
         Flash::success('Trunk added.');
-        return Response::redirect('/routes');
+        return Response::redirect('/routes?tab=trunks');
     }
 
     public function updateTrunk(Request $request): Response
     {
         $row = $this->findScoped('trunks', (int) $request->params['id']);
         if (!$row) {
-            return Response::redirect('/routes');
+            return Response::redirect('/routes?tab=trunks');
         }
 
         $data = [
@@ -348,14 +368,14 @@ final class RouteController extends BaseController
         $this->applyToAsterisk('trunk');
 
         Flash::success('Trunk updated.');
-        return Response::redirect('/routes');
+        return Response::redirect('/routes?tab=trunks');
     }
 
     public function destroyTrunk(Request $request): Response
     {
         $row = $this->findScoped('trunks', (int) $request->params['id']);
         if (!$row) {
-            return Response::redirect('/routes');
+            return Response::redirect('/routes?tab=trunks');
         }
 
         $this->db()->delete('trunks', (int) $row['id']);
@@ -363,7 +383,7 @@ final class RouteController extends BaseController
         $this->applyToAsterisk('trunk');
 
         Flash::success('Trunk deleted.');
-        return Response::redirect('/routes');
+        return Response::redirect('/routes?tab=trunks');
     }
 
     // ----- time conditions -----------------------------------------------

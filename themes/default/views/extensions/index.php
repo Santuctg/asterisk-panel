@@ -46,6 +46,8 @@ require dirname(__DIR__) . '/partials/fields.php';
                             <th>Voicemail</th>
                             <th>Device</th>
                             <th>Registration</th>
+                            <th>Latency</th>
+                            <th>Online for</th>
                             <th>Config</th>
                             <th class="actions">Actions</th>
                         </tr>
@@ -101,8 +103,26 @@ require dirname(__DIR__) . '/partials/fields.php';
                                         <span class="badge gray"><span class="dot"></span>Unknown</span>
                                     <?php elseif ($r['registration_status'] !== null): ?>
                                         <span class="badge green" title="Asterisk contact status: <?= e($r['registration_status']) ?>"><span class="dot"></span>Registered</span>
+                                        <?php if (!empty($r['active_devices'])): ?>
+                                            <div class="text-xs muted"><?= (int) $r['active_devices'] ?> active device<?= (int) $r['active_devices'] === 1 ? '' : 's' ?></div>
+                                        <?php endif; ?>
                                     <?php else: ?>
                                         <span class="badge amber"><span class="dot"></span>Unregistered</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php if (!empty($r['latency_ms'])): ?>
+                                        <span class="mono"><strong><?= e((string) $r['latency_ms']) ?></strong> ms</span>
+                                    <?php else: ?>
+                                        <span class="muted">—</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php if (!empty($r['online_seconds'])): ?>
+                                        <span class="mono"><?= e(format_duration((int) $r['online_seconds'])) ?></span>
+                                        <div class="text-xs muted">since <?= e(format_date($r['online_since'], 'M j, g:i A')) ?></div>
+                                    <?php else: ?>
+                                        <span class="muted">—</span>
                                     <?php endif; ?>
                                 </td>
                                 <td>
@@ -148,4 +168,82 @@ require dirname(__DIR__) . '/partials/fields.php';
             <span class="muted text-sm">Page <?= $page ?> of <?= $pages ?></span>
         </div>
     <?php endif; ?>
+</div>
+
+<div class="card" style="margin-top:14px">
+    <div class="card-head">
+        <h2>24-hour availability</h2>
+        <span class="tl-legend">
+            <span><i class="ok"></i>Registered</span>
+            <span><i class="down"></i>Unregistered</span>
+            <span><i class="off"></i>Disabled</span>
+            <span>sampled every minute</span>
+        </span>
+    </div>
+    <div class="card-body">
+        <?php if (empty($timeline)): ?>
+            <p class="muted mb-0">No extensions to monitor.</p>
+        <?php endif; ?>
+        <?php foreach ($timeline as $t): $segments = status_timeline($t['events']); $st = $t['state']; ?>
+            <div class="tl-row">
+                <div class="tl-label">
+                    <strong class="mono"><?= e($t['extension']) ?></strong>
+                    <span><?= e($t['name']) ?></span>
+                </div>
+                <div class="tl">
+                    <?php foreach ($segments as $seg): ?>
+                        <span class="tl-seg <?= e(status_timeline_class($seg['status'])) ?>"
+                              style="left:<?= $seg['left'] ?>%;width:<?= $seg['width'] ?>%"
+                              title="<?= e($seg['title']) ?>"></span>
+                    <?php endforeach; ?>
+                </div>
+                <div class="tl-meta">
+                    <?php if (!$t['enabled']): ?>
+                        <span class="badge gray"><span class="dot"></span>Disabled</span>
+                    <?php elseif (!$registrationAvailable): ?>
+                        <span class="badge gray"><span class="dot"></span>Unknown</span>
+                    <?php elseif ($st['status'] !== null): ?>
+                        <span class="badge green"><span class="dot"></span>Registered</span>
+                        <?php if ($st['devices'] > 0): ?> · <?= (int) $st['devices'] ?> device<?= (int) $st['devices'] === 1 ? '' : 's' ?><?php endif; ?>
+                        <?php if ($st['rtt'] !== null): ?> · <span class="mono"><?= e((string) $st['rtt']) ?> ms</span><?php endif; ?>
+                    <?php else: ?>
+                        <span class="badge amber"><span class="dot"></span>Unregistered</span>
+                    <?php endif; ?>
+                </div>
+            </div>
+        <?php endforeach; ?>
+    </div>
+</div>
+
+<div class="card" style="margin-top:14px">
+    <div class="card-head">
+        <h2>Event history</h2>
+        <span class="muted text-sm">Latest 50 state periods</span>
+    </div>
+    <div class="card-body tight">
+        <?php if (empty($monitorHistory)): ?>
+            <p class="muted mb-0">No status changes recorded yet. History begins now and accumulates every minute.</p>
+        <?php else: ?>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Ext</th><th>Status</th><th>Started</th><th>Ended</th><th>Duration</th></tr></thead>
+                    <tbody>
+                    <?php foreach ($monitorHistory as $event):
+                        $start = strtotime((string) $event['started_at']) ?: time();
+                        $end = $event['ended_at'] ? (strtotime((string) $event['ended_at']) ?: time()) : time();
+                        $registered = strcasecmp((string) $event['status'], 'Registered') === 0;
+                    ?>
+                        <tr>
+                            <td><strong class="mono"><?= e($event['extension']) ?></strong></td>
+                            <td><span class="badge <?= $registered ? 'green' : ((string) $event['status'] === 'Disabled' ? 'gray' : 'red') ?>"><span class="dot"></span><?= e($event['status']) ?></span></td>
+                            <td><?= e(format_date($event['started_at'])) ?></td>
+                            <td><?= $event['ended_at'] ? e(format_date($event['ended_at'])) : '<span class="badge blue">Current</span>' ?></td>
+                            <td class="mono"><?= e(format_duration(max(0, $end - $start))) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
+    </div>
 </div>

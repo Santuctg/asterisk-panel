@@ -159,11 +159,11 @@ final class ConfigGenerator
             $out .= "auth = {$name}\n";
             $out .= "aors = {$name}\n";
             $out .= "identify_by = username,auth_username\n";
-            if (!empty($ext['cid_name'])) {
-                $cidName = $this->esc($ext['cid_name']);
-                $cidNum  = $ext['cid_number'] !== '' ? $ext['cid_number'] : $ext['extension'];
-                $out .= "callerid = \"{$cidName}\" <{$cidNum}>\n";
-            }
+            // Always emit a callerid so the display name comes from the
+            // caller's configured name, never the called extension's number.
+            $cidName = $this->esc((string) ($ext['cid_name'] ?: $ext['name'] ?: $ext['extension']));
+            $cidNum  = ($ext['cid_number'] ?? '') !== '' ? $ext['cid_number'] : $ext['extension'];
+            $out .= "callerid = \"{$cidName}\" <{$cidNum}>\n";
             $out .= "\n";
 
             $out .= "[{$name}]\n";
@@ -178,7 +178,10 @@ final class ConfigGenerator
             $out .= "[{$name}]\n";
             $out .= "type = aor\n";
             $out .= "max_contacts = {$ext['max_registrations']}\n";
-            $out .= "remove_existing = yes\n\n";
+            $out .= "remove_existing = yes\n";
+            // OPTIONS keepalive gives each phone a live latency (RTT) reading.
+            $out .= "qualify_frequency = 60\n";
+            $out .= "qualify_timeout = 3\n\n";
 
             // Separate WebRTC identity. Never use the ordinary phone's endpoint
             // for browser registration (different transport and media settings).
@@ -252,7 +255,10 @@ final class ConfigGenerator
             // AoR pointing at the provider.
             $out .= "[trunk-{$t['id']}-aor]\n";
             $out .= "type = aor\n";
-            $out .= "contact = sip:{$t['host']}\n\n";
+            $out .= "contact = sip:{$t['host']}\n";
+            // Qualify the provider so RTT/latency and reachability are visible.
+            $out .= "qualify_frequency = 60\n";
+            $out .= "qualify_timeout = 3\n\n";
 
             // The endpoint itself.
             $out .= "[trunk-{$t['id']}](trunk-basic)\n";
@@ -491,7 +497,6 @@ final class ConfigGenerator
             if ($this->shouldRecord((int) ($e['record'] ?? 0), $record)) {
                 $out .= $this->recordingGosub('internal', $ctx);
             }
-            $out .= " same => n,Set(CALLERID(name)=\"{$label}\")\n";
             $out .= " same => n,Dial(PJSIP/{$ep},{$e['ring_timeout']},Tt" . ($e['follow_me'] ? 'm' : '') . ")\n";
 
             if (!empty($e['vm_on_busy']) || !empty($e['vm_on_noanswer'])) {
