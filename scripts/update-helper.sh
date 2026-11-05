@@ -43,9 +43,49 @@ update() {
     find "$REPO" -type f -name '*.php' -print0 | xargs -0 -n1 php -l >/dev/null
     rsync -a --delete --exclude=storage/ --exclude=.env "$REPO/" "$APP/"
     DB_DRIVER=sqlite DB_NAME="$APP/storage/database/asterisk_panel.sqlite" php "$APP/scripts/migrate.php"
+    DB_DRIVER=sqlite DB_NAME="$APP/storage/database/asterisk_panel.sqlite" php "$APP/scripts/apply-config.php"
+    if systemctl is-active --quiet asterisk; then
+        asterisk -rx 'pjsip reload'
+        asterisk -rx 'dialplan reload'
+        asterisk -rx 'module reload app_voicemail.so'
+        asterisk -rx 'module reload app_queue.so'
+        asterisk -rx 'module reload res_parking.so'
+        asterisk -rx 'module reload res_musiconhold.so'
+        asterisk -rx 'module reload app_confbridge.so'
+    fi
+    cat >/etc/systemd/system/asterisk-panel-trunk-monitor.service <<EOF
+[Unit]
+Description=Record Asterisk Panel trunk registration uptime
+After=asterisk.service
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+SupplementaryGroups=asterisk
+EnvironmentFile=/etc/asterisk-panel/server.env
+Environment=DB_DRIVER=sqlite
+Environment=DB_NAME=$APP/storage/database/asterisk_panel.sqlite
+ExecStart=/usr/bin/php $APP/scripts/monitor-trunks.php
+EOF
+    cat >/etc/systemd/system/asterisk-panel-trunk-monitor.timer <<'EOF'
+[Unit]
+Description=Check SIP trunk registration every minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+    systemctl daemon-reload
+    systemctl enable --now asterisk-panel-trunk-monitor.timer
     install -o root -g root -m 0755 "$REPO/scripts/update-helper.sh" /usr/local/sbin/asterisk-panel-update
     systemctl restart php8.3-fpm
     systemctl restart asterisk-panel-cdr.timer
+    systemctl restart asterisk-panel-trunk-monitor.timer
     printf 'updated=%s\nbackup=%s\n' "$(git -C "$REPO" rev-parse --short HEAD)" "$backup"
 }
 

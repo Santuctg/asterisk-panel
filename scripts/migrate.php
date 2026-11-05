@@ -18,6 +18,7 @@ $db->exec($schema['roles']);
 $db->exec($schema['tenant_login_bans']);
 $db->exec($schema['cdr']);
 $db->exec($schema['cdr_import_log']);
+$db->exec($schema['trunk_status_history']);
 
 // Keep a permanent import ledger so clearing call history does not cause old
 // rows still present in Asterisk's Master.csv to be imported again.

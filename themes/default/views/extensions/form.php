@@ -24,23 +24,6 @@ $val    = static fn (string $key, $default = '') => $row[$key] ?? old($key, $def
     </div>
 </div>
 
-<div class="card">
-    <div class="card-head"><h2>Phone registration settings</h2></div>
-    <div class="card-body">
-        <div class="form-grid">
-            <div class="field"><label>SIP server / registrar</label><input type="text" readonly value="<?= e($sipSettings['server'] ?? '') ?>"></div>
-            <div class="field"><label>Port and transport</label><input type="text" readonly value="<?= (int) ($sipSettings['port'] ?? 5060) ?> / <?= e($sipSettings['transport'] ?? 'UDP') ?>"></div>
-            <div class="field">
-                <label>SIP username / Auth ID</label>
-                <input type="text" readonly class="mono" value="<?= e($sipSettings['username'] ?? '') ?>">
-                <span class="hint">The username stays the same across tenants; the realm below selects the tenant.</span>
-            </div>
-            <div class="field"><label>SIP domain / realm</label><input type="text" readonly class="mono" value="<?= e($sipSettings['realm'] ?? '') ?>"></div>
-        </div>
-        <p class="hint mt-3 mb-0">Use the SIP password shown below. Outbound proxy can be left blank unless the phone requires it; then use the same SIP server.</p>
-    </div>
-</div>
-
 <form method="post" action="<?= e($action) ?>">
     <?= csrf() ?>
 

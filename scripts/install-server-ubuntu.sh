@@ -354,6 +354,35 @@ WantedBy=timers.target
 EOF
 systemctl daemon-reload
 systemctl enable --now asterisk-panel-cdr.timer
+cat >/etc/systemd/system/asterisk-panel-trunk-monitor.service <<EOF
+[Unit]
+Description=Record Asterisk Panel trunk registration uptime
+After=asterisk.service
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+SupplementaryGroups=asterisk
+EnvironmentFile=/etc/asterisk-panel/server.env
+Environment=DB_DRIVER=sqlite
+Environment=DB_NAME=${DB_PATH}
+ExecStart=/usr/bin/php ${INSTALL_DIR}/scripts/monitor-trunks.php
+EOF
+cat >/etc/systemd/system/asterisk-panel-trunk-monitor.timer <<'EOF'
+[Unit]
+Description=Check SIP trunk registration every minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+systemctl daemon-reload
+systemctl enable --now asterisk-panel-trunk-monitor.timer
 
 echo "[9/11] Configuring the initial Nginx site..."
 SITE=/etc/nginx/sites-available/asterisk-panel

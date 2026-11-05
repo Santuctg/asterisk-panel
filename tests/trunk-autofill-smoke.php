@@ -33,12 +33,18 @@ foreach ([
     [str_contains($html, 'name="sip_trunk_auth_secret"'), 'separate SIP secret field'],
     [str_contains($html, 'autocomplete="new-password"'), 'prevent login-password autofill'],
     [str_contains($html, '>Registration<') && str_contains($html, 'Unknown'), 'trunk registration status renders when AMI is unavailable'],
+    [str_contains($html, '>Uptime<'), 'trunk uptime column renders'],
 ] as [$ok, $description]) {
     if (!$ok) {
         throw new RuntimeException('FAIL: ' . $description);
     }
     echo 'PASS: ' . $description . PHP_EOL;
 }
+$routeView = file_get_contents(BASE_PATH . '/themes/default/views/routes/index.php');
+if (!str_contains($routeView, 'Registration uptime history') || !str_contains($routeView, 'Dial 9 for an outside line')) {
+    throw new RuntimeException('FAIL: trunk history and outbound route examples render');
+}
+echo "PASS: trunk history and outbound route examples render\n";
 
 $extension = $db->insert('extensions', [
     'tenant_id' => $tenant, 'extension' => '201', 'name' => 'Desk 201', 'secret' => 'test-secret', 'enabled' => 1,

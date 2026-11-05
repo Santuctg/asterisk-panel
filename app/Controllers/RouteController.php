@@ -8,6 +8,7 @@ use App\Core\Flash;
 use App\Core\Request;
 use App\Core\Response;
 use App\Core\Validator;
+use App\Services\Asterisk\TrunkStatusTracker;
 
 /**
  * Call routing: inbound routes (DID -> destination), outbound routes
@@ -41,17 +42,33 @@ final class RouteController extends BaseController
 
         $trunkStatusAvailable = false;
         $trunkRegistrations = [];
+        $trunkHistory = [];
         if ($request->str('tab', 'inbound') === 'trunks') {
             try {
-                $mgr = asterisk();
-                $trunkStatusAvailable = $mgr->isOnline();
-                if ($trunkStatusAvailable) { $trunkRegistrations = $mgr->outboundRegistrations(); }
+                $sample = (new TrunkStatusTracker())->sample(asterisk());
+                $trunkStatusAvailable = $sample['available'];
+                $trunkRegistrations = $sample['statuses'];
+                $trunkHistory = $db->all(
+                    'SELECT h.*, t.name AS trunk_name FROM trunk_status_history h
+                     JOIN trunks t ON t.id = h.trunk_id
+                     WHERE h.tenant_id = ? ORDER BY h.started_at DESC, h.id DESC LIMIT 50',
+                    [$tid]
+                );
             } catch (\Throwable) {
                 $trunkStatusAvailable = false;
             }
         }
         foreach ($trunks as &$trunk) {
             $trunk['registration_status'] = $trunkRegistrations['trunk-' . $trunk['id']] ?? null;
+            $current = $db->one(
+                'SELECT started_at, status FROM trunk_status_history
+                 WHERE trunk_id = ? AND ended_at IS NULL ORDER BY id DESC LIMIT 1',
+                [(int) $trunk['id']]
+            );
+            $trunk['status_since'] = $current['started_at'] ?? null;
+            $trunk['uptime_seconds'] = $current && strcasecmp((string) $current['status'], 'Registered') === 0
+                ? max(0, time() - (strtotime((string) $current['started_at']) ?: time()))
+                : null;
         }
         unset($trunk);
 
@@ -87,6 +104,7 @@ final class RouteController extends BaseController
             'destinations'=> $this->destinationOptions(),
             'destTypes'   => self::DEST_TYPES,
             'trunkStatusAvailable' => $trunkStatusAvailable,
+            'trunkHistory' => $trunkHistory,
         ]);
     }
 

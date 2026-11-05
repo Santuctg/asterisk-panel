@@ -5,11 +5,9 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Core\Flash;
-use App\Core\Config;
 use App\Core\Request;
 use App\Core\Response;
 use App\Core\Validator;
-use App\Services\Asterisk\SipPort;
 
 /**
  * Extensions (PJSIP endpoints). The core building block every other feature
@@ -90,13 +88,11 @@ final class ExtensionController extends BaseController
     public function create(Request $request): Response
     {
         $defaults = $this->suggestNext();
-        $tid = $this->requireTenant();
 
         return $this->view('extensions/form', [
             'row'       => null,
             'defaults'  => $defaults,
             'tenants'   => $this->tenantOptions(),
-            'sipSettings' => $this->sipSettings($tid, (string) ($defaults['extension'] ?? '')),
         ]);
     }
 
@@ -174,7 +170,6 @@ final class ExtensionController extends BaseController
             'row'      => $row,
             'defaults' => [],
             'tenants'  => $this->tenantOptions(),
-            'sipSettings' => $this->sipSettings((int) $row['tenant_id'], (string) $row['extension']),
         ]);
     }
 
@@ -334,26 +329,4 @@ final class ExtensionController extends BaseController
         return $tid ? $this->db()->all('SELECT id, name FROM tenants WHERE id = ?', [$tid]) : [];
     }
 
-    /** Exact values a physical SIP phone must use for registration. */
-    private function sipSettings(int $tenantId, string $extension): array
-    {
-        $tenant = $this->db()->one('SELECT context, domain FROM tenants WHERE id = ?', [$tenantId]);
-        $context = preg_replace('/[^a-zA-Z0-9_]/', '_', (string) ($tenant['context'] ?? '')) ?: '';
-        $host = trim((string) ($tenant['domain'] ?? ''));
-        if ($host === '') {
-            $host = (string) Config::get('asterisk.sip_host', '');
-            if (str_contains($host, '://')) {
-                $host = (string) (parse_url($host, PHP_URL_HOST) ?: $host);
-            }
-        }
-
-        return [
-            'server' => $host,
-            'port' => SipPort::configured(),
-            'transport' => 'UDP',
-            'username' => $extension,
-            'realm' => strtolower(rtrim($host, '.')),
-            'extension' => $extension,
-        ];
-    }
 }

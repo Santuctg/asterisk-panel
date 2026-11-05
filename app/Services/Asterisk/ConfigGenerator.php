@@ -451,8 +451,9 @@ final class ConfigGenerator
 
         foreach ($routes as $r) {
             $prefix  = $r['prefix'] ?? '';
-            $pattern = $prefix . $r['match_pattern'];
+            $pattern = $this->outboundPattern((string) $prefix, (string) $r['match_pattern']);
             $trunk   = $this->trunkChannel((int) $r['trunk_id']);
+            $dialed  = $prefix !== '' ? '${EXTEN:' . strlen((string) $prefix) . '}' : '${EXTEN}';
 
             $out .= "; {$r['name']}\n";
             $out .= "exten => {$pattern},1,NoOp(Outbound: {$r['name']})\n";
@@ -460,7 +461,7 @@ final class ConfigGenerator
                 $out .= $this->recordingGosub('outbound', $ctx);
             }
             $out .= " same => n,Set(CALLERID(num)=" . ($r['cid_override'] ?: '${CALLERID(num)}') . ")\n";
-            $out .= " same => n,Dial({$trunk}/\${EXTEN},30,Tt)\n";
+            $out .= " same => n,Dial({$trunk}/{$dialed},30,Tt)\n";
             $out .= " same => n,Hangup()\n\n";
         }
 
@@ -1036,6 +1037,15 @@ final class ConfigGenerator
     {
         $t = $this->db->one('SELECT id FROM trunks WHERE id = ?', [$trunkId]);
         return $t ? 'PJSIP/trunk-' . $trunkId : 'PJSIP/invalid';
+    }
+
+    /** Add an optional dial prefix without corrupting Asterisk's leading _. */
+    private function outboundPattern(string $prefix, string $match): string
+    {
+        if ($prefix === '') {
+            return $match;
+        }
+        return str_starts_with($match, '_') ? '_' . $prefix . substr($match, 1) : $prefix . $match;
     }
 
     private function ringStrategy(string $s): string

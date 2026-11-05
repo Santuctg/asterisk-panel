@@ -72,6 +72,21 @@ $registrations = App\Services\Asterisk\AsteriskManager::parseOutboundRegistratio
     " trunk-2/sip:203.0.113.10 trunk-2-auth Rejected\n"
 );
 $check(($registrations['trunk-1'] ?? '') === 'Registered' && ($registrations['trunk-2'] ?? '') === 'Rejected', 'outbound trunk registration parsing');
+$trackedTrunk = $db->insert('trunks', ['tenant_id' => $tid, 'name' => 'Tracked', 'host' => 'sip.example.test', 'enabled' => 1]);
+$tracker = new App\Services\Asterisk\TrunkStatusTracker();
+$tracker->recordStatuses(['trunk-' . $trackedTrunk => 'Registered']);
+$tracker->recordStatuses(['trunk-' . $trackedTrunk => 'Registered']);
+$check((int) $db->scalar('SELECT COUNT(*) FROM trunk_status_history WHERE trunk_id = ?', [$trackedTrunk]) === 1, 'unchanged trunk state extends one uptime interval');
+$tracker->recordStatuses(['trunk-' . $trackedTrunk => 'Rejected']);
+$check((int) $db->scalar('SELECT COUNT(*) FROM trunk_status_history WHERE trunk_id = ?', [$trackedTrunk]) === 2
+    && (int) $db->scalar('SELECT COUNT(*) FROM trunk_status_history WHERE trunk_id = ? AND ended_at IS NULL', [$trackedTrunk]) === 1, 'trunk state changes create persistent history');
+$db->insert('outbound_routes', [
+    'tenant_id' => $tid, 'name' => 'Outside via 9', 'prefix' => '9', 'match_pattern' => '_X.',
+    'trunk_id' => $trackedTrunk, 'priority' => 0, 'enabled' => 1,
+]);
+$outboundDialplan = $gen->renderDialplan();
+$check(str_contains($outboundDialplan, 'exten => _9X.,1,NoOp(Outbound: Outside via 9)')
+    && str_contains($outboundDialplan, 'Dial(PJSIP/trunk-' . $trackedTrunk . '/${EXTEN:1},30,Tt)'), 'outbound dial prefix is matched and stripped');
 
 $snapshot = App\Services\Asterisk\AsteriskManager::parseConciseChannels(
     'PJSIP/1001@tenant-a.example.test-00000001!tenant_a!1001!1!Up!Dial!PJSIP/trunk!Caller!acct!0!00:20!PJSIP/trunk-00000002!uid' . "\n" .

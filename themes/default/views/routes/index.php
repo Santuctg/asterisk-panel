@@ -173,10 +173,16 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                         <button type="button" class="icon-btn" data-modal-close><?= $this->fragment('icons/x') ?></button>
                     </div>
                     <div class="modal-body">
+                        <div class="hint mb-3">
+                            <strong>Examples:</strong><br>
+                            All numbers: prefix blank, pattern <code>_X.</code><br>
+                            Bangladesh mobile: prefix blank, pattern <code>_01XXXXXXXXX</code><br>
+                            Dial 9 for an outside line: prefix <code>9</code>, pattern <code>_X.</code> — the leading 9 is removed before sending to the trunk.
+                        </div>
                         <div class="form-grid">
                             <?php echo field_text('name', 'Route name', '', ['required' => true, 'span' => true]); ?>
-                            <?php echo field_text('prefix', 'Prefix to prepend', '', [
-                                'hint' => 'Digits added before dialing (e.g. a carrier access code).',
+                            <?php echo field_text('prefix', 'Dial prefix (optional)', '', [
+                                'hint' => 'Digits users dial before the number. This prefix is matched, then stripped before the trunk.',
                             ]); ?>
                             <?php echo field_text('match_pattern', 'Match pattern', '', [
                                 'required' => true, 'placeholder' => 'e.g. _9X. or _1NXXNXXXXXX',
@@ -226,7 +232,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
             <?php else: ?>
                 <div class="table-wrap">
                     <table>
-                        <thead><tr><th>Name</th><th>Host</th><th>Username</th><th>From domain</th><th>Registration</th><th>Config</th><th class="actions">Actions</th></tr></thead>
+                         <thead><tr><th>Name</th><th>Host</th><th>Username</th><th>From domain</th><th>Registration</th><th>Uptime</th><th>Config</th><th class="actions">Actions</th></tr></thead>
                         <tbody>
                             <?php foreach ($trunks as $t): ?>
                                 <tr>
@@ -245,6 +251,14 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                                             <span class="badge red" title="Asterisk status: <?= e($t['registration_status']) ?>"><span class="dot"></span><?= e($t['registration_status']) ?></span>
                                         <?php else: ?>
                                             <span class="badge amber"><span class="dot"></span>Unregistered</span>
+                                        <?php endif; ?>
+                                     </td>
+                                    <td>
+                                        <?php if ($t['uptime_seconds'] !== null): ?>
+                                            <strong class="mono"><?= e(format_duration((int) $t['uptime_seconds'])) ?></strong>
+                                            <div class="text-xs muted">since <?= e(format_date($t['status_since'], 'M j, g:i A')) ?></div>
+                                        <?php else: ?>
+                                            <span class="muted">—</span>
                                         <?php endif; ?>
                                     </td>
                                     <td><?= $t['enabled'] ? '<span class="badge green">On</span>' : '<span class="badge gray">Off</span>' ?></td>
@@ -266,6 +280,32 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                 </div>
             <?php endif; ?>
         </div>
+
+        <?php if (!empty($trunkHistory)): ?>
+            <div class="card-head"><h2>Registration uptime history</h2><span class="muted text-sm">Latest 50 state periods</span></div>
+            <div class="card-body tight">
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Trunk</th><th>Status</th><th>Started</th><th>Ended</th><th>Duration</th></tr></thead>
+                        <tbody>
+                        <?php foreach ($trunkHistory as $event):
+                            $start = strtotime((string) $event['started_at']) ?: time();
+                            $end = $event['ended_at'] ? (strtotime((string) $event['ended_at']) ?: time()) : time();
+                            $registered = strcasecmp((string) $event['status'], 'Registered') === 0;
+                        ?>
+                            <tr>
+                                <td><strong><?= e($event['trunk_name']) ?></strong></td>
+                                <td><span class="badge <?= $registered ? 'green' : ((string) $event['status'] === 'Disabled' ? 'gray' : 'red') ?>"><span class="dot"></span><?= e($event['status']) ?></span></td>
+                                <td><?= e(format_date($event['started_at'])) ?></td>
+                                <td><?= $event['ended_at'] ? e(format_date($event['ended_at'])) : '<span class="badge blue">Current</span>' ?></td>
+                                <td class="mono"><?= e(format_duration(max(0, $end - $start))) ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        <?php endif; ?>
 
         <div class="modal-overlay" id="trunkModal" hidden>
             <div class="modal">
