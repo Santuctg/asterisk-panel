@@ -22,13 +22,22 @@ final class AnnouncementController extends BaseController
     {
         $tid = $this->requireTenant();
         $file = $request->files('audio');
+        $hasUpload = $file && (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE;
+        $promptId = $request->int('prompt_id');
+        $source = $promptId > 0 ? $this->db()->one(
+            'SELECT * FROM announcements WHERE id = ? AND tenant_id = ?',
+            [$promptId, $tid]
+        ) : null;
         $name = $request->str('name');
-        if ($name === '' && $file) {
+        if ($name === '' && $hasUpload) {
             $name = trim((string) preg_replace(
                 '/[_-]+/',
                 ' ',
                 pathinfo((string) ($file['name'] ?? ''), PATHINFO_FILENAME)
             ));
+        } elseif ($name === '' && $source) {
+            $original = trim((string) ($source['original_filename'] ?? ''));
+            $name = $original !== '' ? pathinfo($original, PATHINFO_FILENAME) : (string) $source['name'];
         }
         $v = Validator::make(['name' => $name], ['name' => 'required|max:120']);
         if ($v->fails()) {
@@ -45,7 +54,9 @@ final class AnnouncementController extends BaseController
             return Response::redirect('/moh');
         }
 
-        $upload = $this->upload($tid, $file);
+        $upload = $hasUpload ? $this->upload($tid, $file) : ($source
+            ? $this->copyPrompt($source, $tid)
+            : ['error' => 'Choose an uploaded prompt or add a new audio file.']);
         if (isset($upload['error'])) {
             Flash::error($upload['error']);
             return Response::redirect('/moh');

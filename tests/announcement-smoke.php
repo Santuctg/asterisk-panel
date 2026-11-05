@@ -71,6 +71,15 @@ if (!str_contains($dialplan, '[a-announcement-'.$aa.']')
     || str_contains($dialplan, 'MixMonitor(/var/spool/asterisk/monitor/asterisk-panel/${PANEL_RECORDING_FILE},b)')) throw new RuntimeException('Routable announcement or full-call recording dialplan is invalid');
 $routeOptions = (new App\Controllers\RouteController())->destinationOptions();
 if (($routeOptions['announcement'][0]['id'] ?? null) !== $aa) throw new RuntimeException('Announcement is not available as a destination');
+$fromLibrary = new App\Core\Request('POST', '/announcements', [], [
+    'name'=>'New from prompt library', 'prompt_id'=>(string)$aa, 'dest_type'=>'hangup', 'enabled'=>'1',
+]);
+$controller->store($fromLibrary);
+$libraryCopy = $db->one('SELECT * FROM announcements WHERE tenant_id = ? AND name = ?', [$a, 'New from prompt library']);
+if (!$libraryCopy || ($libraryCopy['original_filename'] ?? '') !== 'welcome-message.wav'
+    || !is_file($audioDir . '/a/' . ($libraryCopy['filename'] ?? ''))) throw new RuntimeException('Existing prompt could not create a new announcement');
+$libraryDelete = new App\Core\Request('DELETE', '/announcements/'.(int)$libraryCopy['id']); $libraryDelete->params=['id'=>(int)$libraryCopy['id']];
+$controller->destroy($libraryDelete);
 $db->insert('inbound_routes', ['tenant_id'=>$a,'name'=>'Incomplete legacy route','did_pattern'=>'123','dest_type'=>'announcement','dest_id'=>null,'enabled'=>1]);
 if (!str_contains((new App\Services\Asterisk\ConfigGenerator())->renderDialplan(), 'Gosub(app-dial,1,Hangup() )')) throw new RuntimeException('Missing legacy destination did not fail closed');
 
@@ -98,10 +107,10 @@ $queueView = file_get_contents(BASE_PATH . '/themes/default/views/callcenter/ind
 if (str_contains($ringForm, 'Call tune while ringing') || !str_contains($ringForm, 'Custom prompt') || !str_contains($ringForm, 'Add Audio')) throw new RuntimeException('Ring group custom prompt UI is invalid');
 if (!str_contains($routesView, "field_select('announcement_id'") || !str_contains($queueView, "field_select('announcement_id'")) throw new RuntimeException('Announcement selectors are missing');
 $mohView = file_get_contents(BASE_PATH . '/themes/default/views/moh/index.php');
-if (!str_contains($mohView, 'option is created only after the audio uploads successfully')
-    || !str_contains($mohView, 'data-announcement-play')
+if (!str_contains($mohView, 'data-announcement-play')
     || !str_contains($mohView, '/audio?download=1')
-    || !str_contains($mohView, 'Uploaded prompt')
+    || !str_contains($mohView, '>Prompt</label>')
+    || !str_contains($mohView, '＋ Add Audio')
     || !str_contains($mohView, 'announcementPromptPlay')) throw new RuntimeException('Announcement browser audio controls or edit prompt library are invalid');
 foreach (glob($configDir . '/*') ?: [] as $file) { if (is_file($file)) { @unlink($file); } }
 @unlink($audioDir . '/a/a.wav');
