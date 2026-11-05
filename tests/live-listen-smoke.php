@@ -105,7 +105,12 @@ $check((int) $db->scalar('SELECT COUNT(*) FROM trunk_status_history WHERE trunk_
 $outboundTime = $db->insert('time_conditions', [
     'tenant_id' => $tid, 'name' => 'Business hours', 'days_of_week' => 'mon-fri',
     'day_of_month' => '*', 'month' => '*', 'start_hour' => 9, 'start_minute' => 0,
-    'end_hour' => 17, 'end_minute' => 0, 'enabled' => 1,
+    'end_hour' => 17, 'end_minute' => 0, 'open_type' => 'ringgroup', 'open_dest_id' => $ringGroup,
+    'closed_type' => 'hangup', 'enabled' => 1,
+]);
+$db->insert('inbound_routes', [
+    'tenant_id' => $tid, 'name' => 'Scheduled inbound', 'did_pattern' => '15551230000',
+    'dest_type' => 'timecond', 'dest_id' => $outboundTime, 'enabled' => 1,
 ]);
 $outboundRoute = $db->insert('outbound_routes', [
     'tenant_id' => $tid, 'name' => 'Outside via 9', 'prefix' => '9', 'match_pattern' => '_X.',
@@ -117,7 +122,9 @@ $outboundPjsip = $gen->renderPjsipEndpoints();
 $check(str_contains($outboundDialplan, '[tenant_a-outbound]')
     && str_contains($outboundDialplan, '${PANEL_OUTBOUND_ROUTE_ID}"="' . $outboundRoute)
     && str_contains($outboundDialplan, '[tenant_a-outbound-' . $outboundRoute . ']')
-    && str_contains($outboundDialplan, 'GotoIfTime(09:00-17:00,mon-fri,*,*?time-allowed)')
+    && str_contains($outboundDialplan, 'GotoIfTime(09:00-17:00,mon-fri,*,*,America/New_York?time-allowed)')
+    && str_contains($outboundDialplan, '[tenant_a-timecond-' . $outboundTime . ']')
+    && str_contains($outboundDialplan, 'Gosub(tenant_a-timecond-' . $outboundTime . ',s,1 )')
     && str_contains($outboundDialplan, 'Outbound blocked by time condition: Business hours')
     && str_contains($outboundDialplan, 'exten => _9X.,1,NoOp(Outbound: Outside via 9)')
     && str_contains($outboundDialplan, 'Dial(PJSIP/${EXTEN:1}@trunk-' . $trackedTrunk . ',30,Tt)')

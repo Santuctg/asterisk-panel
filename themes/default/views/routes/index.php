@@ -444,7 +444,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
     <!-- ======================= TIME CONDITIONS ======================= -->
     <?php else: ?>
         <div class="card-head">
-            <h2>Time conditions</h2>
+            <div><h2>Time conditions</h2><span class="text-xs muted">Evaluated in <?= e(date_default_timezone_get()) ?></span></div>
             <button class="btn btn-primary btn-sm" data-modal-open="timeModal">
                 <?= $this->fragment('icons/plus') ?> Add time condition
             </button>

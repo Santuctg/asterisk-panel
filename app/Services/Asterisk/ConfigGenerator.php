@@ -501,7 +501,7 @@ final class ConfigGenerator
             $out .= "exten => {$pattern},1,NoOp(Outbound: {$r['name']})\n";
             if (!empty($r['time_condition_id'])) {
                 if ($condition) {
-                    $out .= " same => n,GotoIfTime(" . $this->timeMatch($condition) . "?time-allowed)\n";
+                    $out .= " same => n,GotoIfTime(" . $this->timeMatch($condition, $this->tenantTimezone($tid)) . "?time-allowed)\n";
                     $out .= " same => n,NoOp(Outbound blocked by time condition: {$this->esc($condition['name'])})\n";
                     $out .= " same => n,Hangup(21)\n";
                     $out .= " same => n(time-allowed),NoOp(Outbound time condition matched)\n";
@@ -713,8 +713,8 @@ final class ConfigGenerator
             if ($this->shouldRecord((int) ($c['record'] ?? 0), $record)) {
                 $out .= $this->recordingGosub('internal', $ctx);
             }
-            $out .= " same => n,GotoIfTime(" . $this->timeMatch($c) . "?{$ctx}-{$c['extension']}-open,1)\n";
-            $out .= " same => n,Goto({$ctx}-{$c['extension']}-closed,1)\n\n";
+            $out .= " same => n,Gosub({$ctx}-timecond-{$c['id']},s,1)\n";
+            $out .= " same => n,Hangup()\n\n";
         }
 
         return $out;
@@ -729,16 +729,16 @@ final class ConfigGenerator
 
         $out = '';
         foreach ($conds as $c) {
-            if (empty($c['extension']) || empty($c['open_type']) || empty($c['closed_type'])) {
+            if (empty($c['open_type']) || empty($c['closed_type'])) {
                 continue;
             }
-            $out .= "[{$ctx}-{$c['extension']}-open]\n";
-            $out .= "exten => 1,1,Gosub({$this->destinationGosub($c['open_type'], $c['open_dest_id'], $ctx)})\n";
-            $out .= " same => n,Hangup()\n\n";
-
-            $out .= "[{$ctx}-{$c['extension']}-closed]\n";
-            $out .= "exten => 1,1,Gosub({$this->destinationGosub($c['closed_type'], $c['closed_dest_id'], $ctx)})\n";
-            $out .= " same => n,Hangup()\n\n";
+            $out .= "[{$ctx}-timecond-{$c['id']}]\n";
+            $out .= "exten => s,1,NoOp(Time condition: {$this->esc($c['name'])})\n";
+            $out .= " same => n,GotoIfTime(" . $this->timeMatch($c, $this->tenantTimezone($tid)) . "?open)\n";
+            $out .= " same => n,Gosub({$this->destinationGosub($c['closed_type'], $c['closed_dest_id'], $ctx)})\n";
+            $out .= " same => n,Return()\n";
+            $out .= " same => n(open),Gosub({$this->destinationGosub($c['open_type'], $c['open_dest_id'], $ctx)})\n";
+            $out .= " same => n,Return()\n\n";
         }
 
         return $out;
@@ -1113,8 +1113,8 @@ final class ConfigGenerator
 
     private function timeCondGosub(int $id, string $ctx): string
     {
-        $c = $this->db->one('SELECT extension FROM time_conditions WHERE id = ?', [$id]);
-        return $c ? "{$ctx},{$c['extension']},1" : "{$ctx},s,1";
+        $exists = $this->db->scalar('SELECT COUNT(*) FROM time_conditions WHERE id = ? AND enabled = 1', [$id]);
+        return $exists ? "{$ctx}-timecond-{$id},s,1" : 'app-dial,1,Hangup()';
     }
 
     private function voicemailGosub(int $id, string $ctx): string
@@ -1196,10 +1196,12 @@ final class ConfigGenerator
     }
 
     /** Build a GotoIfTime() match expression from a time condition row. */
-    private function timeMatch(array $c): string
+    private function timeMatch(array $c, string $timezone = 'UTC'): string
     {
+        $timezone = \is_valid_timezone($timezone) ? $timezone : 'UTC';
         if (!empty($c['time_match'])) {
-            return $c['time_match'];
+            $match = trim((string) $c['time_match']);
+            return substr_count($match, ',') >= 4 ? $match : $match . ',' . $timezone;
         }
         // Asterisk order: times,weekdays,month-days,months.
         $dows = $c['days_of_week'] ?: '*';
@@ -1211,7 +1213,13 @@ final class ConfigGenerator
             ? sprintf('%02d:%02d-%02d:%02d', $c['start_hour'], $c['start_minute'] ?? 0, $c['end_hour'], $c['end_minute'] ?? 0)
             : '*';
 
-        return "{$times},{$dows},{$dom},{$mon}";
+        return "{$times},{$dows},{$dom},{$mon},{$timezone}";
+    }
+
+    private function tenantTimezone(int $tenantId): string
+    {
+        $timezone = $this->db->scalar('SELECT timezone FROM tenants WHERE id = ?', [$tenantId]);
+        return \normalize_timezone(is_string($timezone) ? $timezone : null, 'UTC');
     }
 
     /** Prefix endpoints per tenant so two tenants can both use ext 1001. */
