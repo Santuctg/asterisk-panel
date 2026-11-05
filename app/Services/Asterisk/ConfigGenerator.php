@@ -1048,8 +1048,11 @@ final class ConfigGenerator
     }
 
     /** Build a Gosub() target that routes to any supported destination. */
-    private function destinationGosub(string $type, int|string $id, string $ctx): string
+    private function destinationGosub(string $type, int|string|null $id, string $ctx): string
     {
+        if ($type !== 'hangup' && ($id === null || $id === '')) {
+            return 'app-dial,1,Hangup()';
+        }
         return match ($type) {
             'extension'  => $this->extenGosub((int) $id, $ctx),
             'ringgroup'  => $this->ringGroupGosub((int) $id, $ctx),

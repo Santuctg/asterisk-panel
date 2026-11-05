@@ -71,6 +71,8 @@ if (!str_contains($dialplan, '[a-announcement-'.$aa.']')
     || str_contains($dialplan, 'MixMonitor(/var/spool/asterisk/monitor/asterisk-panel/${PANEL_RECORDING_FILE},b)')) throw new RuntimeException('Routable announcement or full-call recording dialplan is invalid');
 $routeOptions = (new App\Controllers\RouteController())->destinationOptions();
 if (($routeOptions['announcement'][0]['id'] ?? null) !== $aa) throw new RuntimeException('Announcement is not available as a destination');
+$db->insert('inbound_routes', ['tenant_id'=>$a,'name'=>'Incomplete legacy route','did_pattern'=>'123','dest_type'=>'announcement','dest_id'=>null,'enabled'=>1]);
+if (!str_contains((new App\Services\Asterisk\ConfigGenerator())->renderDialplan(), 'Gosub(app-dial,1,Hangup() )')) throw new RuntimeException('Missing legacy destination did not fail closed');
 
 $ac = $db->insert('announcements', ['tenant_id'=>$a,'name'=>'ZZZ alternate','filename'=>'c.wav','original_filename'=>'alternate-prompt.wav','sound_path'=>'asterisk-panel/a/c','enabled'=>1]);
 file_put_contents($audioDir . '/a/c.wav', 'RIFF-alternate-audio');
