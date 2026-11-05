@@ -190,7 +190,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                             ]); ?>
                             <?php
                             $trunkOpts = [];
-                            foreach ($trunks as $t) { $trunkOpts[] = ['id' => $t['id'], 'label' => $t['name']]; }
+                            foreach ($trunks as $t) { $trunkOpts[(int) $t['id']] = $t['name']; }
                             echo field_select('trunk_id', 'Trunk', $trunkOpts, null, ['required' => true, 'placeholder' => 'Choose a trunk…']);
                             ?>
                             <?php echo field_text('cid_override', 'Caller ID override', '', [
