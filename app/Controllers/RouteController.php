@@ -42,7 +42,6 @@ final class RouteController extends BaseController
 
         $trunkStatusAvailable = false;
         $trunkRegistrations = [];
-        $trunkHistory = [];
         $trunkContacts = [];
         $trunkTimeline = [];
         if ($request->str('tab', 'inbound') === 'trunks') {
@@ -54,12 +53,6 @@ final class RouteController extends BaseController
                 if ($trunkStatusAvailable) {
                     $trunkContacts = $mgr->contactDetails();
                 }
-                $trunkHistory = $db->all(
-                    'SELECT h.*, t.name AS trunk_name FROM trunk_status_history h
-                     JOIN trunks t ON t.id = h.trunk_id
-                     WHERE h.tenant_id = ? ORDER BY h.started_at DESC, h.id DESC LIMIT 50',
-                    [$tid]
-                );
                 $windowStart = date('Y-m-d H:i:s', time() - 86400);
                 foreach ($db->all(
                     'SELECT h.trunk_id, h.status, h.started_at, h.ended_at
@@ -89,6 +82,13 @@ final class RouteController extends BaseController
                 ? max(0, time() - (strtotime((string) $current['started_at']) ?: time()))
                 : null;
             $trunk['timeline_events'] = $trunkTimeline[(int) $trunk['id']] ?? [];
+            $trunk['monitor_history'] = $db->all(
+                'SELECT status, started_at, ended_at
+                 FROM trunk_status_history
+                 WHERE tenant_id = ? AND trunk_id = ?
+                 ORDER BY started_at DESC, id DESC LIMIT 50',
+                [$tid, (int) $trunk['id']]
+            );
         }
         unset($trunk);
 
@@ -124,7 +124,6 @@ final class RouteController extends BaseController
             'destinations'=> $this->destinationOptions(),
             'destTypes'   => self::DEST_TYPES,
             'trunkStatusAvailable' => $trunkStatusAvailable,
-            'trunkHistory' => $trunkHistory,
         ]);
     }
 

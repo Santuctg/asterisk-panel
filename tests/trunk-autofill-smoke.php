@@ -34,6 +34,7 @@ foreach ([
     [str_contains($html, 'autocomplete="new-password"'), 'prevent login-password autofill'],
     [str_contains($html, '>Registration<') && str_contains($html, 'Unknown'), 'trunk registration status renders when AMI is unavailable'],
     [str_contains($html, '>Uptime<'), 'trunk uptime column renders'],
+    [str_contains($html, 'data-modal-open="trunkMonitor1"') && str_contains($html, 'id="trunkMonitor1"'), 'trunk Monitor action opens its popup'],
 ] as [$ok, $description]) {
     if (!$ok) {
         throw new RuntimeException('FAIL: ' . $description);
@@ -53,6 +54,12 @@ $ringGroup = $db->insert('ring_groups', [
     'tenant_id' => $tenant, 'extension' => '600', 'name' => 'Sales', 'enabled' => 1,
 ]);
 $db->insert('ring_group_members', ['ring_group_id' => $ringGroup, 'extension_id' => $extension, 'ordering' => 0]);
+$extensionHtml = (new App\Controllers\ExtensionController())->index(new App\Core\Request('GET', '/extensions'))->body();
+if (!str_contains($extensionHtml, 'data-modal-open="extensionMonitor' . $extension . '"')
+    || !str_contains($extensionHtml, 'id="extensionMonitor' . $extension . '"')) {
+    throw new RuntimeException('FAIL: extension Monitor action opens its popup');
+}
+echo "PASS: extension Monitor action opens its popup\n";
 $_GET['tab'] = 'inbound';
 $html = (new App\Controllers\RouteController())->index(new App\Core\Request('GET', '/routes'))->body();
 foreach ([

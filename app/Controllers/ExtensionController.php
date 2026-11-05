@@ -149,19 +149,24 @@ final class ExtensionController extends BaseController
             }
         }
 
-        $monitorHistory = $db->all(
-            'SELECT h.status, h.started_at, h.ended_at, e.extension
-             FROM extension_status_history h
-             JOIN extensions e ON e.id = h.extension_id
-             WHERE h.tenant_id = ? ORDER BY h.started_at DESC, h.id DESC LIMIT 50',
-            [$tid]
-        );
+        // Attach monitor details to each visible row so its Monitor button can
+        // open an item-specific popup instead of rendering global cards.
+        foreach ($rows as &$row) {
+            $id = (int) $row['id'];
+            $row['timeline_events'] = $timeline[$id]['events'] ?? [];
+            $row['monitor_history'] = $db->all(
+                'SELECT status, started_at, ended_at
+                 FROM extension_status_history
+                 WHERE tenant_id = ? AND extension_id = ?
+                 ORDER BY started_at DESC, id DESC LIMIT 50',
+                [$tid, $id]
+            );
+        }
+        unset($row);
 
         return $this->view('extensions/index', [
             'rows' => $rows, 'q' => $q, 'page' => $page, 'pages' => $pages, 'total' => $total,
             'registrationAvailable' => $registrationAvailable,
-            'timeline' => $timeline,
-            'monitorHistory' => $monitorHistory,
         ]);
     }
 
