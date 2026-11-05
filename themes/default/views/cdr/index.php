@@ -122,7 +122,13 @@ $answeredRate = ($stats['total'] ?? 0) > 0
                                 <td class="num mono"><?= e(format_duration((int) $c['billsec'])) ?></td>
                                 <td>
                                     <?php if (str_starts_with((string) ($c['userfield'] ?? ''), 'recording:')): ?>
-                                        <a class="btn btn-sm" href="/cdr/<?= (int) $c['id'] ?>/recording">Download WAV</a>
+                                        <div class="recording-player">
+                                            <audio controls preload="none" aria-label="Call recording <?= (int) $c['id'] ?>">
+                                                <source src="/cdr/<?= (int) $c['id'] ?>/recording?inline=1" type="audio/wav">
+                                                Your browser does not support audio playback.
+                                            </audio>
+                                            <a class="btn btn-sm btn-ghost" href="/cdr/<?= (int) $c['id'] ?>/recording">Download</a>
+                                        </div>
                                     <?php else: ?>
                                         <span class="muted">—</span>
                                     <?php endif; ?>

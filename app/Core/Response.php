@@ -69,4 +69,9 @@ final class Response
     {
         return $this->status;
     }
+
+    public function headers(): array
+    {
+        return $this->headers;
+    }
 }

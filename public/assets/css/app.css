@@ -506,6 +506,8 @@ th.col-check input:indeterminate::after, td.col-check input:indeterminate::after
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 .muted { color: var(--text-muted); }
 .nowrap { white-space: nowrap; }
+.recording-player { display: flex; align-items: center; gap: 8px; min-width: 285px; }
+.recording-player audio { width: 230px; height: 34px; }
 
 /* ---------- Badges ---------- */
 .badge {

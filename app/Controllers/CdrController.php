@@ -88,11 +88,14 @@ final class CdrController extends BaseController
             return Response::text('Recording not found.', 404);
         }
 
+        $disposition = $request->bool('inline') ? 'inline' : 'attachment';
+
         return (new Response('', 200, [
             'Content-Type'        => 'audio/wav',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Content-Disposition' => $disposition . '; filename="' . $filename . '"',
             'X-Accel-Redirect'    => '/_protected/recordings/' . rawurlencode($filename),
             'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control'       => 'private, no-store',
         ]));
     }
 
