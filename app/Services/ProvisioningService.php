@@ -52,7 +52,8 @@ final class ProvisioningService
         $ext = null;
         if (!empty($device['extension_id'])) {
             $ext = $this->db->one(
-                'SELECT e.*, t.context AS ctx, t.name AS tenant_name, t.provision_url AS tenant_provision
+                'SELECT e.*, t.context AS ctx, t.name AS tenant_name, t.domain AS tenant_domain,
+                        t.provision_url AS tenant_provision
                  FROM extensions e JOIN tenants t ON t.id = e.tenant_id WHERE e.id = ?',
                 [$device['extension_id']]
             );
@@ -158,15 +159,19 @@ final class ProvisioningService
         $e   = $data['extension'];
         $mac = Str::macUpper((string) $d['mac']);
 
-        $sipUser  = $e['extension'] ?? '';
+        $extension = $e['extension'] ?? '';
         $sipPass  = $e['secret'] ?? '';
         $ctx      = $e['ctx'] ?? 'default';
-        $sipHost  = $data['server']['sip'];
+        $sipUser  = $extension === '' ? '' : (preg_replace('/[^a-zA-Z0-9_]/', '_', (string) $ctx) . '_' . $extension);
+        $sipHost  = (string) ($e['tenant_domain'] ?? '') ?: (string) $data['server']['sip'];
+        if (str_contains($sipHost, '://')) {
+            $sipHost = (string) (parse_url($sipHost, PHP_URL_HOST) ?: $sipHost);
+        }
 
         return [
             'MAC'          => $mac,
             'MAC_LOWER'    => strtolower((string) $d['mac']),
-            'EXT'          => $sipUser,
+            'EXT'          => $extension,
             'SIP_USER'     => $sipUser,
             'SIP_PASS'     => $sipPass,
             'SIP_AUTH'     => $sipUser,
@@ -176,9 +181,9 @@ final class ProvisioningService
             'PROXY'        => $sipHost,
             'REGISTRAR'    => $sipHost,
             'NAME'         => $e['name'] ?? ($d['description'] ?? 'Phone'),
-            'CID_NAME'     => $e['cid_name'] ?? ($sipUser ? 'Ext ' . $sipUser : ''),
-            'CID_NUM'      => $e['cid_number'] ?? $sipUser,
-            'DISPLAY_NAME' => $e['name'] ?? ($sipUser ? 'Ext ' . $sipUser : ''),
+            'CID_NAME'     => $e['cid_name'] ?? ($extension ? 'Ext ' . $extension : ''),
+            'CID_NUM'      => $e['cid_number'] ?? $extension,
+            'DISPLAY_NAME' => $e['name'] ?? ($extension ? 'Ext ' . $extension : ''),
             'BLF_PREFIX'   => 'x',
             'TIME_SERVER'  => Config::get('asterisk.time_server', 'pool.ntp.org'),
         ];

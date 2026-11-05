@@ -39,6 +39,7 @@ require dirname(__DIR__) . '/partials/fields.php';
                     <thead>
                         <tr>
                             <th>Ext</th>
+                            <th>SIP username</th>
                             <th>Name</th>
                             <th>Caller ID</th>
                             <th>SIP password</th>
@@ -55,6 +56,7 @@ require dirname(__DIR__) . '/partials/fields.php';
                                 <td>
                                     <strong class="mono"><?= e($r['extension']) ?></strong>
                                 </td>
+                                <td><span class="mono text-xs"><?= e($r['sip_username']) ?></span></td>
                                 <td>
                                     <?= e($r['name']) ?>
                                     <?php if (!empty($r['description'])): ?>

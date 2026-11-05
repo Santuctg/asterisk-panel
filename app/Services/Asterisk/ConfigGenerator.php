@@ -155,6 +155,7 @@ final class ConfigGenerator
             $out .= "context = {$ctx}\n";
             $out .= "auth = {$name}\n";
             $out .= "aors = {$name}\n";
+            $out .= "identify_by = username,auth_username\n";
             if (!empty($ext['cid_name'])) {
                 $cidName = $this->esc($ext['cid_name']);
                 $cidNum  = $ext['cid_number'] !== '' ? $ext['cid_number'] : $ext['extension'];
@@ -165,7 +166,10 @@ final class ConfigGenerator
             $out .= "[{$name}]\n";
             $out .= "type = auth\n";
             $out .= "auth_type = userpass\n";
-            $out .= "username = {$ext['extension']}\n";
+            // Authentication IDs must be globally unique. Extension numbers
+            // are only tenant-unique, so "201" cannot identify an endpoint
+            // when several tenants each have extension 201.
+            $out .= "username = {$name}\n";
             $out .= "password = {$this->esc($ext['secret'])}\n";
             $out .= "realm = {$ctx}\n\n";
 

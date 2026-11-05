@@ -17,7 +17,7 @@ $db = $app->db();
 foreach (require BASE_PATH . '/resources/config/schema.php' as $sql) {
     $db->exec($sql);
 }
-$tid = $db->insert('tenants', ['name' => 'Tenant A', 'context' => 'tenant_a', 'enabled' => 1]);
+$tid = $db->insert('tenants', ['name' => 'Tenant A', 'context' => 'tenant_a', 'domain' => 'tenant-a.example.test', 'enabled' => 1]);
 $other = $db->insert('tenants', ['name' => 'Tenant B', 'context' => 'tenant_b', 'enabled' => 1]);
 $user = $db->insert('users', [
     'tenant_id' => $tid, 'username' => 'adminA', 'password' => password_hash('test-pass', PASSWORD_DEFAULT),
@@ -39,7 +39,14 @@ $check(tenant_id() === $tid, 'tenant scope cannot be overridden by session');
 $check($app->auth()->can('call.listen'), 'tenant admin may listen');
 $gen = new App\Services\Asterisk\ConfigGenerator();
 $pjsip = $gen->renderPjsipEndpoints();
+$check(str_contains($pjsip, "[tenant_a_1001](endpoint_basic)\ncontext = tenant_a\nauth = tenant_a_1001\naors = tenant_a_1001\nidentify_by = username,auth_username")
+    && str_contains($pjsip, "[tenant_a_1001]\ntype = auth\nauth_type = userpass\nusername = tenant_a_1001"), 'physical SIP auth usernames are tenant-unique');
 $check(str_contains($pjsip, '[tenant_a_2002-web]') && str_contains($pjsip, 'context = panel-listen-only'), 'separate browser endpoints are restricted');
+$device = ['mac' => '001565aabbcc', 'vendor' => 'generic', 'model' => '', 'extension_id' => $targetExtension, 'description' => 'Desk'];
+$provisioned = (new App\Services\ProvisioningService())->render($device)['body'];
+$check(str_contains($provisioned, 'sip_server=tenant-a.example.test')
+    && str_contains($provisioned, 'username=tenant_a_1001')
+    && str_contains($provisioned, 'auth_name=tenant_a_1001'), 'device provisioning uses tenant-unique SIP login');
 $ringGroup = $db->insert('ring_groups', [
     'tenant_id' => $tid, 'extension' => '600', 'name' => 'Sales',
     'timeout' => 25, 'ringback' => 'moh:sales', 'enabled' => 1,
