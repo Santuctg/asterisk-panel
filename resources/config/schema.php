@@ -177,6 +177,7 @@ return [
             tenant_id   INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
             name        VARCHAR(120) NOT NULL,
             filename    VARCHAR(255) NOT NULL,
+            original_filename VARCHAR(255),
             sound_path  VARCHAR(255) NOT NULL,
             dest_type   VARCHAR(30) DEFAULT "hangup",
             dest_id     INTEGER,

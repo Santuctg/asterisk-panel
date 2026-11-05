@@ -38,6 +38,10 @@ final class MusicOnHoldController extends BaseController
             [$tid]
         );
         foreach ($announcements as &$announcement) {
+            $announcement['prompt_label'] = trim((string) ($announcement['original_filename'] ?? ''));
+            if ($announcement['prompt_label'] === '') {
+                $announcement['prompt_label'] = (string) $announcement['name'] . '.wav';
+            }
             $announcement['dest_label'] = $this->announcementDestinationLabel($announcement, $tid);
         }
         unset($announcement);

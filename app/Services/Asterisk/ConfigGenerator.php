@@ -987,7 +987,7 @@ final class ConfigGenerator
         $out .= " same => n,Set(__PANEL_RECORDING_STARTED=1)\n";
         $out .= " same => n,Set(__PANEL_RECORDING_FILE=\${ARG2}-\${ARG1}-\${STRFTIME(\${EPOCH},,%Y%m%d-%H%M%S)}-\${UNIQUEID}.wav)\n";
         $out .= " same => n,Set(CDR(userfield)=recording:\${PANEL_RECORDING_FILE})\n";
-        $out .= " same => n,MixMonitor({$dir}/\${PANEL_RECORDING_FILE},b)\n";
+        $out .= " same => n,MixMonitor({$dir}/\${PANEL_RECORDING_FILE})\n";
         $out .= " same => n(done),Return()\n\n";
         return $out;
     }

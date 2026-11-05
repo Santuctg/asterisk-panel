@@ -56,6 +56,7 @@ final class AnnouncementController extends BaseController
                 'tenant_id' => $tid,
                 'name' => $name,
                 'filename' => $upload['filename'],
+                'original_filename' => $upload['original_filename'],
                 'sound_path' => $upload['sound_path'],
                 'dest_type' => $destination['type'],
                 'dest_id' => $destination['id'],
@@ -104,6 +105,7 @@ final class AnnouncementController extends BaseController
         }
         $data['dest_type'] = $destination['type'];
         $data['dest_id'] = $destination['id'];
+        $oldFilename = null;
         $file = $request->files('audio');
         if ($file && (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
             $upload = $this->upload($tid, $file);
@@ -112,10 +114,29 @@ final class AnnouncementController extends BaseController
                 return Response::redirect('/moh');
             }
             $data['filename'] = $upload['filename'];
+            $data['original_filename'] = $upload['original_filename'];
             $data['sound_path'] = $upload['sound_path'];
-            $this->deleteFile((string) $row['filename'], $tid);
+            $oldFilename = (string) $row['filename'];
+        } else {
+            $promptId = $request->int('prompt_id');
+            if ($promptId > 0 && $promptId !== (int) $row['id']) {
+                $source = $this->db()->one(
+                    'SELECT * FROM announcements WHERE id = ? AND tenant_id = ?',
+                    [$promptId, $tid]
+                );
+                $copy = $source ? $this->copyPrompt($source, $tid) : ['error' => 'Choose a valid uploaded prompt.'];
+                if (isset($copy['error'])) {
+                    Flash::error($copy['error']);
+                    return Response::redirect('/moh');
+                }
+                $data['filename'] = $copy['filename'];
+                $data['original_filename'] = $copy['original_filename'];
+                $data['sound_path'] = $copy['sound_path'];
+                $oldFilename = (string) $row['filename'];
+            }
         }
         $this->db()->update('announcements', (int) $row['id'], $data);
+        if ($oldFilename !== null) { $this->deleteFile($oldFilename, $tid); }
         $this->audit('announcement.update', 'announcement', (int) $row['id']);
         $this->applyToAsterisk('announcement');
         Flash::success('Announcement updated.');
@@ -172,7 +193,7 @@ final class AnnouncementController extends BaseController
     {
         $tid = $this->requireTenant();
         $row = $this->db()->one(
-            'SELECT filename FROM announcements WHERE id = ? AND tenant_id = ? AND enabled = 1',
+            'SELECT filename, original_filename, name FROM announcements WHERE id = ? AND tenant_id = ? AND enabled = 1',
             [(int) $request->params['id'], $tid]
         );
         if (!$row) { return Response::text('Audio not found.', 404); }
@@ -187,16 +208,19 @@ final class AnnouncementController extends BaseController
         $path = $root . '/' . $context . '/' . $filename;
         if (!is_file($path) || !is_readable($path)) { return Response::text('Audio not found.', 404); }
         $disposition = $request->bool('download') ? 'attachment' : 'inline';
+        $downloadName = basename(trim((string) ($row['original_filename'] ?? '')));
+        if ($downloadName === '') { $downloadName = (string) $row['name'] . '.wav'; }
+        $downloadName = preg_replace('/[\x00-\x1F\x7F"\\\\]+/', '_', $downloadName) ?: $filename;
         return new Response('', 200, [
             'Content-Type' => 'audio/wav',
-            'Content-Disposition' => $disposition . '; filename="' . $filename . '"',
+            'Content-Disposition' => $disposition . '; filename="' . $downloadName . '"',
             'X-Accel-Redirect' => '/_protected/announcements/' . rawurlencode($context) . '/' . rawurlencode($filename),
             'X-Content-Type-Options' => 'nosniff',
             'Cache-Control' => 'private, no-store',
         ]);
     }
 
-    /** @return array{filename:string,sound_path:string}|array{error:string} */
+    /** @return array{filename:string,original_filename:string,sound_path:string}|array{error:string} */
     private function upload(int $tenantId, ?array $file): array
     {
         if (!$file) {
@@ -236,7 +260,31 @@ final class AnnouncementController extends BaseController
             return ['error' => 'Audio conversion failed. The file may be damaged or use an unsupported codec.'];
         }
         @chmod($target, 0640);
-        return ['filename' => $filename, 'sound_path' => 'asterisk-panel/' . $context . '/' . $base];
+        $original = basename(trim((string) ($file['name'] ?? '')));
+        $original = preg_replace('/[\x00-\x1F\x7F]+/', '', $original) ?: $filename;
+        return ['filename' => $filename, 'original_filename' => substr($original, 0, 255), 'sound_path' => 'asterisk-panel/' . $context . '/' . $base];
+    }
+
+    /** @return array{filename:string,original_filename:string,sound_path:string}|array{error:string} */
+    private function copyPrompt(array $source, int $tenantId): array
+    {
+        $tenant = $this->db()->one('SELECT context FROM tenants WHERE id = ?', [$tenantId]);
+        $sourceName = (string) ($source['filename'] ?? '');
+        if (!$tenant || $sourceName !== basename($sourceName) || !preg_match('/^[A-Za-z0-9_.-]+\.wav$/', $sourceName)) {
+            return ['error' => 'The selected prompt is invalid.'];
+        }
+        $context = preg_replace('/[^A-Za-z0-9_-]+/', '_', (string) $tenant['context']) ?: ('tenant_' . $tenantId);
+        $root = rtrim((string) config('asterisk.announcement_dir', '/var/lib/asterisk/sounds/asterisk-panel'), '/');
+        $sourcePath = $root . '/' . $context . '/' . $sourceName;
+        $base = 'announcement_' . bin2hex(random_bytes(8));
+        $filename = $base . '.wav';
+        if (!is_file($sourcePath) || !is_readable($sourcePath) || !@copy($sourcePath, $root . '/' . $context . '/' . $filename)) {
+            return ['error' => 'The selected prompt file is unavailable.'];
+        }
+        @chmod($root . '/' . $context . '/' . $filename, 0640);
+        $original = trim((string) ($source['original_filename'] ?? ''));
+        if ($original === '') { $original = (string) ($source['name'] ?? 'Prompt') . '.wav'; }
+        return ['filename' => $filename, 'original_filename' => $original, 'sound_path' => 'asterisk-panel/' . $context . '/' . $base];
     }
 
     private function convertAudio(string $source, string $target): bool

@@ -26,8 +26,8 @@ $a = $db->insert('tenants', ['name'=>'A','context'=>'a','domain'=>'a.example.tes
 $b = $db->insert('tenants', ['name'=>'B','context'=>'b','domain'=>'b.example.test','enabled'=>1]);
 $user = $db->insert('users', ['tenant_id'=>$a,'username'=>'admin','password'=>'x','role'=>'admin','active'=>1]);
 $userB = $db->insert('users', ['tenant_id'=>$b,'username'=>'admin-b','password'=>'x','role'=>'admin','active'=>1]);
-$aa = $db->insert('announcements', ['tenant_id'=>$a,'name'=>'Tenant A welcome','filename'=>'a.wav','sound_path'=>'asterisk-panel/a/a','enabled'=>1]);
-$ab = $db->insert('announcements', ['tenant_id'=>$b,'name'=>'Tenant B secret','filename'=>'b.wav','sound_path'=>'asterisk-panel/b/b','enabled'=>1]);
+$aa = $db->insert('announcements', ['tenant_id'=>$a,'name'=>'Tenant A welcome','filename'=>'a.wav','original_filename'=>'welcome-message.wav','sound_path'=>'asterisk-panel/a/a','enabled'=>1]);
+$ab = $db->insert('announcements', ['tenant_id'=>$b,'name'=>'Tenant B secret','filename'=>'b.wav','original_filename'=>'tenant-b-secret.wav','sound_path'=>'asterisk-panel/b/b','enabled'=>1]);
 file_put_contents($audioDir . '/a/a.wav', 'RIFF-test-audio');
 file_put_contents($audioDir . '/b/b.wav', 'RIFF-secret-audio');
 $group = $db->insert('ring_groups', ['tenant_id'=>$a,'extension'=>'600','name'=>'Sales','announcement_id'=>$aa,'enabled'=>1]);
@@ -61,13 +61,29 @@ $app->auth()->login($user);
 $_SERVER['HTTP_HOST'] = 'a.example.test';
 
 $page = (new App\Controllers\MusicOnHoldController())->index(new App\Core\Request('GET', '/moh'));
-if (!str_contains($page->body(), 'Tenant A welcome') || str_contains($page->body(), 'Tenant B secret')) throw new RuntimeException('Announcement library crossed tenant scope');
+if (!str_contains($page->body(), 'Tenant A welcome') || !str_contains($page->body(), 'welcome-message.wav')
+    || str_contains($page->body(), 'Tenant B secret') || str_contains($page->body(), 'tenant-b-secret.wav')) throw new RuntimeException('Announcement library crossed tenant scope or hid the uploaded filename');
 $dialplan = (new App\Services\Asterisk\ConfigGenerator())->renderDialplan();
 if (!str_contains($dialplan, '[a-announcement-'.$aa.']')
     || !str_contains($dialplan, 'Playback(asterisk-panel/a/a)')
-    || !str_contains($dialplan, 'Gosub(a,600,1)')) throw new RuntimeException('Routable announcement dialplan is invalid');
+    || !str_contains($dialplan, 'Gosub(a,600,1)')
+    || !str_contains($dialplan, 'MixMonitor(')
+    || str_contains($dialplan, 'MixMonitor(/var/spool/asterisk/monitor/asterisk-panel/${PANEL_RECORDING_FILE},b)')) throw new RuntimeException('Routable announcement or full-call recording dialplan is invalid');
 $routeOptions = (new App\Controllers\RouteController())->destinationOptions();
 if (($routeOptions['announcement'][0]['id'] ?? null) !== $aa) throw new RuntimeException('Announcement is not available as a destination');
+
+$ac = $db->insert('announcements', ['tenant_id'=>$a,'name'=>'ZZZ alternate','filename'=>'c.wav','original_filename'=>'alternate-prompt.wav','sound_path'=>'asterisk-panel/a/c','enabled'=>1]);
+file_put_contents($audioDir . '/a/c.wav', 'RIFF-alternate-audio');
+$replace = new App\Core\Request('POST', '/announcements/'.$aa, [], [
+    'name'=>'Tenant A welcome', 'prompt_id'=>(string)$ac, 'dest_type'=>'ringgroup', 'dest_id'=>(string)$group, 'enabled'=>'1',
+]);
+$replace->params=['id'=>$aa];
+$controller->update($replace);
+$replaced = $db->one('SELECT filename, original_filename, sound_path FROM announcements WHERE id = ?', [$aa]);
+if (($replaced['original_filename'] ?? '') !== 'alternate-prompt.wav'
+    || ($replaced['filename'] ?? '') === 'a.wav'
+    || !is_file($audioDir . '/a/' . ($replaced['filename'] ?? ''))
+    || is_file($audioDir . '/a/a.wav')) throw new RuntimeException('Selecting an existing uploaded prompt did not safely replace the announcement audio');
 
 $own = new App\Core\Request('DELETE', '/announcements/'.$aa); $own->params=['id'=>$aa];
 $controller->destroy($own);
@@ -82,9 +98,12 @@ if (!str_contains($routesView, "field_select('announcement_id'") || !str_contain
 $mohView = file_get_contents(BASE_PATH . '/themes/default/views/moh/index.php');
 if (!str_contains($mohView, 'option is created only after the audio uploads successfully')
     || !str_contains($mohView, 'data-announcement-play')
-    || !str_contains($mohView, '/audio?download=1')) throw new RuntimeException('Announcement browser audio controls are invalid');
+    || !str_contains($mohView, '/audio?download=1')
+    || !str_contains($mohView, 'Uploaded prompt')
+    || !str_contains($mohView, 'announcementPromptPlay')) throw new RuntimeException('Announcement browser audio controls or edit prompt library are invalid');
 foreach (glob($configDir . '/*') ?: [] as $file) { if (is_file($file)) { @unlink($file); } }
 @unlink($audioDir . '/a/a.wav');
+@unlink($audioDir . '/a/c.wav');
 @unlink($audioDir . '/b/b.wav');
 @rmdir($audioDir . '/a');
 @rmdir($audioDir . '/b');
