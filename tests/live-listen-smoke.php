@@ -24,7 +24,7 @@ $user = $db->insert('users', [
     'role' => 'admin', 'active' => 1,
 ]);
 $targetExtension = $db->insert('extensions', ['tenant_id' => $tid, 'extension' => '1001', 'name' => 'Target', 'secret' => 'test-secret', 'enabled' => 1]);
-$db->insert('extensions', ['tenant_id' => $tid, 'extension' => '2002', 'name' => 'Supervisor', 'secret' => 'test-secret2', 'enabled' => 1]);
+$secondExtension = $db->insert('extensions', ['tenant_id' => $tid, 'extension' => '2002', 'name' => 'Supervisor', 'secret' => 'test-secret2', 'enabled' => 1]);
 $db->insert('extensions', ['tenant_id' => $other, 'extension' => '1001', 'name' => 'Other', 'secret' => 'test-secret3', 'enabled' => 1]);
 $app->auth()->login($user);
 $_SESSION['active_tenant'] = $other; // stale/malicious tenant switch must not work
@@ -54,9 +54,10 @@ $ringGroup = $db->insert('ring_groups', [
     'timeout' => 25, 'ringback' => 'moh:sales', 'enabled' => 1,
 ]);
 $db->insert('ring_group_members', ['ring_group_id' => $ringGroup, 'extension_id' => $targetExtension, 'ordering' => 0]);
+$db->insert('ring_group_members', ['ring_group_id' => $ringGroup, 'extension_id' => $secondExtension, 'ordering' => 1]);
 $dialplan = $gen->renderDialplan();
 $check(str_contains($dialplan, '[panel-listen-only]'), 'browser dialplan cannot call out');
-$check(str_contains($dialplan, 'Dial(PJSIP/1001@tenant-a.example.test,25,TtHm(sales))'), 'ring group call tune uses selected MOH class');
+$check(str_contains($dialplan, 'Dial(PJSIP/1001@tenant-a.example.test&PJSIP/2002@tenant-a.example.test,25,TtHm(sales))'), 'ring group members use valid simultaneous Dial syntax and selected MOH class');
 $liveFeed = (new App\Controllers\DashboardController())->liveCalls(new App\Core\Request('GET', '/dashboard/live-calls'));
 $liveData = json_decode($liveFeed->body(), true);
 $check($liveFeed->status() === 200 && isset($liveData['online'], $liveData['count'], $liveData['channels']), 'live calls polling feed responds');

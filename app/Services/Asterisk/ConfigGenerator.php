@@ -1056,7 +1056,7 @@ final class ConfigGenerator
         return $v ? "app-voicemail,1,Voicemail({$v['extension']}@{$ctx},u)" : "{$ctx},s,1";
     }
 
-    /** Comma-delimited PJSIP dial string for a ring group. */
+    /** Ampersand-delimited PJSIP dial string for simultaneous ring-group legs. */
     private function memberEndpoints(int $groupId, string $realm): string
     {
         $members = $this->db->all(
@@ -1071,7 +1071,7 @@ final class ConfigGenerator
             $eps[] = 'PJSIP/' . $m['extension'] . '@' . $realm;
         }
 
-        return implode(',', $eps);
+        return implode('&', $eps);
     }
 
     private function trunkEndpoint(int $trunkId): string
