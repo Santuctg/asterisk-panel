@@ -179,9 +179,15 @@ $tile = function (string $icon, string $tone, int|string $value, string $label, 
             <a class="btn" href="/ring-groups/create"><?= $this->fragment('icons/users') ?> New ring group</a>
             <a class="btn" href="/ivr/create"><?= $this->fragment('icons/menu') ?> New IVR menu</a>
             <a class="btn" href="/conferences"><?= $this->fragment('icons/conf') ?> Conference rooms</a>
-            <a class="btn" href="/system/apply" data-confirm-btn="Regenerate all Asterisk config and reload the daemon?">
-                <?= $this->fragment('icons/refresh') ?> Apply config to Asterisk
-            </a>
+            <?php if (auth()->can('system.apply')): ?>
+                <form method="post" action="/system/apply" class="inline">
+                    <?= csrf() ?>
+                    <input type="hidden" name="feature" value="all">
+                    <button class="btn" data-confirm-btn="Regenerate all Asterisk config and reload the daemon?">
+                        <?= $this->fragment('icons/refresh') ?> Apply config to Asterisk
+                    </button>
+                </form>
+            <?php endif; ?>
         </div>
     </div>
 </div>

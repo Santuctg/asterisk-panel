@@ -92,7 +92,7 @@ final class SystemController extends BaseController
 
             $files = $feature === 'all'
                 ? $gen->generateAll()
-                : array_keys($gen->generateFor($feature));
+                : $gen->generateFor($feature);
 
             $mgr = asterisk();
             if ($mgr->isOnline()) {

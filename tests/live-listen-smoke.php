@@ -62,6 +62,8 @@ $liveData = json_decode($liveFeed->body(), true);
 $check($liveFeed->status() === 200 && isset($liveData['online'], $liveData['count'], $liveData['channels']), 'live calls polling feed responds');
 $dashboard = (new App\Controllers\DashboardController())->index(new App\Core\Request('GET', '/dashboard'));
 $check(str_contains($dashboard->body(), '/dashboard/live-calls') && str_contains($dashboard->body(), 'setTimeout(poll'), 'dashboard polls live calls automatically');
+$check(str_contains($dashboard->body(), 'method="post" action="/system/apply"')
+    && !str_contains($dashboard->body(), 'href="/system/apply"'), 'dashboard applies Asterisk config with a protected POST form');
 $contactStatuses = App\Services\Asterisk\AsteriskManager::parseContactStatuses(
     "Contact: 201@pbx.example.test/sip:201@192.0.2.10 abc123 Avail 12.000\n" .
     "Contact: trunk-1-aor/sip:198.51.100.10 def456 NonQual nan\n"
