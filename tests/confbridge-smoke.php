@@ -19,6 +19,7 @@ foreach (require BASE_PATH . '/resources/config/schema.php' as $sql) {
 $tenant = $db->insert('tenants', [
     'name' => 'Conference Test', 'context' => 'conference_test', 'domain' => 'conference.test', 'enabled' => 1,
 ]);
+$db->insert('moh_classes', ['tenant_id' => $tenant, 'name' => 'default', 'random' => 1]);
 $db->insert('conferences', [
     'tenant_id' => $tenant, 'extension' => '700', 'name' => 'Daily meeting', 'pin' => '1234',
     'max_members' => 12, 'moh_class' => 'default', 'record' => 1, 'enabled' => 1,
@@ -33,7 +34,7 @@ $check = static function (bool $ok, string $label): void {
 };
 
 $check(str_contains($config, "[conference_test-default]\ntype = bridge\n"), 'tenant bridge profile renders');
-$check(str_contains($config, "[conference_test-users]\ntype = user\nannounce_user_count = yes\nannounce_join_leave = yes\nmarked = no\nend_marked = no\nmusic_on_hold_class = default\n"), 'Asterisk 20 user options use valid names');
+$check(str_contains($config, "[conference_test-users]\ntype = user\nannounce_user_count = yes\nannounce_join_leave = yes\nmarked = no\nend_marked = no\nmusic_on_hold_class = tenant{$tenant}_default\n"), 'Asterisk 20 user options use valid tenant-scoped names');
 $check(str_contains($config, "[1234]\ntype = bridge\nmax_members = 12\nrecord_conference = yes\n"), 'room bridge options use valid names');
 $check(!preg_match('/^(?:sound-|announce-usercount|announce-joinleave|endmarked|record_call|music_on_hold_class\s*=).*$/m', preg_replace('/\[conference_test-users\].*?(?=\n\[|\z)/s', '', $config)), 'invalid and misplaced bridge options are absent');
 

@@ -1,202 +1,140 @@
 <?php
-/**
- * Music on hold classes. Expects: $rows
- */
+/** @var array $rows @var array|null $selected @var array $tracks @var array $announcements */
 require dirname(__DIR__) . '/partials/fields.php';
+$formatBytes = static fn (int $bytes): string => $bytes >= 1048576 ? number_format($bytes / 1048576, 1) . ' MB' : number_format($bytes / 1024, 1) . ' KB';
+$formatDuration = static fn (float $seconds): string => $seconds > 0 ? sprintf('%d:%02d', (int) floor($seconds / 60), (int) round(fmod($seconds, 60))) : '—';
 ?>
 
 <div class="page-head">
-    <div>
-        <h1>Audio</h1>
-        <div class="subtitle">Manage non-skippable announcements separately from music played while callers wait</div>
-    </div>
+    <div><h1>Music on Hold</h1><div class="subtitle">Create playlists and manage the audio callers hear while waiting</div></div>
     <div class="page-actions">
-        <button class="btn" data-modal-open="announcementModal"><?= $this->fragment('icons/plus') ?> New announcement</button>
-        <button class="btn btn-primary" data-modal-open="mohModal"><?= $this->fragment('icons/plus') ?> New MOH class</button>
+        <button class="btn" data-modal-open="announcementModal"><?= $this->fragment('icons/plus') ?> Announcement</button>
+        <button class="btn btn-primary" data-modal-open="playlistModal"><?= $this->fragment('icons/plus') ?> New playlist</button>
     </div>
 </div>
 
-<div class="card">
-    <div class="card-head"><h2>Announcements</h2></div>
-    <div class="card-body tight">
-        <?php if (empty($announcements)): ?>
-            <?= \App\Core\View::fragment('partials/empty', [
-                'icon' => 'music', 'title' => 'No announcements',
-                'message' => 'Upload a prompt that plays completely before a call starts ringing or enters a queue.',
-                'action_html' => '<button class="btn btn-primary" data-modal-open="announcementModal">Upload announcement</button>',
-            ]) ?>
+<div class="moh-manager">
+    <section class="card moh-playlists">
+        <div class="card-head"><div><h2>Playlists</h2><span class="text-xs muted"><?= count($rows) ?> class(es)</span></div></div>
+        <div class="moh-playlist-list">
+            <?php if (!$rows): ?><div class="moh-empty-small">No playlists yet.<br>Create one to upload music.</div><?php endif; ?>
+            <?php foreach ($rows as $row): ?>
+                <a class="moh-playlist-item <?= $selected && (int) $selected['id'] === (int) $row['id'] ? 'active' : '' ?>" href="/moh?class=<?= (int) $row['id'] ?>">
+                    <span class="moh-playlist-icon">♫</span><span><strong><?= e($row['name']) ?></strong><small><?= (int) $row['track_count'] ?> track(s)</small></span><span class="moh-chevron">›</span>
+                </a>
+            <?php endforeach; ?>
+        </div>
+    </section>
+
+    <section class="card moh-tracks">
+        <?php if (!$selected): ?>
+            <div class="moh-no-selection"><div class="moh-large-icon">♫</div><h2>Create your first playlist</h2><p class="muted">Each tenant has private playlists and audio tracks.</p><button class="btn btn-primary" data-modal-open="playlistModal">New playlist</button></div>
         <?php else: ?>
-            <div class="table-wrap"><table>
-                <thead><tr><th>Name</th><th>File</th><th>Status</th><th class="actions">Actions</th></tr></thead>
-                <tbody><?php foreach ($announcements as $a): ?><tr>
-                    <td><strong><?= e($a['name']) ?></strong></td>
-                    <td><code class="text-xs"><?= e($a['filename']) ?></code></td>
-                    <td><span class="badge <?= $a['enabled'] ? 'green' : 'gray' ?>"><?= $a['enabled'] ? 'Active' : 'Disabled' ?></span></td>
-                    <td class="actions">
-                        <button class="btn btn-sm" data-modal-open="announcementModal" data-edit='<?= e(json_encode($a, JSON_HEX_APOS | JSON_HEX_QUOT)) ?>'>Edit</button>
-                        <form method="post" action="/announcements/<?= (int) $a['id'] ?>"><?= csrf() ?><input type="hidden" name="_method" value="DELETE"><button class="btn btn-sm btn-ghost" data-confirm-btn="Delete this announcement?"><?= $this->fragment('icons/trash') ?></button></form>
-                    </td>
-                </tr><?php endforeach; ?></tbody>
-            </table></div>
-        <?php endif; ?>
-    </div>
-</div>
-
-<div class="card mt-4">
-    <div class="card-head"><h2>Music on Hold</h2></div>
-    <div class="card-body tight">
-        <?php if (empty($rows)): ?>
-            <?= \App\Core\View::fragment('partials/empty', [
-                'icon'   => 'music',
-                'title'  => 'No music-on-hold classes',
-                'message'=> 'Create a class pointing at a directory of audio files under the Asterisk MOH root.',
-                'action_html' => '<button class="btn btn-primary" data-modal-open="mohModal">Create class</button>',
-            ]) ?>
-        <?php else: ?>
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Class</th>
-                            <th>Directory</th>
-                            <th class="num">Files</th>
-                            <th>Random</th>
-                            <th class="actions">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($rows as $r): ?>
-                            <tr>
-                                <td><strong class="mono"><?= e($r['name']) ?></strong></td>
-                                <td><code class="text-xs"><?= e($r['resolved_dir']) ?></code></td>
-                                <td class="num">
-                                    <?php if (empty($r['files'])): ?>
-                                        <span class="badge amber">No files found</span>
-                                    <?php else: ?>
-                                        <span class="badge blue"><?= count($r['files']) ?> file(s)</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td><?= $r['random'] ? '<span class="badge green">Yes</span>' : '<span class="badge gray">No</span>' ?></td>
-                                <td class="actions">
-                                    <button class="btn btn-sm" data-modal-open="mohModal"
-                                            data-edit='<?= e(json_encode($r, JSON_HEX_APOS | JSON_HEX_QUOT)) ?>'>Edit</button>
-                                    <form method="post" action="/moh/<?= (int) $r['id'] ?>">
-                                        <?= csrf() ?><input type="hidden" name="_method" value="DELETE">
-                                        <button class="btn btn-sm btn-ghost" style="color:var(--danger-500)"
-                                                data-confirm-btn="Delete music class <?= e($r['name']) ?>?">
-                                            <?= $this->fragment('icons/trash') ?>
-                                        </button>
-                                    </form>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        <?php endif; ?>
-    </div>
-</div>
-
-<div class="modal-overlay" id="announcementModal" hidden>
-    <div class="modal"><form method="post" action="/announcements" id="announcementForm" enctype="multipart/form-data">
-        <?= csrf() ?>
-        <div class="modal-head"><h2 id="announcementTitle">New announcement</h2><button type="button" class="icon-btn" data-modal-close><?= $this->fragment('icons/x') ?></button></div>
-        <div class="modal-body"><div class="form-grid">
-            <?= field_text('name', 'Announcement name', '', ['required' => true, 'span' => true, 'placeholder' => 'e.g. Welcome message']) ?>
-            <div class="field span-2"><label for="announcementAudio">Audio file</label><input id="announcementAudio" type="file" name="audio" required accept=".wav,.mp3,.ogg,.flac,.gsm,.ulaw,.alaw"><div class="hint">Converted to an Asterisk-compatible 8 kHz mono WAV. Maximum 25 MB.</div></div>
-            <div class="span-2"><?= field_check('enabled', 'Announcement active', true) ?></div>
-        </div></div>
-        <div class="modal-foot"><button type="button" class="btn" data-modal-close>Cancel</button><button class="btn btn-primary" id="announcementSubmit">Upload announcement</button></div>
-    </form></div>
-</div>
-
-<div class="modal-overlay" id="mohModal" hidden>
-    <div class="modal">
-        <form method="post" action="/moh" id="mohForm" enctype="multipart/form-data">
-            <?= csrf() ?>
-            <div class="modal-head">
-                <h2 id="mohTitle">New music-on-hold class</h2>
-                <button type="button" class="icon-btn" data-modal-close><?= $this->fragment('icons/x') ?></button>
-            </div>
-            <div class="modal-body">
-                <div class="form-grid">
-                    <?php echo field_text('name', 'Class name', '', [
-                        'required' => true, 'placeholder' => 'e.g. moh_sales',
-                        'hint' => 'Letters, numbers, dashes and underscores only.',
-                    ]); ?>
-                    <?php echo field_text('directory', 'Audio directory (optional)', '', [
-                        'hint' => 'Defaults to <MOH root>/<class name>.',
-                    ]); ?>
-                    <div class="field span-2">
-                        <label for="mohAudio">Audio files</label>
-                        <input id="mohAudio" type="file" name="audio[]" multiple
-                               accept=".wav,.gsm,.ulaw,.alaw,.g722,.sln,.sln16,.sln48,.sln96,.sln192,.mp3,.ogg">
-                        <div class="hint">Upload one or more audio files (maximum 25 MB each).</div>
-                    </div>
-                    <div class="span-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-                        <?php echo field_check('random', 'Randomize playback order', true); ?>
-                        <?php echo field_check('shuffle', 'Shuffle', false); ?>
-                    </div>
+            <div class="card-head moh-track-head">
+                <div><h2><?= e($selected['name']) ?></h2><span class="text-xs muted"><?= count($tracks) ?> track(s) · <?= $selected['random'] ? 'Random order' : 'Sequential order' ?></span></div>
+                <div class="flex gap-2">
+                    <button class="btn btn-sm" data-modal-open="playlistModal" data-edit='<?= e(json_encode($selected, JSON_HEX_APOS | JSON_HEX_QUOT)) ?>'>Edit</button>
+                    <form method="post" action="/moh/<?= (int) $selected['id'] ?>"><?= csrf() ?><input type="hidden" name="_method" value="DELETE"><button class="btn btn-sm btn-ghost moh-danger" data-confirm-btn="Delete this playlist and its managed tracks?"><?= $this->fragment('icons/trash') ?></button></form>
                 </div>
             </div>
-            <div class="modal-foot">
-                <button type="button" class="btn" data-modal-close>Cancel</button>
-                <button type="submit" class="btn btn-primary" id="mohSubmit">Create class</button>
+            <div class="moh-toolbar">
+                <button class="btn btn-primary btn-sm" data-modal-open="uploadModal">↑ Upload audio</button>
+                <button class="btn btn-sm" data-modal-open="recordModal">● Record</button>
+                <button class="btn btn-sm" data-modal-open="speechModal">✦ AI Generated Speech</button>
             </div>
-        </form>
-    </div>
+            <?php if (!$tracks): ?>
+                <div class="moh-no-selection compact"><div class="moh-large-icon">♪</div><h3>No tracks in this playlist</h3><p class="muted">Upload audio, record from your browser, or generate speech.</p><button class="btn btn-primary btn-sm" data-modal-open="uploadModal">Upload audio</button></div>
+            <?php else: ?>
+                <div class="table-wrap"><table class="moh-track-table">
+                    <thead><tr><th>Track</th><th>Duration</th><th>Size</th><th>Status</th><th class="actions">Actions</th></tr></thead>
+                    <tbody><?php foreach ($tracks as $track): $audioUrl = '/moh/' . (int) $selected['id'] . '/tracks/' . rawurlencode($track['filename']); ?>
+                        <tr class="<?= $track['enabled'] ? '' : 'moh-track-disabled' ?>">
+                            <td><div class="moh-track-name"><span>♪</span><strong><?= e($track['filename']) ?></strong></div></td>
+                            <td class="mono"><?= e($formatDuration((float) $track['duration'])) ?></td><td><?= e($formatBytes((int) $track['size'])) ?></td>
+                            <td><span class="badge <?= $track['enabled'] ? 'green' : 'gray' ?>"><?= $track['enabled'] ? 'Enabled' : 'Disabled' ?></span></td>
+                            <td class="actions moh-track-actions">
+                                <button type="button" class="btn btn-sm" data-track-play="<?= e($audioUrl) ?>">▶ Play</button>
+                                <form method="post" action="<?= e($audioUrl) ?>/toggle"><?= csrf() ?><button class="btn btn-sm"><?= $track['enabled'] ? 'Disable' : 'Enable' ?></button></form>
+                                <a class="btn btn-sm" href="<?= e($audioUrl) ?>?download=1">Download</a>
+                                <form method="post" action="<?= e($audioUrl) ?>"><?= csrf() ?><input type="hidden" name="_method" value="DELETE"><button class="btn btn-sm btn-ghost moh-danger" data-confirm-btn="Delete <?= e($track['filename']) ?>?"><?= $this->fragment('icons/trash') ?></button></form>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?></tbody>
+                </table></div><audio id="mohAudioPlayer" class="moh-audio-player" controls preload="none" hidden></audio>
+            <?php endif; ?>
+        <?php endif; ?>
+    </section>
 </div>
+
+<section class="card mt-4">
+    <div class="card-head"><div><h2>Announcements</h2><span class="text-xs muted">Separate from Music on Hold; plays completely before routing or ringing</span></div><button class="btn btn-sm" data-modal-open="announcementModal">New announcement</button></div>
+    <div class="card-body tight">
+        <?php if (!$announcements): ?><div class="moh-empty-small">No announcements uploaded.</div><?php else: ?>
+            <div class="table-wrap"><table><thead><tr><th>Name</th><th>File</th><th>Status</th><th class="actions">Actions</th></tr></thead><tbody>
+            <?php foreach ($announcements as $announcement): ?><tr>
+                <td><strong><?= e($announcement['name']) ?></strong></td><td><code class="text-xs"><?= e($announcement['filename']) ?></code></td>
+                <td><span class="badge <?= $announcement['enabled'] ? 'green' : 'gray' ?>"><?= $announcement['enabled'] ? 'Active' : 'Disabled' ?></span></td>
+                <td class="actions"><button class="btn btn-sm" data-modal-open="announcementModal" data-edit='<?= e(json_encode($announcement, JSON_HEX_APOS | JSON_HEX_QUOT)) ?>'>Edit</button><form method="post" action="/announcements/<?= (int) $announcement['id'] ?>"><?= csrf() ?><input type="hidden" name="_method" value="DELETE"><button class="btn btn-sm btn-ghost moh-danger" data-confirm-btn="Delete this announcement?"><?= $this->fragment('icons/trash') ?></button></form></td>
+            </tr><?php endforeach; ?></tbody></table></div>
+        <?php endif; ?>
+    </div>
+</section>
+
+<div class="modal-overlay" id="playlistModal" hidden><div class="modal"><form method="post" action="/moh" id="playlistForm"><?= csrf() ?>
+    <div class="modal-head"><h2 id="playlistTitle">New playlist</h2><button type="button" class="icon-btn" data-modal-close><?= $this->fragment('icons/x') ?></button></div>
+    <div class="modal-body"><div class="form-grid"><?= field_text('name', 'Playlist / class name', '', ['required' => true, 'span' => true, 'placeholder' => 'e.g. sales_waiting', 'hint' => 'Letters, numbers, dashes and underscores only.']) ?><?= field_check('random', 'Randomize playback order', true) ?><?= field_check('shuffle', 'Shuffle tracks', false) ?></div></div>
+    <div class="modal-foot"><button type="button" class="btn" data-modal-close>Cancel</button><button class="btn btn-primary" id="playlistSubmit">Create playlist</button></div>
+</form></div></div>
+
+<?php if ($selected): ?>
+<div class="modal-overlay" id="uploadModal" hidden><div class="modal"><form method="post" action="/moh/<?= (int) $selected['id'] ?>/tracks" enctype="multipart/form-data"><?= csrf() ?>
+    <div class="modal-head"><h2>Upload audio</h2><button type="button" class="icon-btn" data-modal-close><?= $this->fragment('icons/x') ?></button></div>
+    <div class="modal-body"><div class="field"><label for="mohAudio">Audio tracks</label><input id="mohAudio" type="file" name="audio[]" multiple required accept="audio/*,.wav,.mp3,.ogg,.flac,.gsm,.ulaw,.alaw,.g722,.sln,.m4a,.mp4"><div class="hint">Maximum 25 MB each. Files are normalized to 8 kHz mono WAV.</div></div></div>
+    <div class="modal-foot"><button type="button" class="btn" data-modal-close>Cancel</button><button class="btn btn-primary">Upload tracks</button></div>
+</form></div></div>
+
+<div class="modal-overlay" id="recordModal" hidden><div class="modal"><form id="recordForm" data-url="/moh/<?= (int) $selected['id'] ?>/record"><?= csrf() ?>
+    <div class="modal-head"><h2>Record audio</h2><button type="button" class="icon-btn" data-modal-close><?= $this->fragment('icons/x') ?></button></div>
+    <div class="modal-body"><?= field_text('name', 'Track name', 'Browser recording', ['required' => true]) ?><div class="moh-recorder"><span></span><strong id="recordStatus">Ready to record</strong><small id="recordTimer">00:00</small></div><div class="flex gap-2"><button type="button" class="btn btn-primary" id="recordStart">Start recording</button><button type="button" class="btn" id="recordStop" disabled>Stop</button></div><audio id="recordPreview" class="moh-audio-player" controls hidden></audio><div class="hint mt-3">Your browser will ask for microphone permission.</div></div>
+    <div class="modal-foot"><button type="button" class="btn" data-modal-close>Cancel</button><button type="button" class="btn btn-primary" id="recordSave" disabled>Save recording</button></div>
+</form></div></div>
+
+<div class="modal-overlay" id="speechModal" hidden><div class="modal"><form method="post" action="/moh/<?= (int) $selected['id'] ?>/speech"><?= csrf() ?>
+    <div class="modal-head"><h2>AI Generated Speech</h2><button type="button" class="icon-btn" data-modal-close><?= $this->fragment('icons/x') ?></button></div>
+    <div class="modal-body"><div class="form-grid"><?= field_text('name', 'Track name', 'Generated speech', ['required' => true, 'span' => true]) ?><?= field_select('voice', 'Voice / language', ['en-us' => 'English (US)', 'en-gb' => 'English (UK)', 'bn' => 'বাংলা', 'hi' => 'हिन्दी'], 'en-us') ?><?= field_text('speed', 'Speech speed', '155', ['type' => 'number', 'min' => 80, 'max' => 300]) ?><div class="field span-2"><label for="speechText">Text to speak</label><textarea id="speechText" name="text" rows="6" maxlength="1500" required placeholder="Enter the message callers should hear..."></textarea><div class="hint">Up to 1,500 characters. Speech is generated locally on the PBX server.</div></div></div></div>
+    <div class="modal-foot"><button type="button" class="btn" data-modal-close>Cancel</button><button class="btn btn-primary">Generate speech</button></div>
+</form></div></div>
+<?php endif; ?>
+
+<div class="modal-overlay" id="announcementModal" hidden><div class="modal"><form method="post" action="/announcements" id="announcementForm" enctype="multipart/form-data"><?= csrf() ?>
+    <div class="modal-head"><h2 id="announcementTitle">New announcement</h2><button type="button" class="icon-btn" data-modal-close><?= $this->fragment('icons/x') ?></button></div>
+    <div class="modal-body"><div class="form-grid"><?= field_text('name', 'Announcement name', '', ['required' => true, 'span' => true, 'placeholder' => 'e.g. Welcome message']) ?><div class="field span-2"><label for="announcementAudio">Audio file</label><input id="announcementAudio" type="file" name="audio" required accept=".wav,.mp3,.ogg,.flac,.gsm,.ulaw,.alaw"><div class="hint">Converted to an Asterisk-compatible 8 kHz mono WAV. Maximum 25 MB.</div></div><div class="span-2"><?= field_check('enabled', 'Announcement active', true) ?></div></div></div>
+    <div class="modal-foot"><button type="button" class="btn" data-modal-close>Cancel</button><button class="btn btn-primary" id="announcementSubmit">Upload announcement</button></div>
+</form></div></div>
 
 <script>
 (function () {
+    'use strict';
+    var playlistForm = document.getElementById('playlistForm');
+    document.querySelectorAll('[data-modal-open="playlistModal"][data-edit]').forEach(function (button) { button.addEventListener('click', function () { var data = JSON.parse(button.getAttribute('data-edit')); playlistForm.action = '/moh/' + data.id; document.getElementById('playlistTitle').textContent = 'Edit playlist'; document.getElementById('playlistSubmit').textContent = 'Save changes'; playlistForm.elements.name.value = data.name || ''; playlistForm.elements.random.checked = Number(data.random) === 1; playlistForm.elements.shuffle.checked = Number(data.shuffle) === 1; }); });
+    document.querySelectorAll('[data-modal-open="playlistModal"]:not([data-edit])').forEach(function (button) { button.addEventListener('click', function () { playlistForm.reset(); playlistForm.action = '/moh'; document.getElementById('playlistTitle').textContent = 'New playlist'; document.getElementById('playlistSubmit').textContent = 'Create playlist'; }); });
+
     var announcementForm = document.getElementById('announcementForm');
-    var announcementTitle = document.getElementById('announcementTitle');
-    var announcementSubmit = document.getElementById('announcementSubmit');
-    document.querySelectorAll('[data-modal-open="announcementModal"][data-edit]').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            var d = JSON.parse(btn.getAttribute('data-edit'));
-            announcementForm.action = '/announcements/' + d.id;
-            announcementTitle.textContent = 'Edit announcement';
-            announcementSubmit.textContent = 'Save changes';
-            announcementForm.elements.name.value = d.name || '';
-            announcementForm.elements.enabled.checked = Number(d.enabled) === 1;
-            announcementForm.elements.audio.required = false;
-            announcementForm.elements.audio.value = '';
-        });
-    });
-    document.querySelectorAll('[data-modal-open="announcementModal"]:not([data-edit])').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            announcementForm.reset(); announcementForm.action = '/announcements';
-            announcementTitle.textContent = 'New announcement'; announcementSubmit.textContent = 'Upload announcement';
-            announcementForm.elements.audio.required = true;
-        });
-    });
+    document.querySelectorAll('[data-modal-open="announcementModal"][data-edit]').forEach(function (button) { button.addEventListener('click', function () { var data = JSON.parse(button.getAttribute('data-edit')); announcementForm.action = '/announcements/' + data.id; document.getElementById('announcementTitle').textContent = 'Edit announcement'; document.getElementById('announcementSubmit').textContent = 'Save changes'; announcementForm.elements.name.value = data.name || ''; announcementForm.elements.enabled.checked = Number(data.enabled) === 1; announcementForm.elements.audio.required = false; announcementForm.elements.audio.value = ''; }); });
+    document.querySelectorAll('[data-modal-open="announcementModal"]:not([data-edit])').forEach(function (button) { button.addEventListener('click', function () { announcementForm.reset(); announcementForm.action = '/announcements'; document.getElementById('announcementTitle').textContent = 'New announcement'; document.getElementById('announcementSubmit').textContent = 'Upload announcement'; announcementForm.elements.audio.required = true; }); });
 
-    var modal  = document.getElementById('mohModal');
-    var form   = document.getElementById('mohForm');
-    var title  = document.getElementById('mohTitle');
-    var submit = document.getElementById('mohSubmit');
+    var player = document.getElementById('mohAudioPlayer');
+    document.querySelectorAll('[data-track-play]').forEach(function (button) { button.addEventListener('click', function () { if (!player) return; var url = button.getAttribute('data-track-play') + '?inline=1'; if (player.src && player.src.indexOf(url) !== -1 && !player.paused) { player.pause(); button.textContent = '▶ Play'; return; } document.querySelectorAll('[data-track-play]').forEach(function (item) { item.textContent = '▶ Play'; }); player.src = url; player.hidden = false; player.play().then(function () { button.textContent = '❚❚ Pause'; }).catch(function () {}); }); });
+    if (player) player.addEventListener('ended', function () { document.querySelectorAll('[data-track-play]').forEach(function (item) { item.textContent = '▶ Play'; }); });
 
-    document.querySelectorAll('[data-modal-open="mohModal"][data-edit]').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-        var d = JSON.parse(btn.getAttribute('data-edit'));
-        form.action = '/moh/' + d.id;
-        title.textContent = 'Edit music class';
-        submit.textContent = 'Save changes';
-        form.elements['name'].value = d.name;
-        form.elements['directory'].value = d.directory || '';
-        form.elements['random'].checked = Number(d.random) === 1;
-        form.elements['shuffle'].checked = Number(d.shuffle) === 1;
-        });
-    });
-
-    document.querySelectorAll('[data-modal-open="mohModal"]').forEach(function (opener) {
-        if (opener.hasAttribute('data-edit')) return;
-        opener.addEventListener('click', function () {
-            form.reset(); form.action = '/moh';
-            title.textContent = 'New music-on-hold class';
-            submit.textContent = 'Create class';
-        });
-    });
+    var recordForm = document.getElementById('recordForm');
+    if (recordForm) {
+        var recorder = null, stream = null, chunks = [], blob = null, started = 0, timer = null;
+        var start = document.getElementById('recordStart'), stop = document.getElementById('recordStop'), save = document.getElementById('recordSave'), status = document.getElementById('recordStatus'), timerText = document.getElementById('recordTimer'), preview = document.getElementById('recordPreview');
+        var tick = function () { var elapsed = Math.floor((Date.now() - started) / 1000); timerText.textContent = String(Math.floor(elapsed / 60)).padStart(2, '0') + ':' + String(elapsed % 60).padStart(2, '0'); };
+        start.addEventListener('click', function () { if (!navigator.mediaDevices || !window.MediaRecorder) { status.textContent = 'Recording is not supported by this browser.'; return; } navigator.mediaDevices.getUserMedia({audio:true}).then(function (mediaStream) { stream = mediaStream; chunks = []; blob = null; recorder = new MediaRecorder(stream); recorder.ondataavailable = function (event) { if (event.data.size) chunks.push(event.data); }; recorder.onstop = function () { blob = new Blob(chunks, {type:recorder.mimeType || 'audio/webm'}); preview.src = URL.createObjectURL(blob); preview.hidden = false; save.disabled = false; status.textContent = 'Recording ready'; stream.getTracks().forEach(function (track) { track.stop(); }); }; recorder.start(); started = Date.now(); tick(); timer = setInterval(tick, 500); status.textContent = 'Recording…'; start.disabled = true; stop.disabled = false; save.disabled = true; }).catch(function () { status.textContent = 'Microphone permission was denied.'; }); });
+        stop.addEventListener('click', function () { if (recorder && recorder.state !== 'inactive') recorder.stop(); clearInterval(timer); start.disabled = false; stop.disabled = true; });
+        save.addEventListener('click', function () { if (!blob) return; save.disabled = true; save.textContent = 'Saving…'; var data = new FormData(); data.append('_token', recordForm.elements._token.value); data.append('name', recordForm.elements.name.value || 'Browser recording'); data.append('audio', blob, 'browser-recording.webm'); fetch(recordForm.dataset.url, {method:'POST', body:data, headers:{'Accept':'application/json','X-Requested-With':'XMLHttpRequest'}}).then(function (response) { return response.json().then(function (json) { if (!response.ok) throw new Error(json.error || 'Save failed.'); return json; }); }).then(function (json) { window.location.href = json.redirect; }).catch(function (error) { status.textContent = error.message; save.disabled = false; save.textContent = 'Save recording'; }); });
+    }
 })();
 </script>

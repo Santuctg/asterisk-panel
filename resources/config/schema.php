@@ -311,12 +311,14 @@ return [
     'moh_classes' => '
         CREATE TABLE IF NOT EXISTS moh_classes (
             id         INTEGER PRIMARY KEY AUTOINCREMENT,
-            name       VARCHAR(80) NOT NULL UNIQUE,
+            tenant_id  INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+            name       VARCHAR(80) NOT NULL,
             directory  VARCHAR(255),
             random     INTEGER DEFAULT 1,
             shuffle    INTEGER DEFAULT 0,
             created_at DATETIME,
-            updated_at DATETIME
+            updated_at DATETIME,
+            UNIQUE(tenant_id, name)
         )',
 
     'queues' => '

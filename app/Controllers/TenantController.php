@@ -69,6 +69,14 @@ final class TenantController extends BaseController
         }
 
         $id = $this->db()->insert('tenants', $data);
+        $this->db()->insert('moh_classes', [
+            'tenant_id' => $id,
+            'name' => 'default',
+            'directory' => null,
+            'random' => 1,
+            'shuffle' => 0,
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
 
         $this->clearOld();
         $this->audit('tenant.create', 'tenant', $id, ['name' => $data['name'], 'context' => $context]);

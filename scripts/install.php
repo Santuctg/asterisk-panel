@@ -113,8 +113,9 @@ if ($existingTenant) {
 }
 
 // Seed a sensible default MOH class.
-if (!$db->scalar("SELECT COUNT(*) FROM moh_classes WHERE name = 'default'")) {
+if (!$db->scalar('SELECT COUNT(*) FROM moh_classes WHERE tenant_id = ? AND name = ?', [$tenantId, 'default'])) {
     $db->insert('moh_classes', [
+        'tenant_id'  => $tenantId,
         'name'       => 'default',
         'directory'  => null,
         'random'     => 1,

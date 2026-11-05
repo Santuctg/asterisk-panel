@@ -47,7 +47,7 @@ final class CallCenterController extends BaseController
             'rows'       => $rows,
             'live'       => $live,
             'extensions' => $this->extensionOptions(),
-            'mohClasses' => $this->db()->all('SELECT name FROM moh_classes ORDER BY name'),
+            'mohClasses' => $this->db()->all('SELECT name FROM moh_classes WHERE tenant_id = ? ORDER BY name', [$tid]),
             'announcements' => $this->db()->all('SELECT id, name FROM announcements WHERE tenant_id = ? AND enabled = 1 ORDER BY name', [$tid]),
         ]);
     }
@@ -209,7 +209,7 @@ final class CallCenterController extends BaseController
             'retry'          => $request->int('retry', 5),
             'member_delay'   => $request->int('member_delay', 0),
             'agent_announce' => $request->str('agent_announce'),
-            'moh_class'      => $request->str('moh_class', 'default'),
+            'moh_class'      => $this->validMohClass($request->str('moh_class', 'default'), $tenantId),
             'announcement_id'=> $this->validAnnouncementId($request->int('announcement_id'), $tenantId),
             'enabled'        => $request->bool('enabled', true) ? 1 : 0,
         ];
@@ -232,6 +232,12 @@ final class CallCenterController extends BaseController
         if ($id <= 0) { return null; }
         return $this->db()->scalar('SELECT COUNT(*) FROM announcements WHERE id = ? AND tenant_id = ? AND enabled = 1', [$id, $tenantId])
             ? $id : null;
+    }
+
+    private function validMohClass(string $name, int $tenantId): string
+    {
+        return $this->db()->scalar('SELECT COUNT(*) FROM moh_classes WHERE tenant_id = ? AND name = ?', [$tenantId, $name])
+            ? $name : 'default';
     }
 
     private function extensionOptions(): array

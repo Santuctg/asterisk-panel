@@ -26,6 +26,52 @@ $db->exec($schema['announcements']);
 // one tenant-scoped outbound route.
 $driver = (string) $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
 if ($driver === 'sqlite') {
+    $hasMohClasses = (int) $db->scalar(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'moh_classes'"
+    );
+    if (!$hasMohClasses) {
+        $db->exec($schema['moh_classes']);
+    } else {
+        $mohColumns = array_column($db->all('PRAGMA table_info(moh_classes)'), 'name');
+        if (!in_array('tenant_id', $mohColumns, true)) {
+            $firstTenant = (int) $db->scalar('SELECT id FROM tenants ORDER BY id LIMIT 1');
+            if ($firstTenant <= 0) { throw new RuntimeException('Cannot migrate Music on Hold without a tenant.'); }
+            $mohRoot = rtrim((string) config('asterisk.moh_path', '/var/lib/asterisk/moh'), '/');
+            $pdo->exec('PRAGMA foreign_keys = OFF');
+            try {
+                $pdo->beginTransaction();
+                $pdo->exec('CREATE TABLE moh_classes_tenant_scoped (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                    name VARCHAR(80) NOT NULL, directory VARCHAR(255),
+                    random INTEGER DEFAULT 1, shuffle INTEGER DEFAULT 0,
+                    created_at DATETIME, updated_at DATETIME,
+                    UNIQUE(tenant_id, name)
+                )');
+                $rows = $db->all('SELECT * FROM moh_classes ORDER BY id');
+                $insert = $pdo->prepare('INSERT INTO moh_classes_tenant_scoped
+                    (id, tenant_id, name, directory, random, shuffle, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+                foreach ($rows as $row) {
+                    $directory = trim((string) ($row['directory'] ?? ''));
+                    if ($directory === '') { $directory = $mohRoot . '/' . $row['name']; }
+                    $insert->execute([
+                        $row['id'], $firstTenant, $row['name'], $directory,
+                        $row['random'] ?? 1, $row['shuffle'] ?? 0,
+                        $row['created_at'] ?? null, $row['updated_at'] ?? null,
+                    ]);
+                }
+                $pdo->exec('DROP TABLE moh_classes');
+                $pdo->exec('ALTER TABLE moh_classes_tenant_scoped RENAME TO moh_classes');
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) { $pdo->rollBack(); }
+                throw $e;
+            } finally {
+                $pdo->exec('PRAGMA foreign_keys = ON');
+            }
+        }
+    }
     $hasExtensions = (int) $db->scalar(
         "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'extensions'"
     );
@@ -53,6 +99,25 @@ if ($driver === 'sqlite') {
         }
     }
 } else {
+    $hasMohTenant = (int) $db->scalar(
+        'SELECT COUNT(*) FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+        ['moh_classes', 'tenant_id']
+    );
+    if (!$hasMohTenant) {
+        $firstTenant = (int) $db->scalar('SELECT id FROM tenants ORDER BY id LIMIT 1');
+        if ($firstTenant <= 0) { throw new RuntimeException('Cannot migrate Music on Hold without a tenant.'); }
+        $pdo->exec('ALTER TABLE moh_classes ADD COLUMN tenant_id BIGINT NULL');
+        $db->run('UPDATE moh_classes SET tenant_id = ?', [$firstTenant]);
+        foreach ($db->all("SHOW INDEX FROM moh_classes WHERE Non_unique = 0") as $index) {
+            if (($index['Column_name'] ?? '') === 'name' && ($index['Key_name'] ?? '') !== 'PRIMARY') {
+                $key = str_replace('`', '``', (string) $index['Key_name']);
+                $pdo->exec("ALTER TABLE moh_classes DROP INDEX `{$key}`");
+            }
+        }
+        $pdo->exec('ALTER TABLE moh_classes MODIFY tenant_id BIGINT NOT NULL');
+        $pdo->exec('ALTER TABLE moh_classes ADD UNIQUE INDEX moh_classes_tenant_name_unique (tenant_id, name)');
+    }
     $hasOutboundRoute = (int) $db->scalar(
         'SELECT COUNT(*) FROM information_schema.COLUMNS
          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
@@ -77,6 +142,22 @@ if ($driver === 'sqlite') {
         if (!$hasAnnouncement) {
             $pdo->exec("ALTER TABLE {$table} ADD COLUMN announcement_id BIGINT NULL");
         }
+    }
+}
+
+// Every tenant starts with a private default playlist. Existing global MOH
+// rows were assigned to the first tenant above; this fills the remaining ones.
+foreach ($db->all('SELECT id FROM tenants ORDER BY id') as $tenant) {
+    $tenantId = (int) $tenant['id'];
+    if (!$db->scalar('SELECT COUNT(*) FROM moh_classes WHERE tenant_id = ? AND name = ?', [$tenantId, 'default'])) {
+        $db->insert('moh_classes', [
+            'tenant_id' => $tenantId,
+            'name' => 'default',
+            'directory' => null,
+            'random' => 1,
+            'shuffle' => 0,
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
     }
 }
 

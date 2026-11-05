@@ -786,7 +786,7 @@ final class ConfigGenerator
                 $out .= "; {$q['name']} ({$q['extension']})\n";
                 $out .= "[{$q['extension']}]\n";
                 $out .= "context = {$ctx}\n";
-                $out .= "musicclass = " . ($q['moh_class'] ?: 'default') . "\n";
+                $out .= "musicclass = " . $this->mohClassName($tid, (string) ($q['moh_class'] ?: 'default')) . "\n";
                 $out .= "timeout = {$q['timeout']}\n";
                 $out .= "maxlen = {$q['max_wait']}\n";
                 $out .= "servicelevel = {$q['service_level']}\n";
@@ -859,12 +859,20 @@ final class ConfigGenerator
         $out .= "[general]\n";
         $out .= "cachemclasses = yes\n\n";
 
-        $classes = $this->db->all('SELECT * FROM moh_classes ORDER BY id');
+        $classes = $this->db->all(
+            'SELECT m.*, t.context AS tenant_context FROM moh_classes m
+             JOIN tenants t ON t.id = m.tenant_id ORDER BY m.tenant_id, m.id'
+        );
 
         foreach ($classes as $c) {
-            $dir = Config::get('asterisk.moh_path', '/var/lib/asterisk/moh') . '/' . $c['name'];
-            $out .= "; {$c['name']}\n";
-            $out .= "[{$c['name']}]\n";
+            $dir = trim((string) ($c['directory'] ?? ''));
+            if ($dir === '') {
+                $dir = rtrim((string) Config::get('asterisk.moh_path', '/var/lib/asterisk/moh'), '/')
+                    . '/' . $this->mohPathPart((string) $c['tenant_context']) . '/' . $this->mohPathPart((string) $c['name']);
+            }
+            $className = $this->mohClassName((int) $c['tenant_id'], (string) $c['name']);
+            $out .= "; {$c['tenant_context']} / {$c['name']}\n";
+            $out .= "[{$className}]\n";
             $out .= "mode = files\n";
             $out .= "directory = {$dir}\n";
             if ($c['random']) {
@@ -906,7 +914,7 @@ final class ConfigGenerator
             $out .= "announce_join_leave = yes\n";
             $out .= "marked = no\n";
             $out .= "end_marked = no\n";
-            $out .= "music_on_hold_class = default\n\n";
+            $out .= "music_on_hold_class = " . $this->mohClassName($tid, 'default') . "\n\n";
 
             foreach ($rooms as $r) {
                 if ((int) $r['tenant_id'] !== $tid) {
@@ -926,6 +934,17 @@ final class ConfigGenerator
     // -----------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------
+
+    private function mohClassName(int $tenantId, string $name): string
+    {
+        return 'tenant' . $tenantId . '_' . $this->mohPathPart($name);
+    }
+
+    private function mohPathPart(string $value): string
+    {
+        $safe = preg_replace('/[^A-Za-z0-9_-]+/', '_', $value) ?: 'default';
+        return substr($safe, 0, 80);
+    }
 
     private function recordingHelperContext(): string
     {

@@ -42,7 +42,8 @@ update() {
     if [[ "$repo_head" != "$remote_head" ]]; then git -C "$REPO" pull --ff-only origin "$BRANCH"; fi
     find "$REPO" -type f -name '*.php' -print0 | xargs -0 -n1 php -l >/dev/null
     rsync -a --delete --exclude=storage/ --exclude=.env "$REPO/" "$APP/"
-    install -d -o www-data -g asterisk -m 2775 /var/lib/asterisk/sounds/asterisk-panel
+    install -d -o www-data -g asterisk -m 2775 /var/lib/asterisk/sounds/asterisk-panel /var/lib/asterisk/moh
+    install -o root -g root -m 0644 "$APP/resources/deploy/nginx-recordings.conf" /etc/nginx/snippets/asterisk-panel-recordings.conf
     DB_DRIVER=sqlite DB_NAME="$APP/storage/database/asterisk_panel.sqlite" php "$APP/scripts/migrate.php"
     DB_DRIVER=sqlite DB_NAME="$APP/storage/database/asterisk_panel.sqlite" php "$APP/scripts/apply-config.php"
     local voicemail_modules_changed=0
@@ -103,6 +104,8 @@ EOF
     systemctl enable --now asterisk-panel-trunk-monitor.timer
     install -o root -g root -m 0755 "$REPO/scripts/update-helper.sh" /usr/local/sbin/asterisk-panel-update
     systemctl restart php8.3-fpm
+    nginx -t
+    systemctl reload nginx
     systemctl restart asterisk-panel-cdr.timer
     systemctl restart asterisk-panel-trunk-monitor.timer
     printf 'updated=%s\nbackup=%s\n' "$(git -C "$REPO" rev-parse --short HEAD)" "$backup"

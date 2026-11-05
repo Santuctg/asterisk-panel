@@ -34,7 +34,7 @@ final class ConferenceController extends BaseController
         return $this->view('conferences/index', [
             'rows'       => $rows,
             'live'       => $live,
-            'mohClasses' => $this->db()->all('SELECT name FROM moh_classes ORDER BY name'),
+            'mohClasses' => $this->db()->all('SELECT name FROM moh_classes WHERE tenant_id = ? ORDER BY name', [$tid]),
         ]);
     }
 
@@ -43,7 +43,7 @@ final class ConferenceController extends BaseController
     {
         $tid = $this->requireTenant();
 
-        $data = $this->collect($request);
+        $data = $this->collect($request, $tid);
         $data['tenant_id'] = $tid;
 
         $v = Validator::make($data, [
@@ -87,7 +87,7 @@ final class ConferenceController extends BaseController
             return Response::redirect('/conferences');
         }
 
-        $data = $this->collect($request);
+        $data = $this->collect($request, (int) $row['tenant_id']);
 
         $v = Validator::make($data, [
             'extension' => 'required|digits_between:2,6',
@@ -128,7 +128,7 @@ final class ConferenceController extends BaseController
         return Response::redirect('/conferences');
     }
 
-    private function collect(Request $request): array
+    private function collect(Request $request, int $tenantId): array
     {
         return [
             'extension'  => $request->str('extension'),
@@ -137,7 +137,10 @@ final class ConferenceController extends BaseController
             'admin_pin'  => $request->str('admin_pin'),
             'profile'    => $request->str('profile', 'default'),
             'max_members'=> $request->int('max_members', 0),
-            'moh_class'  => $request->str('moh_class', 'default'),
+            'moh_class'  => $this->db()->scalar(
+                'SELECT COUNT(*) FROM moh_classes WHERE tenant_id = ? AND name = ?',
+                [$tenantId, $request->str('moh_class', 'default')]
+            ) ? $request->str('moh_class', 'default') : 'default',
             'record'     => $request->bool('record') ? 1 : 0,
             'enabled'    => $request->bool('enabled', true) ? 1 : 0,
         ];

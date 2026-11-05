@@ -23,6 +23,11 @@ $legacy->exec('CREATE TABLE outbound_routes (
 $legacy->exec('CREATE TABLE ring_groups (id INTEGER PRIMARY KEY, tenant_id INTEGER, extension TEXT, name TEXT)');
 $legacy->exec('CREATE TABLE inbound_routes (id INTEGER PRIMARY KEY, tenant_id INTEGER, name TEXT)');
 $legacy->exec('CREATE TABLE queues (id INTEGER PRIMARY KEY, tenant_id INTEGER, extension TEXT, name TEXT)');
+$legacy->exec('CREATE TABLE moh_classes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, name VARCHAR(80) NOT NULL UNIQUE, directory VARCHAR(255),
+    random INTEGER DEFAULT 1, shuffle INTEGER DEFAULT 0, created_at DATETIME, updated_at DATETIME
+)');
+$legacy->exec("INSERT INTO moh_classes (name, random) VALUES ('default', 1)");
 $legacy->exec("INSERT INTO tenants(name,context,enabled) VALUES ('A','a',1),('B','b',1)");
 $legacy->exec("INSERT INTO users(tenant_id,username,password,role,active) VALUES (1,'admin','x','superadmin',1)");
 $legacy = null;
@@ -48,6 +53,10 @@ if ((int)$db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND 
 foreach (['ring_groups','inbound_routes','queues'] as $table) {
     if (!in_array('announcement_id', array_column($db->all("PRAGMA table_info({$table})"), 'name'), true)) throw new RuntimeException("Announcement column missing from {$table}");
 }
+$mohColumns = array_column($db->all('PRAGMA table_info(moh_classes)'), 'name');
+if (!in_array('tenant_id', $mohColumns, true)) throw new RuntimeException('MOH tenant column missing');
+if ((int) $db->scalar('SELECT tenant_id FROM moh_classes WHERE name = ?', ['default']) !== 1) throw new RuntimeException('Legacy MOH class was not tenant backfilled');
+if ((string) $db->scalar('SELECT directory FROM moh_classes WHERE name = ?', ['default']) === '') throw new RuntimeException('Legacy MOH directory was not preserved');
 // Subsequent migrations must ignore the partial global-superadmin index.
 $migration = file_get_contents($base . '/scripts/migrate.php');
 if (!str_contains($migration, "index['partial']")) throw new RuntimeException('Partial-index idempotence guard missing');

@@ -114,6 +114,12 @@ $router->get('/moh', [MusicOnHoldController::class, 'index'], [Auth::require('mo
 $router->post('/moh', [MusicOnHoldController::class, 'store'], [Auth::require('moh.manage'), Csrf::middleware(...) ]);
 $router->post('/moh/{id}', [MusicOnHoldController::class, 'update'], [Auth::require('moh.manage'), Csrf::middleware(...) ]);
 $router->delete('/moh/{id}', [MusicOnHoldController::class, 'destroy'], [Auth::require('moh.manage'), Csrf::middleware(...) ]);
+$router->post('/moh/{id}/tracks', [MusicOnHoldController::class, 'uploadTracks'], [Auth::require('moh.manage'), Csrf::middleware(...) ]);
+$router->post('/moh/{id}/record', [MusicOnHoldController::class, 'recordTrack'], [Auth::require('moh.manage'), Csrf::middleware(...) ]);
+$router->post('/moh/{id}/speech', [MusicOnHoldController::class, 'generateSpeech'], [Auth::require('moh.manage'), Csrf::middleware(...) ]);
+$router->get('/moh/{id}/tracks/{filename}', [MusicOnHoldController::class, 'trackAudio'], [Auth::require('moh.view')]);
+$router->post('/moh/{id}/tracks/{filename}/toggle', [MusicOnHoldController::class, 'toggleTrack'], [Auth::require('moh.manage'), Csrf::middleware(...) ]);
+$router->delete('/moh/{id}/tracks/{filename}', [MusicOnHoldController::class, 'deleteTrack'], [Auth::require('moh.manage'), Csrf::middleware(...) ]);
 $router->post('/announcements', [AnnouncementController::class, 'store'], [Auth::require('moh.manage'), Csrf::middleware(...) ]);
 $router->post('/announcements/{id}', [AnnouncementController::class, 'update'], [Auth::require('moh.manage'), Csrf::middleware(...) ]);
 $router->delete('/announcements/{id}', [AnnouncementController::class, 'destroy'], [Auth::require('moh.manage'), Csrf::middleware(...) ]);

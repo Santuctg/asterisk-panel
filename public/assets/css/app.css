@@ -507,6 +507,35 @@ th.col-check input:indeterminate::after, td.col-check input:indeterminate::after
 .muted { color: var(--text-muted); }
 .nowrap { white-space: nowrap; }
 .recording-modal audio { display: block; width: 100%; }
+.moh-manager { display:grid; grid-template-columns:280px minmax(0,1fr); gap:18px; align-items:start; }
+.moh-playlists,.moh-tracks { overflow:hidden; }
+.moh-playlists .card-head>div,.moh-track-head>div:first-child { display:flex; flex-direction:column; gap:3px; }
+.moh-playlist-list { padding:8px; }
+.moh-playlist-item { display:grid; grid-template-columns:36px minmax(0,1fr) auto; align-items:center; gap:10px; padding:11px; border-radius:7px; color:var(--text); text-decoration:none; }
+.moh-playlist-item:hover { background:var(--surface-alt); }
+.moh-playlist-item.active { background:var(--brand-50); color:var(--brand-700); }
+.moh-playlist-item span:nth-child(2) { display:flex; flex-direction:column; min-width:0; }
+.moh-playlist-item strong { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:13px; }
+.moh-playlist-item small { color:var(--text-muted); font-size:10px; margin-top:2px; }
+.moh-playlist-icon { width:34px; height:34px; display:grid; place-items:center; border-radius:7px; background:var(--surface-alt); font-size:17px; }
+.moh-playlist-item.active .moh-playlist-icon { background:var(--brand-100); }
+.moh-chevron { color:var(--text-muted); font-size:20px; }
+.moh-toolbar { display:flex; flex-wrap:wrap; gap:8px; padding:12px 16px; border-bottom:1px solid var(--border); background:var(--surface-alt); }
+.moh-no-selection { min-height:360px; padding:42px 20px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:9px; }
+.moh-no-selection.compact { min-height:270px; }
+.moh-large-icon { width:58px; height:58px; display:grid; place-items:center; border-radius:50%; background:var(--brand-50); color:var(--brand-600); font-size:27px; }
+.moh-empty-small { padding:28px 18px; color:var(--text-muted); text-align:center; font-size:12px; }
+.moh-track-name { display:flex; align-items:center; gap:9px; min-width:180px; }
+.moh-track-name>span { width:28px; height:28px; display:grid; place-items:center; border-radius:6px; background:var(--brand-50); color:var(--brand-600); }
+.moh-track-disabled { opacity:.65; }
+.moh-track-actions { white-space:nowrap; }
+.moh-track-actions form { display:inline-flex; }
+.moh-audio-player { display:block; width:calc(100% - 32px); margin:12px 16px 16px; }
+.moh-danger { color:var(--danger-500)!important; }
+.moh-recorder { display:grid; grid-template-columns:12px 1fr auto; align-items:center; gap:9px; padding:16px; margin:14px 0; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface-alt); }
+.moh-recorder span { width:10px; height:10px; border-radius:50%; background:var(--danger-500); }
+.moh-recorder small { font-family:var(--mono); color:var(--text-muted); }
+[data-theme="dark"] .moh-playlist-item.active { background:rgba(79,70,229,.18); color:#a5b4fc; }
 [data-theme="dark"] .recording-modal { color-scheme: dark; }
 [data-theme="dark"] .recording-modal audio { background: var(--surface-alt); border-radius: 999px; }
 
@@ -637,6 +666,7 @@ th.col-check input:indeterminate::after, td.col-check input:indeterminate::after
     .grid-3 { grid-template-columns: repeat(2, minmax(0,1fr)); }
 }
 @media (max-width: 860px) {
+    .moh-manager { grid-template-columns:1fr; }
     .sidebar { transform: translateX(-100%); }
     .app-shell.sidebar-open .sidebar { transform: none; }
     .main { margin-left: 0; }
