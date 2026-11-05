@@ -24,6 +24,12 @@ $app->auth()->login($user);
 $_SERVER['HTTP_HOST'] = 'a.example.test';
 $controller = new App\Controllers\AnnouncementController();
 
+$failedUpload = new App\Core\Request('POST', '/announcements', [], ['name'=>'Must not exist'], [], [
+    'audio' => ['name'=>'too-large.wav', 'tmp_name'=>'', 'size'=>0, 'error'=>UPLOAD_ERR_INI_SIZE],
+]);
+$controller->store($failedUpload);
+if ((int)$db->scalar('SELECT COUNT(*) FROM announcements WHERE tenant_id = ? AND name = ?', [$a, 'Must not exist'])) throw new RuntimeException('Failed audio upload created an announcement option');
+
 $foreign = new App\Core\Request('DELETE', '/announcements/'.$ab); $foreign->params=['id'=>$ab];
 $controller->destroy($foreign);
 if (!(int)$db->scalar('SELECT COUNT(*) FROM announcements WHERE id = ?', [$ab])) throw new RuntimeException('Cross-tenant announcement was deleted');
@@ -41,4 +47,6 @@ $routesView = file_get_contents(BASE_PATH . '/themes/default/views/routes/index.
 $queueView = file_get_contents(BASE_PATH . '/themes/default/views/callcenter/index.php');
 if (str_contains($ringForm, 'Call tune while ringing') || !str_contains($ringForm, "field_select('announcement_id'")) throw new RuntimeException('Ring group announcement UI is invalid');
 if (!str_contains($routesView, "field_select('announcement_id'") || !str_contains($queueView, "field_select('announcement_id'")) throw new RuntimeException('Announcement selectors are missing');
+$mohView = file_get_contents(BASE_PATH . '/themes/default/views/moh/index.php');
+if (!str_contains($mohView, 'option is created only after the audio uploads successfully')) throw new RuntimeException('Announcement upload-only behavior is not explained');
 echo "All announcement tenant and UI checks passed.\n";

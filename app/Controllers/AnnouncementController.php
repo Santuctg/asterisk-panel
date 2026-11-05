@@ -15,7 +15,15 @@ final class AnnouncementController extends BaseController
     public function store(Request $request): Response
     {
         $tid = $this->requireTenant();
+        $file = $request->files('audio');
         $name = $request->str('name');
+        if ($name === '' && $file) {
+            $name = trim((string) preg_replace(
+                '/[_-]+/',
+                ' ',
+                pathinfo((string) ($file['name'] ?? ''), PATHINFO_FILENAME)
+            ));
+        }
         $v = Validator::make(['name' => $name], ['name' => 'required|max:120']);
         if ($v->fails()) {
             Flash::error($v->firstError());
@@ -26,20 +34,25 @@ final class AnnouncementController extends BaseController
             return Response::redirect('/moh');
         }
 
-        $upload = $this->upload($tid, $request->files('audio'));
+        $upload = $this->upload($tid, $file);
         if (isset($upload['error'])) {
             Flash::error($upload['error']);
             return Response::redirect('/moh');
         }
 
-        $id = $this->db()->insert('announcements', [
-            'tenant_id' => $tid,
-            'name' => $name,
-            'filename' => $upload['filename'],
-            'sound_path' => $upload['sound_path'],
-            'enabled' => $request->bool('enabled', true) ? 1 : 0,
-            'created_at' => date('Y-m-d H:i:s'),
-        ]);
+        try {
+            $id = $this->db()->insert('announcements', [
+                'tenant_id' => $tid,
+                'name' => $name,
+                'filename' => $upload['filename'],
+                'sound_path' => $upload['sound_path'],
+                'enabled' => $request->bool('enabled', true) ? 1 : 0,
+                'created_at' => date('Y-m-d H:i:s'),
+            ]);
+        } catch (\Throwable $e) {
+            $this->deleteFile((string) $upload['filename'], $tid);
+            throw $e;
+        }
         $this->audit('announcement.create', 'announcement', $id);
         $this->applyToAsterisk('announcement');
         Flash::success('Announcement uploaded.');
@@ -110,15 +123,22 @@ final class AnnouncementController extends BaseController
     /** @return array{filename:string,sound_path:string}|array{error:string} */
     private function upload(int $tenantId, ?array $file): array
     {
-        if (!$file || (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        if (!$file) {
             return ['error' => 'Choose an audio file to upload.'];
         }
-        if ((int) ($file['size'] ?? 0) > 25 * 1024 * 1024 || !is_uploaded_file((string) ($file['tmp_name'] ?? ''))) {
-            return ['error' => 'The announcement file is invalid or larger than 25 MB.'];
+        $uploadError = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
+        if ($uploadError !== UPLOAD_ERR_OK) {
+            return ['error' => $this->uploadErrorMessage($uploadError)];
+        }
+        if ((int) ($file['size'] ?? 0) > 25 * 1024 * 1024) {
+            return ['error' => 'The announcement file is larger than 25 MB.'];
+        }
+        if (!is_uploaded_file((string) ($file['tmp_name'] ?? ''))) {
+            return ['error' => 'The announcement upload is invalid.'];
         }
         $extension = strtolower(pathinfo((string) ($file['name'] ?? ''), PATHINFO_EXTENSION));
-        if (!in_array($extension, ['wav', 'mp3', 'ogg', 'flac', 'gsm', 'ulaw', 'alaw'], true)) {
-            return ['error' => 'Use WAV, MP3, OGG, FLAC, GSM, ULAW or ALAW audio.'];
+        if (!in_array($extension, ['wav', 'mp3', 'ogg', 'flac', 'gsm', 'ulaw', 'alaw', 'm4a', 'mp4', 'webm'], true)) {
+            return ['error' => 'Use WAV, MP3, OGG, FLAC, GSM, ULAW, ALAW, M4A, MP4 or WebM audio.'];
         }
         $tenant = $this->db()->one('SELECT context FROM tenants WHERE id = ?', [$tenantId]);
         if (!$tenant) { return ['error' => 'Tenant not found.']; }
@@ -132,17 +152,42 @@ final class AnnouncementController extends BaseController
         $base = 'announcement_' . bin2hex(random_bytes(8));
         $filename = $base . '.wav';
         $target = $dir . '/' . $filename;
-        $command = 'sox ' . escapeshellarg((string) $file['tmp_name'])
-            . ' -r 8000 -c 1 -e signed-integer -b 16 ' . escapeshellarg($target) . ' 2>&1';
-        $output = [];
-        $code = 1;
-        exec($command, $output, $code);
-        if ($code !== 0 || !is_file($target) || filesize($target) <= 44) {
+        if (!$this->convertAudio((string) $file['tmp_name'], $target)) {
             @unlink($target);
-            return ['error' => 'Audio conversion failed. Verify the file and try again.'];
+            return ['error' => 'Audio conversion failed. The file may be damaged or use an unsupported codec.'];
         }
         @chmod($target, 0640);
         return ['filename' => $filename, 'sound_path' => 'asterisk-panel/' . $context . '/' . $base];
+    }
+
+    private function convertAudio(string $source, string $target): bool
+    {
+        $commands = [
+            'sox ' . escapeshellarg($source) . ' -r 8000 -c 1 -e signed-integer -b 16 ' . escapeshellarg($target) . ' 2>&1',
+            'ffmpeg -nostdin -loglevel error -y -i ' . escapeshellarg($source)
+                . ' -ar 8000 -ac 1 -c:a pcm_s16le ' . escapeshellarg($target) . ' 2>&1',
+        ];
+        foreach ($commands as $command) {
+            @unlink($target);
+            $output = [];
+            $code = 1;
+            exec($command, $output, $code);
+            if ($code === 0 && is_file($target) && (filesize($target) ?: 0) > 44) { return true; }
+        }
+        return false;
+    }
+
+    private function uploadErrorMessage(int $error): string
+    {
+        return match ($error) {
+            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'The announcement exceeds the server upload limit.',
+            UPLOAD_ERR_PARTIAL => 'The announcement upload was interrupted. Try again.',
+            UPLOAD_ERR_NO_FILE => 'Choose an audio file to upload.',
+            UPLOAD_ERR_NO_TMP_DIR => 'The server upload directory is unavailable.',
+            UPLOAD_ERR_CANT_WRITE => 'The server could not write the announcement file.',
+            UPLOAD_ERR_EXTENSION => 'A server extension stopped the announcement upload.',
+            default => 'The announcement upload failed.',
+        };
     }
 
     private function deleteFile(string $filename, int $tenantId): void
