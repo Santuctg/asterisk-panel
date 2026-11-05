@@ -16,6 +16,9 @@ $pdo->exec("INSERT INTO tenants (name, context, enabled) VALUES ('Test', 'test',
 file_put_contents($csvPath, implode(',', [
     '2026-11-05 10:00:00', '201', '202', 'test', 'PJSIP/test_201', 'PJSIP/test_202',
     'Dial', 'PJSIP/test_202', '30', '25', 'ANSWERED', '3', '', 'test-unique-1', '',
+]) . "\n" . implode(',', [
+    '2026-11-05 10:01:00', '201', '01800000000', 'test-outbound-7', 'PJSIP/test_201', 'PJSIP/trunk-7',
+    'Dial', 'PJSIP/01800000000@trunk-7', '30', '25', 'ANSWERED', '3', '', 'test-unique-2', 'recording:test.wav',
 ]) . "\n");
 $pdo = null;
 
@@ -34,8 +37,9 @@ $run = static function () use ($base, $dbPath, $csvPath): void {
 
 $run();
 $pdo = new PDO('sqlite:' . $dbPath);
-if ((int) $pdo->query('SELECT COUNT(*) FROM cdr')->fetchColumn() !== 1) throw new RuntimeException('Initial CDR import failed');
-if ((int) $pdo->query('SELECT COUNT(*) FROM cdr_import_log')->fetchColumn() !== 1) throw new RuntimeException('CDR import ledger was not written');
+if ((int) $pdo->query('SELECT COUNT(*) FROM cdr')->fetchColumn() !== 2) throw new RuntimeException('Initial CDR import failed');
+if ((int) $pdo->query('SELECT COUNT(*) FROM cdr WHERE tenant_id = 1')->fetchColumn() !== 2) throw new RuntimeException('Route subcontext was not mapped to its tenant');
+if ((int) $pdo->query('SELECT COUNT(*) FROM cdr_import_log')->fetchColumn() !== 2) throw new RuntimeException('CDR import ledger was not written');
 $pdo->exec('DELETE FROM cdr');
 $pdo = null;
 

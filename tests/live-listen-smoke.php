@@ -72,7 +72,12 @@ $registrations = App\Services\Asterisk\AsteriskManager::parseOutboundRegistratio
     " trunk-2/sip:203.0.113.10 trunk-2-auth Rejected\n"
 );
 $check(($registrations['trunk-1'] ?? '') === 'Registered' && ($registrations['trunk-2'] ?? '') === 'Rejected', 'outbound trunk registration parsing');
-$trackedTrunk = $db->insert('trunks', ['tenant_id' => $tid, 'name' => 'Tracked', 'host' => 'sip.example.test', 'enabled' => 1]);
+$trackedTrunk = $db->insert('trunks', [
+    'tenant_id' => $tid, 'name' => 'Tracked', 'host' => 'sip.example.test',
+    'username' => 'provider-user', 'secret' => 'provider-secret', 'enabled' => 1,
+]);
+$trunkConfig = $gen->renderPjsipTrunks();
+$check(str_contains($trunkConfig, "[trunk-{$trackedTrunk}-identify]\ntype = identify\nendpoint = trunk-{$trackedTrunk}\nmatch = sip.example.test"), 'provider host identifies inbound trunk calls');
 $tracker = new App\Services\Asterisk\TrunkStatusTracker();
 $tracker->recordStatuses(['trunk-' . $trackedTrunk => 'Registered']);
 $tracker->recordStatuses(['trunk-' . $trackedTrunk => 'Registered']);
@@ -151,9 +156,19 @@ $check(count($timelineSegments) === 2
 $snapshot = App\Services\Asterisk\AsteriskManager::parseConciseChannels(
     'PJSIP/1001@tenant-a.example.test-00000001!tenant_a!1001!1!Up!Dial!PJSIP/trunk!Caller!acct!0!00:20!PJSIP/trunk-00000002!uid' . "\n" .
     'PJSIP/2002@tenant-a.example.test-00000003!tenant_a!2002!1!Ringing!Dial!x!Caller!acct!0!00:02!!uid' . "\n" .
+    'PJSIP/trunk-1-00000004!tenant_a-inbound!5551234!1!Ring!Dial!PJSIP/1001!External!acct!0!00:01!PJSIP/1001@tenant-a.example.test-00000001!uid' . "\n" .
     'not a channel'
 );
-$check(count($snapshot) === 2 && $snapshot['PJSIP/1001@tenant-a.example.test-00000001']['bridged'] === 'PJSIP/trunk-00000002', 'concise channel bridge parsing');
+$tenantSnapshot = App\Services\Asterisk\AsteriskManager::filterTenantChannels(
+    $snapshot,
+    [['extension' => '1001'], ['extension' => '2002']],
+    'tenant-a.example.test',
+    'tenant_a'
+);
+$check(count($snapshot) === 3
+    && $snapshot['PJSIP/1001@tenant-a.example.test-00000001']['bridged'] === 'PJSIP/trunk-00000002'
+    && $snapshot['PJSIP/1001@tenant-a.example.test-00000001']['app'] === 'Dial'
+    && count($tenantSnapshot) === 3, 'concise live channels include tenant trunk and extension legs');
 
 $controller = new App\Controllers\LiveListenController();
 $page = $controller->index(new App\Core\Request('GET', '/live-listen'));

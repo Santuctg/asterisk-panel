@@ -40,12 +40,29 @@ if (!is_readable($csvPath)) {
     exit(1);
 }
 
-// Cache context -> tenant lookup.
-$ctxToTenant = [];
-foreach ($db->all('SELECT id, context FROM tenants') as $t) {
-    $ctxToTenant[$t['context']] = (int) $t['id'];
-    $ctxToTenant[$t['context'] . '-inbound'] = (int) $t['id'];
-    $ctxToTenant[$t['context'] . '-outbound'] = (int) $t['id'];
+// Longest context wins so tenants named "a" and "a-b" cannot overlap.
+$tenantContexts = $db->all('SELECT id, context FROM tenants ORDER BY LENGTH(context) DESC');
+$resolveTenant = static function (string $dcontext) use ($tenantContexts): ?int {
+    foreach ($tenantContexts as $tenant) {
+        $context = (string) $tenant['context'];
+        if ($dcontext === $context || str_starts_with($dcontext, $context . '-')) {
+            return (int) $tenant['id'];
+        }
+    }
+    return null;
+};
+
+// Repair older rows imported from route-specific contexts such as
+// default-outbound-1. These rows already exist in the permanent import ledger,
+// so reconciliation must happen independently of new CSV inserts.
+foreach ($db->all('SELECT id, uniqueid, dcontext FROM cdr WHERE tenant_id IS NULL') as $existing) {
+    $tenantId = $resolveTenant((string) $existing['dcontext']);
+    if ($tenantId !== null) {
+        $db->update('cdr', (int) $existing['id'], ['tenant_id' => $tenantId]);
+        if (!empty($existing['uniqueid'])) {
+            $db->run('UPDATE cdr_import_log SET tenant_id = ? WHERE uniqueid = ?', [$tenantId, $existing['uniqueid']]);
+        }
+    }
 }
 
 $handle = fopen($csvPath, 'r');
@@ -106,7 +123,7 @@ while (($row = fgetcsv($handle, 0, ',', '"', '\\')) !== false) {
     }
 
     $dcontext = (string) $get('dcontext');
-    $tenantId = $ctxToTenant[$dcontext] ?? null;
+    $tenantId = $resolveTenant($dcontext);
 
     $db->insert('cdr', [
         'tenant_id'   => $tenantId,

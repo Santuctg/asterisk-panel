@@ -177,14 +177,37 @@ final class AsteriskManager
         }
         $realm = strtolower(rtrim(trim((string) ($tenant['domain'] ?? '')), '.')) ?: (string) $tenant['context'];
         $extensions = $db->all('SELECT extension FROM extensions WHERE tenant_id = ? AND enabled = 1', [$tenantId]);
+        return self::filterTenantChannels(
+            $this->channelSnapshot(),
+            $extensions,
+            $realm,
+            (string) $tenant['context'],
+            $limit
+        );
+    }
+
+    /** Filter a machine-readable snapshot by tenant endpoint or context. */
+    public static function filterTenantChannels(
+        array $snapshot,
+        array $extensions,
+        string $realm,
+        string $context,
+        int $limit = 25
+    ): array {
         $prefixes = array_map(static fn ($row) => 'PJSIP/' . $row['extension'] . '@' . $realm . '-', $extensions);
         $rows = [];
-        foreach ($this->channels(200) as $channel) {
+        foreach ($snapshot as $channel) {
+            $channelContext = (string) ($channel['context'] ?? '');
+            $belongs = $channelContext === $context || str_starts_with($channelContext, $context . '-');
             foreach ($prefixes as $prefix) {
-                if (str_starts_with($channel['name'], $prefix)) {
-                    $rows[] = $channel;
+                if (str_starts_with((string) ($channel['name'] ?? ''), $prefix)
+                    || str_starts_with((string) ($channel['bridged'] ?? ''), $prefix)) {
+                    $belongs = true;
                     break;
                 }
+            }
+            if ($belongs) {
+                $rows[] = $channel;
             }
             if (count($rows) >= $limit) {
                 break;
@@ -207,6 +230,8 @@ final class AsteriskManager
             if (count($fields) >= 12 && preg_match('/^PJSIP\/[A-Za-z0-9_.@-]+-[a-fA-F0-9]+$/', $fields[0])) {
                 $rows[$fields[0]] = [
                     'name' => $fields[0], 'context' => $fields[1],
+                    'extension' => $fields[2], 'priority' => $fields[3],
+                    'state' => $fields[4], 'app' => $fields[5], 'data' => $fields[6],
                     'caller' => $fields[7], 'duration' => $fields[10],
                     'bridged' => $fields[11],
                 ];

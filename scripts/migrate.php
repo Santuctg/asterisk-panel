@@ -62,6 +62,24 @@ if ($driver === 'sqlite') {
     }
 }
 
+// Route-specific dialplan contexts (for example default-outbound-1) still
+// belong to the tenant whose base context is "default". Backfill previously
+// imported CDRs so tenant users can see calls and their recordings.
+foreach ($db->all('SELECT id, context FROM tenants ORDER BY LENGTH(context) DESC') as $tenant) {
+    $rows = $db->all('SELECT id, uniqueid, dcontext FROM cdr WHERE tenant_id IS NULL');
+    foreach ($rows as $row) {
+        $dcontext = (string) $row['dcontext'];
+        $context = (string) $tenant['context'];
+        if ($dcontext !== $context && !str_starts_with($dcontext, $context . '-')) {
+            continue;
+        }
+        $db->update('cdr', (int) $row['id'], ['tenant_id' => (int) $tenant['id']]);
+        if (!empty($row['uniqueid'])) {
+            $db->run('UPDATE cdr_import_log SET tenant_id = ? WHERE uniqueid = ?', [(int) $tenant['id'], $row['uniqueid']]);
+        }
+    }
+}
+
 // Keep a permanent import ledger so clearing call history does not cause old
 // rows still present in Asterisk's Master.csv to be imported again.
 if ($driver === 'sqlite') {

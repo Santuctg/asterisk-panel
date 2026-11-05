@@ -277,6 +277,13 @@ final class ConfigGenerator
                 $out .= "callerid = {$t['cid']}\n";
             }
             $out .= "\n";
+
+            // Match provider-originated INVITEs by signalling IP/host. An
+            // outbound registration alone does not identify inbound traffic.
+            $out .= "[trunk-{$t['id']}-identify]\n";
+            $out .= "type = identify\n";
+            $out .= "endpoint = trunk-{$t['id']}\n";
+            $out .= "match = {$t['host']}\n\n";
         }
 
         return $out;
