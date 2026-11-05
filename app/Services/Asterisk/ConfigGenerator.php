@@ -69,6 +69,10 @@ final class ConfigGenerator
         }
         $files = match ($feature) {
             'sip_port' => ['pjsip_port.conf' => $this->renderPjsipPort()],
+            'settings' => [
+                'pjsip_port.conf' => $this->renderPjsipPort(),
+                'dialplan.conf'   => $this->renderDialplan(),
+            ],
             'extension', 'voicemail' => [
                 'pjsip_endpoints.conf' => $this->renderPjsipEndpoints(),
                 'voicemail.conf'       => $this->renderVoicemail(),

@@ -98,16 +98,22 @@ abstract class BaseController
     }
 
     /** Regenerate Asterisk config for a feature and reload the daemon. */
-    protected function applyToAsterisk(string $feature): void
+    protected function applyToAsterisk(string $feature): bool
     {
         try {
             $gen = new \App\Services\Asterisk\ConfigGenerator();
             $gen->generateFor($feature);
 
             $mgr = asterisk();
+            if (!$mgr->isOnline()) {
+                throw new \RuntimeException('Asterisk AMI is unavailable.');
+            }
             $mgr->reloadManaged();
+            return true;
         } catch (\Throwable $e) {
             \App\Core\Logger::warning('Asterisk apply failed', ['feature' => $feature, 'error' => $e->getMessage()]);
+            Flash::warning('Changes were saved, but could not be applied to Asterisk. Check System Status and apply the configuration again.');
+            return false;
         }
     }
 }

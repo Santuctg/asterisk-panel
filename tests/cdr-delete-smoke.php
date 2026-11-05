@@ -35,8 +35,9 @@ $recordingId = $db->insert('cdr', [
 ]);
 $page = $controller->index(new App\Core\Request('GET', '/cdr'));
 if (!str_contains($page->body(), 'Delete all history')) throw new RuntimeException('CDR delete controls missing');
-if (!str_contains($page->body(), '<audio controls preload="none"')) throw new RuntimeException('Inline recording player missing');
-if (!str_contains($page->body(), '/cdr/'.$recordingId.'/recording?inline=1')) throw new RuntimeException('Inline recording URL missing');
+if (!str_contains($page->body(), 'data-modal-open="recordingPlaybackModal"')) throw new RuntimeException('Recording play button missing');
+if (!str_contains($page->body(), 'id="recordingPlaybackModal"')) throw new RuntimeException('Recording playback modal missing');
+if (!str_contains($page->body(), 'data-recording-src="/cdr/'.$recordingId.'/recording?inline=1"')) throw new RuntimeException('Modal recording URL missing');
 $inlineRequest = new App\Core\Request('GET', '/cdr/'.$recordingId.'/recording', ['inline' => '1']);
 $inlineRequest->params = ['id' => $recordingId];
 $inline = $controller->recording($inlineRequest);

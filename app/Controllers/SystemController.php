@@ -178,11 +178,10 @@ final class SystemController extends BaseController
         }
 
         $this->audit('settings.update', 'settings', $tid);
+        $this->applyToAsterisk('settings');
         if ($this->app->auth()->isSuperAdmin()) {
-            $this->applyToAsterisk('sip_port');
             Flash::success('Settings saved. SIP port configuration was regenerated; restart Asterisk to activate a changed listener port.');
         } else {
-            $this->applyToAsterisk('route');
             Flash::success('Settings saved.');
         }
         return Response::redirect('/system/settings');

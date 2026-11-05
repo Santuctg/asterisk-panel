@@ -122,13 +122,10 @@ $answeredRate = ($stats['total'] ?? 0) > 0
                                 <td class="num mono"><?= e(format_duration((int) $c['billsec'])) ?></td>
                                 <td>
                                     <?php if (str_starts_with((string) ($c['userfield'] ?? ''), 'recording:')): ?>
-                                        <div class="recording-player">
-                                            <audio controls preload="none" aria-label="Call recording <?= (int) $c['id'] ?>">
-                                                <source src="/cdr/<?= (int) $c['id'] ?>/recording?inline=1" type="audio/wav">
-                                                Your browser does not support audio playback.
-                                            </audio>
-                                            <a class="btn btn-sm btn-ghost" href="/cdr/<?= (int) $c['id'] ?>/recording">Download</a>
-                                        </div>
+                                        <button type="button" class="btn btn-sm" data-modal-open="recordingPlaybackModal"
+                                                data-recording-src="/cdr/<?= (int) $c['id'] ?>/recording?inline=1"
+                                                data-recording-download="/cdr/<?= (int) $c['id'] ?>/recording"
+                                                data-recording-title="<?= e($c['src'] . ' → ' . $c['dst']) ?>">Play</button>
                                     <?php else: ?>
                                         <span class="muted">—</span>
                                     <?php endif; ?>
@@ -158,3 +155,56 @@ $answeredRate = ($stats['total'] ?? 0) > 0
         </div>
     <?php endif; ?>
 </div>
+
+<div class="modal-overlay" id="recordingPlaybackModal" hidden>
+    <div class="modal recording-modal" role="dialog" aria-modal="true" aria-labelledby="recordingPlaybackTitle">
+        <div class="modal-head">
+            <div>
+                <h2 id="recordingPlaybackTitle">Call recording</h2>
+                <div class="muted text-sm" id="recordingPlaybackCall"></div>
+            </div>
+            <button type="button" class="icon-btn" data-modal-close aria-label="Close"><?= $this->fragment('icons/x') ?></button>
+        </div>
+        <div class="modal-body">
+            <audio id="recordingPlaybackAudio" controls preload="none">Your browser does not support audio playback.</audio>
+        </div>
+        <div class="modal-foot">
+            <a class="btn btn-ghost" id="recordingPlaybackDownload" href="#">Download WAV</a>
+            <button type="button" class="btn" data-modal-close>Close</button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    var modal = document.getElementById('recordingPlaybackModal');
+    var audio = document.getElementById('recordingPlaybackAudio');
+    var download = document.getElementById('recordingPlaybackDownload');
+    var call = document.getElementById('recordingPlaybackCall');
+
+    function stopPlayback() {
+        audio.pause();
+        audio.removeAttribute('src');
+        audio.load();
+    }
+
+    document.querySelectorAll('[data-recording-src]').forEach(function (button) {
+        button.addEventListener('click', function () {
+            stopPlayback();
+            audio.src = button.dataset.recordingSrc;
+            download.href = button.dataset.recordingDownload;
+            call.textContent = button.dataset.recordingTitle || '';
+            audio.load();
+            var started = audio.play();
+            if (started && started.catch) started.catch(function () {});
+        });
+    });
+
+    modal.addEventListener('click', function (event) {
+        if (event.target === modal || event.target.closest('[data-modal-close]')) stopPlayback();
+    });
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && !modal.hidden) stopPlayback();
+    });
+})();
+</script>

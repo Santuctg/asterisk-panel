@@ -78,6 +78,8 @@ $trackedTrunk = $db->insert('trunks', [
 ]);
 $trunkConfig = $gen->renderPjsipTrunks();
 $check(str_contains($trunkConfig, "[trunk-{$trackedTrunk}-identify]\ntype = identify\nendpoint = trunk-{$trackedTrunk}\nmatch = sip.example.test"), 'provider host identifies inbound trunk calls');
+$settingsFiles = $gen->generateFor('settings');
+$check(in_array('pjsip_port.conf', $settingsFiles, true) && in_array('dialplan.conf', $settingsFiles, true), 'system settings regenerate SIP and tenant dialplan configuration');
 $tracker = new App\Services\Asterisk\TrunkStatusTracker();
 $tracker->recordStatuses(['trunk-' . $trackedTrunk => 'Registered']);
 $tracker->recordStatuses(['trunk-' . $trackedTrunk => 'Registered']);
