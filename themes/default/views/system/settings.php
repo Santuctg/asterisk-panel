@@ -97,6 +97,13 @@ $s = static fn (string $k, string $d = '') => $settings[$k] ?? $d;
                     'span' => true,
                     'hint' => 'Recordings are WAV files under the protected Asterisk recording directory.',
                 ]); ?>
+                <?php echo field_select('recording_start', 'Start recording', [
+                    'answered' => 'After the call is answered (conversation only)',
+                    'full' => 'From call start (announcement and ringing included)',
+                ], $s('recording_start', 'full'), [
+                    'span' => true,
+                    'hint' => 'After answer starts when the inbound agent or outbound remote party joins the call.',
+                ]); ?>
             </div>
             <p class="hint mb-0">Call recording laws vary. Enable this only after confirming consent, disclosure and retention requirements for every location involved.</p>
         </div>

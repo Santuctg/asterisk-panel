@@ -145,6 +145,11 @@ final class SystemController extends BaseController
             Flash::error('The selected automatic recording mode is invalid.');
             return Response::redirect('/system/settings');
         }
+        $recordingStart = $request->str('recording_start', 'full');
+        if (!in_array($recordingStart, ['answered', 'full'], true)) {
+            Flash::error('The selected recording start mode is invalid.');
+            return Response::redirect('/system/settings');
+        }
         $timezone = $request->str('timezone', 'UTC');
         if (!\is_valid_timezone($timezone)) {
             Flash::error('The selected timezone is invalid.');
@@ -168,7 +173,7 @@ final class SystemController extends BaseController
 
         $keys = ['company_name', 'company_email', 'company_phone', 'outbound_cid_name',
                   'outbound_cid_number', 'voicemail_email_subject', 'voicemail_email_body',
-                  'provision_base_url', 'time_format', 'recording_mode'];
+                   'provision_base_url', 'time_format', 'recording_mode', 'recording_start'];
 
         foreach ($keys as $key) {
             $value = $request->str($key);

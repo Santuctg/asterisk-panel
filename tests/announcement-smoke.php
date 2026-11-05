@@ -30,7 +30,7 @@ $aa = $db->insert('announcements', ['tenant_id'=>$a,'name'=>'Tenant A welcome','
 $ab = $db->insert('announcements', ['tenant_id'=>$b,'name'=>'Tenant B secret','filename'=>'b.wav','original_filename'=>'tenant-b-secret.wav','sound_path'=>'asterisk-panel/b/b','enabled'=>1]);
 file_put_contents($audioDir . '/a/a.wav', 'RIFF-test-audio');
 file_put_contents($audioDir . '/b/b.wav', 'RIFF-secret-audio');
-$group = $db->insert('ring_groups', ['tenant_id'=>$a,'extension'=>'600','name'=>'Sales','announcement_id'=>$aa,'enabled'=>1]);
+$group = $db->insert('ring_groups', ['tenant_id'=>$a,'extension'=>'600','name'=>'Sales','announcement_id'=>$aa,'record'=>1,'enabled'=>1]);
 $db->update('announcements', $aa, ['dest_type'=>'ringgroup', 'dest_id'=>$group]);
 $app->auth()->login($user);
 $_SERVER['HTTP_HOST'] = 'a.example.test';
@@ -66,12 +66,17 @@ if (!str_contains($page->body(), 'Tenant A welcome') || !str_contains($page->bod
 $db->update('tenants', $a, ['timezone'=>'Asia/Dhaka']);
 $settingsPage = (new App\Controllers\SystemController())->settings(new App\Core\Request('GET', '/system/settings'));
 if (!str_contains($settingsPage->body(), 'value="Asia/Dhaka" selected')) throw new RuntimeException('Tenant timezone is not available in System Settings');
+if (!str_contains($settingsPage->body(), 'After the call is answered (conversation only)')) throw new RuntimeException('Recording start selector is missing from System Settings');
 $dialplan = (new App\Services\Asterisk\ConfigGenerator())->renderDialplan();
 if (!str_contains($dialplan, '[a-announcement-'.$aa.']')
     || !str_contains($dialplan, 'Playback(asterisk-panel/a/a)')
     || !str_contains($dialplan, 'Gosub(a,600,1)')
-    || !str_contains($dialplan, 'MixMonitor(')
-    || str_contains($dialplan, 'MixMonitor(/var/spool/asterisk/monitor/asterisk-panel/${PANEL_RECORDING_FILE},b)')) throw new RuntimeException('Routable announcement or full-call recording dialplan is invalid');
+    || !str_contains($dialplan, 'Gosub(panel-auto-record,s,1(internal,a,full))')
+    || !str_contains($dialplan, 'GotoIf($["${ARG3}"="answered"]?answered)')
+    || !str_contains($dialplan, 'MixMonitor(/var/spool/asterisk/monitor/asterisk-panel/${PANEL_RECORDING_FILE},b)')) throw new RuntimeException('Routable announcement or selectable recording dialplan is invalid');
+$recordingStart = $db->insert('settings', ['tenant_id'=>$a,'key'=>'recording_start','value'=>'answered']);
+if (!str_contains((new App\Services\Asterisk\ConfigGenerator())->renderDialplan(), 'Gosub(panel-auto-record,s,1(internal,a,answered))')) throw new RuntimeException('Answered-only recording mode was not generated');
+$db->update('settings', $recordingStart, ['value'=>'full']);
 $routeOptions = (new App\Controllers\RouteController())->destinationOptions();
 if (($routeOptions['announcement'][0]['id'] ?? null) !== $aa) throw new RuntimeException('Announcement is not available as a destination');
 $fromLibrary = new App\Core\Request('POST', '/announcements', [], [

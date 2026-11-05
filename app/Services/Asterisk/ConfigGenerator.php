@@ -987,14 +987,20 @@ final class ConfigGenerator
         $out .= " same => n,Set(__PANEL_RECORDING_STARTED=1)\n";
         $out .= " same => n,Set(__PANEL_RECORDING_FILE=\${ARG2}-\${ARG1}-\${STRFTIME(\${EPOCH},,%Y%m%d-%H%M%S)}-\${UNIQUEID}.wav)\n";
         $out .= " same => n,Set(CDR(userfield)=recording:\${PANEL_RECORDING_FILE})\n";
+        $out .= " same => n,GotoIf(\$[\"\${ARG3}\"=\"answered\"]?answered)\n";
         $out .= " same => n,MixMonitor({$dir}/\${PANEL_RECORDING_FILE})\n";
+        $out .= " same => n,Goto(done)\n";
+        $out .= " same => n(answered),MixMonitor({$dir}/\${PANEL_RECORDING_FILE},b)\n";
         $out .= " same => n(done),Return()\n\n";
         return $out;
     }
 
     private function recordingGosub(string $direction, string $ctx): string
     {
-        return " same => n,Gosub(panel-auto-record,s,1({$direction},{$ctx}))\n";
+        $tenantId = (int) $this->db->scalar('SELECT id FROM tenants WHERE context = ? LIMIT 1', [$ctx]);
+        $start = $tenantId > 0 ? $this->tenantSetting($tenantId, 'recording_start', 'full') : 'full';
+        $start = $start === 'answered' ? 'answered' : 'full';
+        return " same => n,Gosub(panel-auto-record,s,1({$direction},{$ctx},{$start}))\n";
     }
 
     private function announcementHelperContext(): string
