@@ -35,6 +35,8 @@ return [
     'moh_path'   => $env('ASTERISK_MOH_PATH', '/var/lib/asterisk/moh'),
     'announcement_dir' => $env('ASTERISK_ANNOUNCEMENT_DIR', '/var/lib/asterisk/sounds/asterisk-panel'),
     'recording_dir' => $env('ASTERISK_RECORDING_DIR', '/var/spool/asterisk/monitor/asterisk-panel'),
+    // Asterisk's CSV backend writes naive timestamps in the server timezone.
+    'cdr_timezone' => $env('ASTERISK_CDR_TIMEZONE', 'UTC'),
 
     'voicemail' => [
         'serveremail' => $env('VM_SERVEREMAIL', 'asterisk@localhost'),

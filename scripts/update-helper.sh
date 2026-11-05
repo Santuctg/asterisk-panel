@@ -92,6 +92,45 @@ update() {
             fi
         fi
     fi
+    cat >/etc/systemd/system/asterisk-panel-cdr.service <<EOF
+[Unit]
+Description=Import Asterisk CDR into Asterisk Panel
+After=asterisk.service
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+SupplementaryGroups=asterisk
+EnvironmentFile=/etc/asterisk-panel/server.env
+Environment=DB_DRIVER=sqlite
+Environment=DB_NAME=$APP/storage/database/asterisk_panel.sqlite
+Environment=CDR_CSV_PATH=/var/log/asterisk/cdr-csv/Master.csv
+ExecStart=/usr/bin/php $APP/scripts/import-cdr.php
+EOF
+    cat >/etc/systemd/system/asterisk-panel-cdr.timer <<'EOF'
+[Unit]
+Description=Import Asterisk CDR fallback timer
+
+[Timer]
+OnBootSec=10s
+OnUnitActiveSec=15s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+    cat >/etc/systemd/system/asterisk-panel-cdr.path <<'EOF'
+[Unit]
+Description=Import Asterisk CDR when Master.csv changes
+
+[Path]
+PathChanged=/var/log/asterisk/cdr-csv/Master.csv
+Unit=asterisk-panel-cdr.service
+
+[Install]
+WantedBy=multi-user.target
+EOF
     cat >/etc/systemd/system/asterisk-panel-trunk-monitor.service <<EOF
 [Unit]
 Description=Record Asterisk Panel SIP status history (trunks and extensions)
@@ -121,11 +160,13 @@ WantedBy=timers.target
 EOF
     systemctl daemon-reload
     systemctl enable --now asterisk-panel-trunk-monitor.timer
+    systemctl enable --now asterisk-panel-cdr.path
     install -o root -g root -m 0755 "$REPO/scripts/update-helper.sh" /usr/local/sbin/asterisk-panel-update
     systemctl restart php8.3-fpm
     nginx -t
     systemctl reload nginx
     systemctl restart asterisk-panel-cdr.timer
+    systemctl restart asterisk-panel-cdr.path
     systemctl restart asterisk-panel-trunk-monitor.timer
     printf 'updated=%s\nbackup=%s\n' "$(git -C "$REPO" rev-parse --short HEAD)" "$backup"
 }

@@ -34,6 +34,8 @@ $app->boot();
 $db = App::getInstance()->db();
 
 $csvPath = getenv('CDR_CSV_PATH') ?: '/var/log/asterisk/cdr-csv/Master.csv';
+$offsetDir = BASE_PATH . '/storage/cache';
+$offsetPath = $offsetDir . '/cdr-import-' . sha1($csvPath) . '.offset';
 
 if (!is_readable($csvPath)) {
     fwrite(STDERR, "CDR CSV not readable: {$csvPath}\n");
@@ -95,6 +97,18 @@ if ($header && in_array('uniqueid', $header, true)) {
     );
 }
 
+// Continue where the previous run stopped. This keeps frequent path/timer
+// imports fast even when Master.csv has grown over months or years.
+$offset = is_file($offsetPath) ? (int) trim((string) file_get_contents($offsetPath)) : 0;
+$size = filesize($csvPath) ?: 0;
+if ($offset > 0 && $offset <= $size) {
+    fseek($handle, $offset);
+} elseif ($offset > $size) {
+    // Asterisk log rotation/truncation: begin at the start of the new file.
+    rewind($handle);
+    if ($header && in_array('uniqueid', $header, true)) { fgetcsv($handle, 0, ',', '"', '\\'); }
+}
+
 $inserted = 0;
 $skipped  = 0;
 
@@ -152,7 +166,10 @@ while (($row = fgetcsv($handle, 0, ',', '"', '\\')) !== false) {
     $inserted++;
 }
 
+$nextOffset = ftell($handle);
 fclose($handle);
+if (!is_dir($offsetDir)) { @mkdir($offsetDir, 0775, true); }
+if ($nextOffset !== false) { @file_put_contents($offsetPath, (string) $nextOffset, LOCK_EX); }
 
 echo "CDR import complete: {$inserted} inserted, {$skipped} skipped (already present or blank).\n";
 Logger::info('CDR import', ['inserted' => $inserted, 'skipped' => $skipped]);

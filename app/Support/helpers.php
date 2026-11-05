@@ -241,6 +241,21 @@ if (!function_exists('format_date')) {
     }
 }
 
+if (!function_exists('format_cdr_date')) {
+    /** Convert Asterisk's timezone-less CDR timestamp into the active tenant timezone. */
+    function format_cdr_date(?string $dt, string $format = 'M j, Y g:i A'): string
+    {
+        if (!$dt) { return '—'; }
+        try {
+            $source = new DateTimeZone((string) config('asterisk.cdr_timezone', 'UTC'));
+            $target = new DateTimeZone(date_default_timezone_get());
+            return (new DateTimeImmutable($dt, $source))->setTimezone($target)->format($format);
+        } catch (Throwable) {
+            return format_date($dt, $format);
+        }
+    }
+}
+
 if (!function_exists('timezone_options')) {
     /**
      * Every timezone known to this PHP build, grouped for readable selects.

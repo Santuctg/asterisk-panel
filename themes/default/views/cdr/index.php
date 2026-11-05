@@ -112,7 +112,7 @@ $answeredRate = ($stats['total'] ?? 0) > 0
                                 <?php if (auth()->can('cdr.delete')): ?>
                                     <td class="col-check"><input type="checkbox" class="cdr-check" name="ids[]" value="<?= (int) $c['id'] ?>" form="cdrBulkForm"></td>
                                 <?php endif; ?>
-                                <td class="nowrap muted text-xs"><?= e(format_date($c['calldate'])) ?></td>
+                                <td class="nowrap muted text-xs"><?= e(format_cdr_date($c['calldate'])) ?></td>
                                 <td class="mono"><?= e($c['src']) ?></td>
                                 <td class="mono"><?= e($c['dst']) ?></td>
                                 <td class="muted"><?= e($c['dcontext']) ?></td>

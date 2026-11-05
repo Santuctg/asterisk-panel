@@ -66,6 +66,7 @@ if (!str_contains($page->body(), 'Tenant A welcome') || !str_contains($page->bod
 $db->update('tenants', $a, ['timezone'=>'Asia/Dhaka']);
 $settingsPage = (new App\Controllers\SystemController())->settings(new App\Core\Request('GET', '/system/settings'));
 if (!str_contains($settingsPage->body(), 'value="Asia/Dhaka" selected')) throw new RuntimeException('Tenant timezone is not available in System Settings');
+if (format_cdr_date('2026-11-05 17:40:00') !== 'Nov 5, 2026 11:40 PM') throw new RuntimeException('UTC CDR time was not converted to the tenant timezone');
 if (!str_contains($settingsPage->body(), 'After the call is answered (conversation only)')) throw new RuntimeException('Recording start selector is missing from System Settings');
 $dialplan = (new App\Services\Asterisk\ConfigGenerator())->renderDialplan();
 if (!str_contains($dialplan, '[a-announcement-'.$aa.']')

@@ -359,11 +359,11 @@ ExecStart=/usr/bin/php ${INSTALL_DIR}/scripts/import-cdr.php
 EOF
 cat >/etc/systemd/system/asterisk-panel-cdr.timer <<'EOF'
 [Unit]
-Description=Import Asterisk CDR every minute
+Description=Import Asterisk CDR fallback timer
 
 [Timer]
-OnBootSec=1min
-OnUnitActiveSec=1min
+OnBootSec=10s
+OnUnitActiveSec=15s
 Persistent=true
 
 [Install]
@@ -371,6 +371,19 @@ WantedBy=timers.target
 EOF
 systemctl daemon-reload
 systemctl enable --now asterisk-panel-cdr.timer
+cat >/etc/systemd/system/asterisk-panel-cdr.path <<'EOF'
+[Unit]
+Description=Import Asterisk CDR when Master.csv changes
+
+[Path]
+PathChanged=/var/log/asterisk/cdr-csv/Master.csv
+Unit=asterisk-panel-cdr.service
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable --now asterisk-panel-cdr.path
 cat >/etc/systemd/system/asterisk-panel-trunk-monitor.service <<EOF
 [Unit]
 Description=Record Asterisk Panel SIP status history (trunks and extensions)

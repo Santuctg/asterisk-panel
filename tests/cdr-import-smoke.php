@@ -8,6 +8,8 @@ $csvPath = $base . '/storage/cache/cdr-import-smoke.csv';
 @mkdir(dirname($dbPath), 0775, true);
 @unlink($dbPath);
 @unlink($csvPath);
+$offsetPath = $base . '/storage/cache/cdr-import-' . sha1($csvPath) . '.offset';
+@unlink($offsetPath);
 
 $pdo = new PDO('sqlite:' . $dbPath);
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -49,4 +51,7 @@ if ((int) $pdo->query('SELECT COUNT(*) FROM cdr')->fetchColumn() !== 0) throw ne
 $pdo = null;
 @unlink($dbPath);
 @unlink($csvPath);
+@unlink($offsetPath);
+if (!str_contains(file_get_contents($base . '/scripts/update-helper.sh'), 'asterisk-panel-cdr.path')
+    || !str_contains(file_get_contents($base . '/scripts/update-helper.sh'), 'OnUnitActiveSec=15s')) throw new RuntimeException('Near-real-time CDR importer units are missing');
 echo "CDR import ledger prevents deleted history from returning.\n";
