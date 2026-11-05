@@ -277,6 +277,7 @@ cat >/etc/asterisk/logger.d/asterisk-panel.conf <<'EOF'
 [logfiles]
 security => security
 EOF
+chown root:asterisk /etc/asterisk/logger.d/asterisk-panel.conf
 chmod 0640 /etc/asterisk/logger.d/asterisk-panel.conf
 ensure_include /etc/asterisk/logger.conf '#include logger.d/asterisk-panel.conf'
 
@@ -299,6 +300,17 @@ echo "[8/11] Starting Asterisk..."
 if [[ -f /etc/asterisk/modules.conf ]] && ! grep -qE '^[[:space:]]*noload[[:space:]]*=>[[:space:]]*chan_iax2\.so' /etc/asterisk/modules.conf; then
     cp -an /etc/asterisk/modules.conf /etc/asterisk/modules.conf.pre-panel-iax
     sed -i '/^autoload=yes/a noload => chan_iax2.so' /etc/asterisk/modules.conf
+fi
+# Ubuntu ships multiple mutually exclusive voicemail storage modules. Keep the
+# IMAP variant and prevent the plain/ODBC variants from stealing VM_INFO during
+# autoload, which otherwise leaves Voicemail() and VoicemailMain() unregistered.
+if [[ -f /etc/asterisk/modules.conf ]]; then
+    cp -an /etc/asterisk/modules.conf /etc/asterisk/modules.conf.pre-panel-voicemail
+    for module in app_voicemail.so app_voicemail_odbc.so; do
+        if ! grep -qE "^[[:space:]]*noload[[:space:]]*=>[[:space:]]*${module//./\\.}([[:space:]]|$)" /etc/asterisk/modules.conf; then
+            sed -i "/^autoload=yes/a noload => $module" /etc/asterisk/modules.conf
+        fi
+    done
 fi
 # Ubuntu also autoloads chan_sip, which otherwise claims the SIP WebSocket
 # protocol before PJSIP and leaves res_pjsip_transport_websocket declined.

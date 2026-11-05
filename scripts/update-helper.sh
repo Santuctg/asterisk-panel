@@ -44,14 +44,32 @@ update() {
     rsync -a --delete --exclude=storage/ --exclude=.env "$REPO/" "$APP/"
     DB_DRIVER=sqlite DB_NAME="$APP/storage/database/asterisk_panel.sqlite" php "$APP/scripts/migrate.php"
     DB_DRIVER=sqlite DB_NAME="$APP/storage/database/asterisk_panel.sqlite" php "$APP/scripts/apply-config.php"
+    local voicemail_modules_changed=0
+    if [[ -f /etc/asterisk/modules.conf ]]; then
+        cp -an /etc/asterisk/modules.conf /etc/asterisk/modules.conf.pre-panel-voicemail
+        for module in app_voicemail.so app_voicemail_odbc.so; do
+            if ! grep -qE "^[[:space:]]*noload[[:space:]]*=>[[:space:]]*${module//./\\.}([[:space:]]|$)" /etc/asterisk/modules.conf; then
+                sed -i "/^autoload=yes/a noload => $module" /etc/asterisk/modules.conf
+                voicemail_modules_changed=1
+            fi
+        done
+    fi
     if systemctl is-active --quiet asterisk; then
-        asterisk -rx 'pjsip reload'
-        asterisk -rx 'dialplan reload'
-        asterisk -rx 'module reload app_voicemail.so'
-        asterisk -rx 'module reload app_queue.so'
-        asterisk -rx 'module reload res_parking.so'
-        asterisk -rx 'module reload res_musiconhold.so'
-        asterisk -rx 'module reload app_confbridge.so'
+        if (( voicemail_modules_changed )); then
+            systemctl restart asterisk
+        else
+            asterisk -rx 'pjsip reload'
+            asterisk -rx 'dialplan reload'
+            asterisk -rx 'module reload app_voicemail_imap.so'
+            asterisk -rx 'module reload app_queue.so'
+            asterisk -rx 'module reload res_parking.so'
+            asterisk -rx 'module reload res_musiconhold.so'
+            if asterisk -rx 'module show like app_confbridge' | grep -qE 'app_confbridge\.so.*Running'; then
+                asterisk -rx 'module reload app_confbridge.so'
+            else
+                asterisk -rx 'module load app_confbridge.so'
+            fi
+        fi
     fi
     cat >/etc/systemd/system/asterisk-panel-trunk-monitor.service <<EOF
 [Unit]

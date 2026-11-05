@@ -863,25 +863,17 @@ final class ConfigGenerator
             $ctx = $ctxRow['context'];
             $tid = (int) $ctxRow['id'];
 
-            // One bridge + user profile per tenant, parameterised per room.
+            // Asterisk's ACO parser rejects the whole file when any option is
+            // unknown, so keep these names aligned with Asterisk 20.
             $out .= "[{$ctx}-default]\n";
-            $out .= "type = bridge\n";
-            $out .= "sound-join = confbridge-join\n";
-            $out .= "sound-leave = confbridge-leave\n";
-            $out .= "sound-has-join = confbridge-has-join\n";
-            $out .= "sound-has-leave = confbridge-has-leave\n";
-            $out .= "sound-kick = confbridge-kicked\n";
-            $out .= "sound-dahdi-park = dahdi-park\n";
-            $out .= "sound-is-locked = conflocked\n";
-            $out .= "sound-is-unlocked = confunlocked\n";
-            $out .= "sound-unlocked = no\n\n";
+            $out .= "type = bridge\n\n";
 
             $out .= "[{$ctx}-users]\n";
             $out .= "type = user\n";
-            $out .= "announce-usercount = yes\n";
-            $out .= "announce-joinleave = yes\n";
+            $out .= "announce_user_count = yes\n";
+            $out .= "announce_join_leave = yes\n";
             $out .= "marked = no\n";
-            $out .= "endmarked = no\n";
+            $out .= "end_marked = no\n";
             $out .= "music_on_hold_class = default\n\n";
 
             foreach ($rooms as $r) {
@@ -892,8 +884,7 @@ final class ConfigGenerator
                 $out .= "[{$r['pin']}]\n";
                 $out .= "type = bridge\n";
                 $out .= "max_members = " . ($r['max_members'] ?: '0') . "\n";
-                $out .= "record_call = " . ($r['record'] ? 'yes' : 'no') . "\n";
-                $out .= "music_on_hold_class = " . ($r['moh_class'] ?: 'default') . "\n\n";
+                $out .= "record_conference = " . ($r['record'] ? 'yes' : 'no') . "\n\n";
             }
         }
 
