@@ -32,8 +32,9 @@ final class RouteController extends BaseController
 
         $inbound  = $db->all('SELECT * FROM inbound_routes WHERE tenant_id = ? ORDER BY priority, id', [$tid]);
         $outbound = $db->all(
-            'SELECT o.*, t.name AS trunk_name FROM outbound_routes o
+            'SELECT o.*, t.name AS trunk_name, tc.name AS time_condition_name, tc.enabled AS time_condition_enabled FROM outbound_routes o
              LEFT JOIN trunks t ON t.id = o.trunk_id
+             LEFT JOIN time_conditions tc ON tc.id = o.time_condition_id AND tc.tenant_id = o.tenant_id
              WHERE o.tenant_id = ? ORDER BY o.priority, o.id',
             [$tid]
         );
@@ -227,6 +228,7 @@ final class RouteController extends BaseController
             'prefix'        => $request->str('prefix'),
             'match_pattern' => $request->str('match_pattern'),
             'trunk_id'      => $request->int('trunk_id') ?: null,
+            'time_condition_id' => $this->validTimeConditionId($request->int('time_condition_id'), $tid),
             'cid_override'  => $request->str('cid_override'),
             'priority'      => $request->int('priority', 0),
             'enabled'       => $request->bool('enabled', true) ? 1 : 0,
@@ -264,6 +266,7 @@ final class RouteController extends BaseController
             'prefix'        => $request->str('prefix'),
             'match_pattern' => $request->str('match_pattern'),
             'trunk_id'      => $request->int('trunk_id') ?: null,
+            'time_condition_id' => $this->validTimeConditionId($request->int('time_condition_id'), (int) $row['tenant_id']),
             'cid_override'  => $request->str('cid_override'),
             'priority'      => $request->int('priority', 0),
             'enabled'       => $request->bool('enabled', true) ? 1 : 0,
@@ -408,9 +411,9 @@ final class RouteController extends BaseController
             'days_of_week'   => $request->str('days_of_week', '*'),
             'day_of_month'   => $request->str('day_of_month', '*'),
             'month'          => $request->str('month', '*'),
-            'start_hour'     => $request->int('start_hour') ?: null,
+            'start_hour'     => $request->str('start_hour') !== '' ? $request->int('start_hour') : null,
             'start_minute'   => $request->int('start_minute', 0),
-            'end_hour'       => $request->int('end_hour') ?: null,
+            'end_hour'       => $request->str('end_hour') !== '' ? $request->int('end_hour') : null,
             'end_minute'     => $request->int('end_minute', 0),
             'time_match'     => $request->str('time_match'),
             'open_type'      => $request->str('open_type'),
@@ -448,9 +451,9 @@ final class RouteController extends BaseController
             'days_of_week'   => $request->str('days_of_week', '*'),
             'day_of_month'   => $request->str('day_of_month', '*'),
             'month'          => $request->str('month', '*'),
-            'start_hour'     => $request->int('start_hour') ?: null,
+            'start_hour'     => $request->str('start_hour') !== '' ? $request->int('start_hour') : null,
             'start_minute'   => $request->int('start_minute', 0),
-            'end_hour'       => $request->int('end_hour') ?: null,
+            'end_hour'       => $request->str('end_hour') !== '' ? $request->int('end_hour') : null,
             'end_minute'     => $request->int('end_minute', 0),
             'time_match'     => $request->str('time_match'),
             'open_type'      => $request->str('open_type'),
@@ -476,6 +479,10 @@ final class RouteController extends BaseController
             return Response::redirect('/routes');
         }
 
+        $this->db()->run(
+            'UPDATE outbound_routes SET time_condition_id = NULL WHERE tenant_id = ? AND time_condition_id = ?',
+            [(int) $row['tenant_id'], (int) $row['id']]
+        );
         $this->db()->delete('time_conditions', (int) $row['id']);
         $this->audit('route.time.delete', 'time_condition', (int) $row['id']);
         $this->applyToAsterisk('timecondition');
@@ -510,6 +517,18 @@ final class RouteController extends BaseController
             'timecond'   => 'time_conditions',
             default      => null,
         };
+    }
+
+    private function validTimeConditionId(int $conditionId, int $tid): ?int
+    {
+        if ($conditionId <= 0) {
+            return null;
+        }
+
+        return $this->db()->scalar(
+            'SELECT id FROM time_conditions WHERE id = ? AND tenant_id = ? AND enabled = 1',
+            [$conditionId, $tid]
+        ) ? $conditionId : null;
     }
 
     /** Options for destination pickers, grouped by type. */

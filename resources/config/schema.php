@@ -259,6 +259,7 @@ return [
             prefix        VARCHAR(20),
             match_pattern VARCHAR(60) NOT NULL,
             trunk_id      INTEGER REFERENCES trunks(id) ON DELETE SET NULL,
+            time_condition_id INTEGER,
             cid_override  VARCHAR(60),
             priority      INTEGER DEFAULT 0,
             enabled       INTEGER DEFAULT 1,

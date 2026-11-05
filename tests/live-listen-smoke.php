@@ -80,9 +80,14 @@ $check((int) $db->scalar('SELECT COUNT(*) FROM trunk_status_history WHERE trunk_
 $tracker->recordStatuses(['trunk-' . $trackedTrunk => 'Rejected']);
 $check((int) $db->scalar('SELECT COUNT(*) FROM trunk_status_history WHERE trunk_id = ?', [$trackedTrunk]) === 2
     && (int) $db->scalar('SELECT COUNT(*) FROM trunk_status_history WHERE trunk_id = ? AND ended_at IS NULL', [$trackedTrunk]) === 1, 'trunk state changes create persistent history');
+$outboundTime = $db->insert('time_conditions', [
+    'tenant_id' => $tid, 'name' => 'Business hours', 'days_of_week' => 'mon-fri',
+    'day_of_month' => '*', 'month' => '*', 'start_hour' => 9, 'start_minute' => 0,
+    'end_hour' => 17, 'end_minute' => 0, 'enabled' => 1,
+]);
 $outboundRoute = $db->insert('outbound_routes', [
     'tenant_id' => $tid, 'name' => 'Outside via 9', 'prefix' => '9', 'match_pattern' => '_X.',
-    'trunk_id' => $trackedTrunk, 'priority' => 0, 'enabled' => 1,
+    'trunk_id' => $trackedTrunk, 'time_condition_id' => $outboundTime, 'priority' => 0, 'enabled' => 1,
 ]);
 $db->update('extensions', $targetExtension, ['outbound_route_id' => $outboundRoute]);
 $outboundDialplan = $gen->renderDialplan();
@@ -90,9 +95,11 @@ $outboundPjsip = $gen->renderPjsipEndpoints();
 $check(str_contains($outboundDialplan, '[tenant_a-outbound]')
     && str_contains($outboundDialplan, '${PANEL_OUTBOUND_ROUTE_ID}"="' . $outboundRoute)
     && str_contains($outboundDialplan, '[tenant_a-outbound-' . $outboundRoute . ']')
+    && str_contains($outboundDialplan, 'GotoIfTime(09:00-17:00,mon-fri,*,*?time-allowed)')
+    && str_contains($outboundDialplan, 'Outbound blocked by time condition: Business hours')
     && str_contains($outboundDialplan, 'exten => _9X.,1,NoOp(Outbound: Outside via 9)')
     && str_contains($outboundDialplan, 'Dial(PJSIP/trunk-' . $trackedTrunk . '/${EXTEN:1},30,Tt)')
-    && str_contains($outboundPjsip, 'set_var = PANEL_OUTBOUND_ROUTE_ID=' . $outboundRoute), 'assigned outbound route is enforced and its prefix is stripped');
+    && str_contains($outboundPjsip, 'set_var = PANEL_OUTBOUND_ROUTE_ID=' . $outboundRoute), 'assigned outbound route, schedule, and prefix stripping are enforced');
 $check(substr_count($outboundPjsip, 'set_var = PANEL_OUTBOUND_ROUTE_ID=' . $outboundRoute) === 2,
     'outbound permission applies to the desk phone and calling web endpoint only');
 

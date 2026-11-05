@@ -34,6 +34,15 @@ if ($driver === 'sqlite') {
             $pdo->exec('ALTER TABLE extensions ADD COLUMN outbound_route_id INTEGER');
         }
     }
+    $hasOutboundRoutes = (int) $db->scalar(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'outbound_routes'"
+    );
+    if ($hasOutboundRoutes) {
+        $routeColumns = array_column($db->all('PRAGMA table_info(outbound_routes)'), 'name');
+        if (!in_array('time_condition_id', $routeColumns, true)) {
+            $pdo->exec('ALTER TABLE outbound_routes ADD COLUMN time_condition_id INTEGER');
+        }
+    }
 } else {
     $hasOutboundRoute = (int) $db->scalar(
         'SELECT COUNT(*) FROM information_schema.COLUMNS
@@ -42,6 +51,14 @@ if ($driver === 'sqlite') {
     );
     if (!$hasOutboundRoute) {
         $pdo->exec('ALTER TABLE extensions ADD COLUMN outbound_route_id BIGINT NULL');
+    }
+    $hasTimeCondition = (int) $db->scalar(
+        'SELECT COUNT(*) FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+        ['outbound_routes', 'time_condition_id']
+    );
+    if (!$hasTimeCondition) {
+        $pdo->exec('ALTER TABLE outbound_routes ADD COLUMN time_condition_id BIGINT NULL');
     }
 }
 

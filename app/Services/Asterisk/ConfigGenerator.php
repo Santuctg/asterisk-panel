@@ -474,10 +474,28 @@ final class ConfigGenerator
             $pattern = $this->outboundPattern((string) $prefix, (string) $r['match_pattern']);
             $trunk   = $this->trunkChannel((int) $r['trunk_id']);
             $dialed  = $prefix !== '' ? '${EXTEN:' . strlen((string) $prefix) . '}' : '${EXTEN}';
+            $condition = null;
+            if (!empty($r['time_condition_id'])) {
+                $condition = $this->db->one(
+                    'SELECT * FROM time_conditions WHERE id = ? AND tenant_id = ? AND enabled = 1',
+                    [(int) $r['time_condition_id'], $tid]
+                );
+            }
 
             $out .= "[{$ctx}-outbound-{$r['id']}]\n";
             $out .= "; {$r['name']}\n";
             $out .= "exten => {$pattern},1,NoOp(Outbound: {$r['name']})\n";
+            if (!empty($r['time_condition_id'])) {
+                if ($condition) {
+                    $out .= " same => n,GotoIfTime(" . $this->timeMatch($condition) . "?time-allowed)\n";
+                    $out .= " same => n,NoOp(Outbound blocked by time condition: {$this->esc($condition['name'])})\n";
+                    $out .= " same => n,Hangup(21)\n";
+                    $out .= " same => n(time-allowed),NoOp(Outbound time condition matched)\n";
+                } else {
+                    $out .= " same => n,NoOp(Outbound blocked: assigned time condition is unavailable)\n";
+                    $out .= " same => n,Hangup(21)\n";
+                }
+            }
             if ($this->shouldRecord((int) ($r['record'] ?? 0), $record)) {
                 $out .= $this->recordingGosub('outbound', $ctx);
             }
@@ -661,6 +679,9 @@ final class ConfigGenerator
 
         $out = '';
         foreach ($conds as $c) {
+            if (empty($c['extension'])) {
+                continue;
+            }
             $out .= "; Time condition {$this->esc($c['name'])}\n";
             $out .= "exten => {$c['extension']},1,NoOp(Time condition: {$this->esc($c['name'])})\n";
             if ($this->shouldRecord((int) ($c['record'] ?? 0), $record)) {
@@ -682,6 +703,9 @@ final class ConfigGenerator
 
         $out = '';
         foreach ($conds as $c) {
+            if (empty($c['extension']) || empty($c['open_type']) || empty($c['closed_type'])) {
+                continue;
+            }
             $out .= "[{$ctx}-{$c['extension']}-open]\n";
             $out .= "exten => 1,1,Gosub({$this->destinationGosub($c['open_type'], $c['open_dest_id'], $ctx)})\n";
             $out .= " same => n,Hangup()\n\n";
@@ -1099,14 +1123,17 @@ final class ConfigGenerator
         if (!empty($c['time_match'])) {
             return $c['time_match'];
         }
-        // Fall back to day-of-week + time range if structured fields are set.
+        // Asterisk order: times,weekdays,month-days,months.
         $dows = $c['days_of_week'] ?: '*';
         $dom  = $c['day_of_month'] ?: '*';
         $mon  = $c['month'] ?: '*';
-        $hr   = $c['start_hour'] !== null && $c['start_hour'] !== '' ? sprintf('%02d:%02d', $c['start_hour'], $c['start_minute'] ?? 0) : '*:*';
-        $hr2  = $c['end_hour'] !== null && $c['end_hour'] !== '' ? sprintf('%02d:%02d', $c['end_hour'], $c['end_minute'] ?? 0) : '*:*';
+        $hasRange = $c['start_hour'] !== null && $c['start_hour'] !== ''
+            && $c['end_hour'] !== null && $c['end_hour'] !== '';
+        $times = $hasRange
+            ? sprintf('%02d:%02d-%02d:%02d', $c['start_hour'], $c['start_minute'] ?? 0, $c['end_hour'], $c['end_minute'] ?? 0)
+            : '*';
 
-        return "{$dows},{$dom},{$mon},{$hr},{$hr2}";
+        return "{$times},{$dows},{$dom},{$mon}";
     }
 
     /** Prefix endpoints per tenant so two tenants can both use ext 1001. */

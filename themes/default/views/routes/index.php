@@ -136,7 +136,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
             <?php else: ?>
                 <div class="table-wrap">
                     <table>
-                        <thead><tr><th>Name</th><th>Prefix</th><th>Match pattern</th><th>Trunk</th><th class="num">Priority</th><th class="actions">Actions</th></tr></thead>
+                        <thead><tr><th>Name</th><th>Prefix</th><th>Match pattern</th><th>Trunk</th><th>Time condition</th><th class="num">Priority</th><th class="actions">Actions</th></tr></thead>
                         <tbody>
                             <?php foreach ($outbound as $r): ?>
                                 <tr>
@@ -144,6 +144,13 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                                     <td><code class="mono"><?= e($r['prefix'] ?: '—') ?></code></td>
                                     <td><code class="mono"><?= e($r['match_pattern']) ?></code></td>
                                     <td><?= e($r['trunk_name'] ?? '—') ?></td>
+                                    <td>
+                                        <?php if (!empty($r['time_condition_name'])): ?>
+                                            <span class="badge <?= $r['time_condition_enabled'] ? 'blue' : 'gray' ?>"><?= e($r['time_condition_name']) ?></span>
+                                        <?php else: ?>
+                                            <span class="muted">Always</span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td class="num"><?= (int) $r['priority'] ?></td>
                                     <td class="actions">
                                         <button class="btn btn-sm" data-modal-open="outboundModal"
@@ -192,6 +199,16 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                             $trunkOpts = [];
                             foreach ($trunks as $t) { $trunkOpts[(int) $t['id']] = $t['name']; }
                             echo field_select('trunk_id', 'Trunk', $trunkOpts, null, ['required' => true, 'placeholder' => 'Choose a trunk…']);
+                            ?>
+                            <?php
+                            $timeOpts = [];
+                            foreach ($times as $time) {
+                                if ($time['enabled']) { $timeOpts[(int) $time['id']] = $time['name']; }
+                            }
+                            echo field_select('time_condition_id', 'Time condition', $timeOpts, null, [
+                                'placeholder' => 'Always allowed',
+                                'hint' => 'When selected, this route works only during the condition’s in-hours period.',
+                            ]);
                             ?>
                             <?php echo field_text('cid_override', 'Caller ID override', '', [
                                 'hint' => 'Force outbound caller ID (leave blank to use the extension\'s).',
@@ -475,12 +492,15 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                             ]); ?>
                             <?php echo field_text('time_match', 'GotoIfTime expression', '', [
                                 'span' => true,
-                                'hint' => 'e.g. "9-17,*,*,9:00-17:00" (dow,dom,month,start-end). Leave blank to use the fields below.',
+                                'hint' => 'Asterisk format: times,weekdays,month-days,months. Example: 09:00-17:00,mon-fri,*,*. Leave blank to use the fields below.',
                             ]); ?>
-                            <?php echo field_text('days_of_week', 'Days of week', '*', ['hint' => '1-7 or * (Sun=1). Comma-separated, e.g. 1-5']); ?>
+                            <?php echo field_text('days_of_week', 'Days of week', '*', ['hint' => 'mon-fri, sat-sun, or *']); ?>
+                            <?php echo field_text('day_of_month', 'Days of month', '*', ['hint' => '1-31 or *']); ?>
                             <?php echo field_text('month', 'Month', '*', ['hint' => '1-12 or *']); ?>
                             <?php echo field_text('start_hour', 'Start hour (0-23)', '', ['type' => 'number']); ?>
+                            <?php echo field_text('start_minute', 'Start minute (0-59)', 0, ['type' => 'number']); ?>
                             <?php echo field_text('end_hour', 'End hour (0-23)', '', ['type' => 'number']); ?>
+                            <?php echo field_text('end_minute', 'End minute (0-59)', 0, ['type' => 'number']); ?>
                             <?php
                             echo field_select('open_type', 'When in hours', $typeLabels, 'extension', ['required' => true]);
                             echo field_select('open_dest_id', 'In-hours destination', $destinations, null, ['placeholder' => 'Choose…']);
@@ -556,7 +576,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
           checks: [['enabled',1]], label: 'inbound route' },
         { modal: 'outboundModal', form: 'outboundForm', title: 'outboundTitle', submit: 'outboundSubmit',
           action: '/routes/outbound', editAction: function (id) { return '/routes/outbound/' + id; },
-          fields: ['name','prefix','match_pattern','trunk_id','cid_override','priority','record'],
+          fields: ['name','prefix','match_pattern','trunk_id','time_condition_id','cid_override','priority','record'],
           checks: [['enabled',1]], label: 'outbound route' },
         { modal: 'trunkModal',    form: 'trunkForm',    title: 'trunkTitle',    submit: 'trunkSubmit',
           action: '/routes/trunks', editAction: function (id) { return '/routes/trunks/' + id; },
@@ -564,7 +584,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
           checks: [['enabled',1]], label: 'trunk' },
         { modal: 'timeModal',     form: 'timeForm',     title: 'timeTitle',     submit: 'timeSubmit',
           action: '/routes/time', editAction: function (id) { return '/routes/time/' + id; },
-          fields: ['name','extension','time_match','days_of_month','month','start_hour','end_hour','open_type','open_dest_id','closed_type','closed_dest_id'],
+          fields: ['name','extension','time_match','days_of_week','day_of_month','month','start_hour','start_minute','end_hour','end_minute','open_type','open_dest_id','closed_type','closed_dest_id'],
           checks: [['enabled',1]], label: 'time condition' }
     ];
 
