@@ -171,6 +171,19 @@ return [
             updated_at     DATETIME
         )',
 
+    'announcements' => '
+        CREATE TABLE IF NOT EXISTS announcements (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            tenant_id   INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+            name        VARCHAR(120) NOT NULL,
+            filename    VARCHAR(255) NOT NULL,
+            sound_path  VARCHAR(255) NOT NULL,
+            enabled     INTEGER DEFAULT 1,
+            created_at  DATETIME,
+            updated_at  DATETIME,
+            UNIQUE(tenant_id, name)
+        )',
+
     'ring_groups' => '
         CREATE TABLE IF NOT EXISTS ring_groups (
             id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -180,6 +193,7 @@ return [
             strategy     VARCHAR(30) DEFAULT "ringall",
             timeout      INTEGER DEFAULT 30,
             ringback     VARCHAR(80),
+            announcement_id INTEGER REFERENCES announcements(id) ON DELETE SET NULL,
             record       INTEGER DEFAULT 0,
             enabled      INTEGER DEFAULT 1,
             created_at   DATETIME,
@@ -247,6 +261,7 @@ return [
             priority    INTEGER DEFAULT 0,
             enabled     INTEGER DEFAULT 1,
             record      INTEGER DEFAULT 0,
+            announcement_id INTEGER REFERENCES announcements(id) ON DELETE SET NULL,
             created_at  DATETIME,
             updated_at  DATETIME
         )',
@@ -319,6 +334,7 @@ return [
             member_delay    INTEGER DEFAULT 0,
             agent_announce  VARCHAR(120),
             moh_class       VARCHAR(80) DEFAULT "default",
+            announcement_id INTEGER REFERENCES announcements(id) ON DELETE SET NULL,
             record          INTEGER DEFAULT 0,
             enabled         INTEGER DEFAULT 1,
             created_at      DATETIME,

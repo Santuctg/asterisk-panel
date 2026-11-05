@@ -42,6 +42,7 @@ $strategies = [
                             <th>Strategy</th>
                             <th>Members</th>
                             <th class="num">Timeout</th>
+                            <th>Announcement</th>
                             <th>Status</th>
                             <th class="actions">Actions</th>
                         </tr>
@@ -71,6 +72,7 @@ $strategies = [
                                     <?php endif; ?>
                                 </td>
                                 <td class="num mono"><?= (int) $r['timeout'] ?>s</td>
+                                <td><?= !empty($r['announcement_name']) ? e($r['announcement_name']) : '<span class="muted">—</span>' ?></td>
                                 <td>
                                     <?= $r['enabled']
                                         ? '<span class="badge green"><span class="dot"></span>Active</span>'

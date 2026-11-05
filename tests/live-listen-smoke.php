@@ -49,15 +49,27 @@ $check(str_contains($provisioned, 'sip_server=tenant-a.example.test')
     && str_contains($provisioned, 'username=1001')
     && str_contains($provisioned, 'auth_name=1001')
     && str_contains($provisioned, 'domain=tenant-a.example.test'), 'device provisioning uses username plus tenant realm');
+$announcement = $db->insert('announcements', [
+    'tenant_id' => $tid, 'name' => 'Welcome', 'filename' => 'welcome.wav',
+    'sound_path' => 'asterisk-panel/tenant_a/welcome', 'enabled' => 1,
+]);
 $ringGroup = $db->insert('ring_groups', [
     'tenant_id' => $tid, 'extension' => '600', 'name' => 'Sales',
-    'timeout' => 25, 'ringback' => 'moh:sales', 'enabled' => 1,
+    'timeout' => 25, 'ringback' => 'moh:sales', 'announcement_id' => $announcement, 'enabled' => 1,
 ]);
 $db->insert('ring_group_members', ['ring_group_id' => $ringGroup, 'extension_id' => $targetExtension, 'ordering' => 0]);
 $db->insert('ring_group_members', ['ring_group_id' => $ringGroup, 'extension_id' => $secondExtension, 'ordering' => 1]);
 $dialplan = $gen->renderDialplan();
 $check(str_contains($dialplan, '[panel-listen-only]'), 'browser dialplan cannot call out');
-$check(str_contains($dialplan, 'Dial(PJSIP/1001@tenant-a.example.test&PJSIP/2002@tenant-a.example.test,25,TtHm(sales))'), 'ring group members use valid simultaneous Dial syntax and selected MOH class');
+$announcementStep = 'Gosub(panel-announcement,s,1(asterisk-panel/tenant_a/welcome))';
+$dialStep = 'Dial(PJSIP/1001@tenant-a.example.test&PJSIP/2002@tenant-a.example.test,25,TtH)';
+$check(str_contains($dialplan, '[panel-announcement]')
+    && str_contains($dialplan, 'Set(__PANEL_ANNOUNCEMENT_PLAYED=1)')
+    && str_contains($dialplan, 'Answer()')
+    && str_contains($dialplan, 'Playback(${ARG1})'), 'announcement playback is answered, complete, and guarded against duplicates');
+$check(str_contains($dialplan, $announcementStep) && str_contains($dialplan, $dialStep)
+    && strpos($dialplan, $announcementStep) < strpos($dialplan, $dialStep)
+    && !str_contains($dialplan, 'm(sales)'), 'ring group announcement plays before normal simultaneous ringing');
 $liveFeed = (new App\Controllers\DashboardController())->liveCalls(new App\Core\Request('GET', '/dashboard/live-calls'));
 $liveData = json_decode($liveFeed->body(), true);
 $check($liveFeed->status() === 200 && isset($liveData['online'], $liveData['count'], $liveData['channels']), 'live calls polling feed responds');

@@ -16,7 +16,7 @@ declare(strict_types=1);
 use App\Controllers\{
     AuthController, DashboardController, ExtensionController, VoicemailController,
     DeviceController, RingGroupController, ParkingController, IvrController,
-    RouteController, MusicOnHoldController, CallCenterController,
+    RouteController, MusicOnHoldController, AnnouncementController, CallCenterController,
     ConferenceController, CdrController, TenantController, UserController, RoleController, GlobalAdminController, Fail2banController,
     SystemController, SslController, ProvisionController, LiveListenController, WebPhoneController, TenantSslController, TenantSecurityController
 };
@@ -114,6 +114,9 @@ $router->get('/moh', [MusicOnHoldController::class, 'index'], [Auth::require('mo
 $router->post('/moh', [MusicOnHoldController::class, 'store'], [Auth::require('moh.manage'), Csrf::middleware(...) ]);
 $router->post('/moh/{id}', [MusicOnHoldController::class, 'update'], [Auth::require('moh.manage'), Csrf::middleware(...) ]);
 $router->delete('/moh/{id}', [MusicOnHoldController::class, 'destroy'], [Auth::require('moh.manage'), Csrf::middleware(...) ]);
+$router->post('/announcements', [AnnouncementController::class, 'store'], [Auth::require('moh.manage'), Csrf::middleware(...) ]);
+$router->post('/announcements/{id}', [AnnouncementController::class, 'update'], [Auth::require('moh.manage'), Csrf::middleware(...) ]);
+$router->delete('/announcements/{id}', [AnnouncementController::class, 'destroy'], [Auth::require('moh.manage'), Csrf::middleware(...) ]);
 
 // Call center (queues + agents)
 $router->get('/call-center', [CallCenterController::class, 'index'], [Auth::require('callcenter.view')]);

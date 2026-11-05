@@ -42,6 +42,7 @@ update() {
     if [[ "$repo_head" != "$remote_head" ]]; then git -C "$REPO" pull --ff-only origin "$BRANCH"; fi
     find "$REPO" -type f -name '*.php' -print0 | xargs -0 -n1 php -l >/dev/null
     rsync -a --delete --exclude=storage/ --exclude=.env "$REPO/" "$APP/"
+    install -d -o www-data -g asterisk -m 2775 /var/lib/asterisk/sounds/asterisk-panel
     DB_DRIVER=sqlite DB_NAME="$APP/storage/database/asterisk_panel.sqlite" php "$APP/scripts/migrate.php"
     DB_DRIVER=sqlite DB_NAME="$APP/storage/database/asterisk_panel.sqlite" php "$APP/scripts/apply-config.php"
     local voicemail_modules_changed=0

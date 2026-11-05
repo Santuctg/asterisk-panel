@@ -81,7 +81,7 @@ apt-get install -y software-properties-common
 add-apt-repository -y universe
 apt-get update
 apt-get install -y \
-    asterisk nginx fail2ban rsync openssl sudo curl dnsutils certbot python3 ufw \
+    asterisk nginx fail2ban rsync openssl sudo curl dnsutils certbot python3 ufw sox libsox-fmt-all \
     php8.3-cli php8.3-fpm php8.3-sqlite3 php8.3-mbstring php8.3-curl php8.3-xml php8.3-opcache
 usermod -a -G asterisk www-data
 
@@ -207,6 +207,7 @@ runuser -u www-data -- env \
 
 echo "[6/11] Configuring Asterisk AMI and managed includes..."
 install -d -o www-data -g asterisk -m 2775 /etc/asterisk/asterisk_panel
+install -d -o www-data -g asterisk -m 2775 /var/lib/asterisk/sounds/asterisk-panel
 install -d -o asterisk -g asterisk -m 2770 /var/spool/asterisk/monitor/asterisk-panel
 install -d -o asterisk -g asterisk -m 2775 /var/lib/asterisk/moh
 install -o root -g asterisk -m 0644 "$INSTALL_DIR/resources/deploy/asterisk/pjsip-base.conf" /etc/asterisk/asterisk_panel/pjsip_base.conf

@@ -51,13 +51,14 @@ $activeTab = $_GET['tab'] ?? 'inbound';
             <?php else: ?>
                 <div class="table-wrap">
                     <table>
-                        <thead><tr><th>Name</th><th>DID pattern</th><th>Destination</th><th class="num">Priority</th><th>Status</th><th class="actions">Actions</th></tr></thead>
+                        <thead><tr><th>Name</th><th>DID pattern</th><th>Destination</th><th>Announcement</th><th class="num">Priority</th><th>Status</th><th class="actions">Actions</th></tr></thead>
                         <tbody>
                             <?php foreach ($inbound as $r): ?>
                                 <tr>
                                     <td><strong><?= e($r['name']) ?></strong></td>
                                     <td><code class="mono"><?= e($r['did_pattern']) ?></code></td>
                                     <td><span class="badge blue"><?= e($typeLabels[$r['dest_type']] ?? $r['dest_type']) ?></span> <?= e($r['dest_label']) ?></td>
+                                    <td><?= !empty($r['announcement_name']) ? e($r['announcement_name']) : '<span class="muted">—</span>' ?></td>
                                     <td class="num"><?= (int) $r['priority'] ?></td>
                                     <td><?= $r['enabled'] ? '<span class="badge green">On</span>' : '<span class="badge gray">Off</span>' ?></td>
                                     <td class="actions">
@@ -99,6 +100,15 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                             ]); ?>
                             <?php echo field_select('dest_type', 'Destination type', $typeLabels, 'extension', ['required' => true]); ?>
                             <?php echo field_select('dest_id', 'Destination', $destinations, null, ['placeholder' => 'Choose…']); ?>
+                            <?php
+                            $announcementOpts = [];
+                            foreach ((array) ($announcements ?? []) as $a) { $announcementOpts[(int) $a['id']] = $a['name']; }
+                            echo field_select('announcement_id', 'Announcement', $announcementOpts, null, [
+                                'placeholder' => 'No announcement',
+                                'hint' => 'Answers the inbound call and plays completely before routing; it cannot be skipped.',
+                                'span' => true,
+                            ]);
+                            ?>
                             <?php echo field_text('priority', 'Priority', 0, ['type' => 'number',
                                 'hint' => 'Lower numbers are evaluated first.']); ?>
                             <div class="span-2"><?php echo field_check('enabled', 'Route active', true); ?></div>
@@ -572,7 +582,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
     var configs = [
         { modal: 'inboundModal',  form: 'inboundForm',  title: 'inboundTitle',  submit: 'inboundSubmit',
           action: '/routes/inbound',  editAction: function (id) { return '/routes/inbound/' + id; },
-          fields: ['name','did_pattern','cid_pattern','dest_type','dest_id','priority','record'],
+          fields: ['name','did_pattern','cid_pattern','dest_type','dest_id','announcement_id','priority','record'],
           checks: [['enabled',1]], label: 'inbound route' },
         { modal: 'outboundModal', form: 'outboundForm', title: 'outboundTitle', submit: 'outboundSubmit',
           action: '/routes/outbound', editAction: function (id) { return '/routes/outbound/' + id; },

@@ -20,6 +20,7 @@ $db->exec($schema['cdr']);
 $db->exec($schema['cdr_import_log']);
 $db->exec($schema['trunk_status_history']);
 $db->exec($schema['extension_status_history']);
+$db->exec($schema['announcements']);
 
 // Outbound calling is denied by default and enabled per extension by assigning
 // one tenant-scoped outbound route.
@@ -43,6 +44,14 @@ if ($driver === 'sqlite') {
             $pdo->exec('ALTER TABLE outbound_routes ADD COLUMN time_condition_id INTEGER');
         }
     }
+    foreach (['ring_groups', 'inbound_routes', 'queues'] as $table) {
+        $exists = (int) $db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?", [$table]);
+        if (!$exists) { continue; }
+        $columns = array_column($db->all("PRAGMA table_info({$table})"), 'name');
+        if (!in_array('announcement_id', $columns, true)) {
+            $pdo->exec("ALTER TABLE {$table} ADD COLUMN announcement_id INTEGER");
+        }
+    }
 } else {
     $hasOutboundRoute = (int) $db->scalar(
         'SELECT COUNT(*) FROM information_schema.COLUMNS
@@ -59,6 +68,15 @@ if ($driver === 'sqlite') {
     );
     if (!$hasTimeCondition) {
         $pdo->exec('ALTER TABLE outbound_routes ADD COLUMN time_condition_id BIGINT NULL');
+    }
+    foreach (['ring_groups', 'inbound_routes', 'queues'] as $table) {
+        $hasAnnouncement = (int) $db->scalar(
+            'SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+            [$table, 'announcement_id']
+        );
+        if (!$hasAnnouncement) {
+            $pdo->exec("ALTER TABLE {$table} ADD COLUMN announcement_id BIGINT NULL");
+        }
     }
 }
 

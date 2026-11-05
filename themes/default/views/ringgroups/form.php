@@ -60,16 +60,13 @@ $selected = array_map(
                 ]); ?>
 
                 <?php
-                $ringback = (string) $val('ringback');
-                $tuneOptions = ['' => 'Normal ringing', 'moh' => 'Default Music on Hold'];
-                foreach ((array) ($mohClasses ?? []) as $class) {
-                    $tuneOptions['moh:' . $class['name']] = 'Music on Hold: ' . $class['name'];
+                $announcementOptions = [];
+                foreach ((array) ($announcements ?? []) as $announcement) {
+                    $announcementOptions[(int) $announcement['id']] = $announcement['name'];
                 }
-                if ($ringback !== '' && !isset($tuneOptions[$ringback])) {
-                    $tuneOptions[$ringback] = $ringback;
-                }
-                echo field_select('ringback', 'Call tune while ringing', $tuneOptions, $ringback, [
-                    'hint' => 'Create/upload a Music on Hold class first, then select it here.',
+                echo field_select('announcement_id', 'Announcement', $announcementOptions, $val('announcement_id'), [
+                    'placeholder' => 'No announcement',
+                    'hint' => 'Plays completely and cannot be skipped; ringing starts afterwards.',
                 ]);
                 ?>
 

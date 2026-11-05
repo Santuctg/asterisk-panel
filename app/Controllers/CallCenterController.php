@@ -19,7 +19,9 @@ final class CallCenterController extends BaseController
     {
         $tid  = $this->requireTenant();
         $rows = $this->db()->all(
-            'SELECT * FROM queues WHERE tenant_id = ? ORDER BY extension',
+            'SELECT q.*, a.name AS announcement_name FROM queues q
+             LEFT JOIN announcements a ON a.id = q.announcement_id AND a.tenant_id = q.tenant_id
+             WHERE q.tenant_id = ? ORDER BY q.extension',
             [$tid]
         );
 
@@ -46,6 +48,7 @@ final class CallCenterController extends BaseController
             'live'       => $live,
             'extensions' => $this->extensionOptions(),
             'mohClasses' => $this->db()->all('SELECT name FROM moh_classes ORDER BY name'),
+            'announcements' => $this->db()->all('SELECT id, name FROM announcements WHERE tenant_id = ? AND enabled = 1 ORDER BY name', [$tid]),
         ]);
     }
 
@@ -54,7 +57,7 @@ final class CallCenterController extends BaseController
     {
         $tid = $this->requireTenant();
 
-        $data = $this->collect($request);
+        $data = $this->collect($request, $tid);
         $data['tenant_id'] = $tid;
 
         $v = Validator::make($data, [
@@ -100,7 +103,7 @@ final class CallCenterController extends BaseController
             return Response::redirect('/call-center');
         }
 
-        $data = $this->collect($request);
+        $data = $this->collect($request, (int) $row['tenant_id']);
 
         $v = Validator::make($data, [
             'extension' => 'required|digits_between:2,6',
@@ -193,7 +196,7 @@ final class CallCenterController extends BaseController
         }
     }
 
-    private function collect(Request $request): array
+    private function collect(Request $request, int $tenantId): array
     {
         return [
             'extension'      => $request->str('extension'),
@@ -207,6 +210,7 @@ final class CallCenterController extends BaseController
             'member_delay'   => $request->int('member_delay', 0),
             'agent_announce' => $request->str('agent_announce'),
             'moh_class'      => $request->str('moh_class', 'default'),
+            'announcement_id'=> $this->validAnnouncementId($request->int('announcement_id'), $tenantId),
             'enabled'        => $request->bool('enabled', true) ? 1 : 0,
         ];
     }
@@ -221,6 +225,13 @@ final class CallCenterController extends BaseController
             return $this->db()->one('SELECT * FROM queues WHERE id = ?', [$id]);
         }
         return $this->db()->one('SELECT * FROM queues WHERE id = ? AND tenant_id = ?', [$id, $tid]);
+    }
+
+    private function validAnnouncementId(int $id, int $tenantId): ?int
+    {
+        if ($id <= 0) { return null; }
+        return $this->db()->scalar('SELECT COUNT(*) FROM announcements WHERE id = ? AND tenant_id = ? AND enabled = 1', [$id, $tenantId])
+            ? $id : null;
     }
 
     private function extensionOptions(): array

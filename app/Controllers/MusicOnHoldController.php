@@ -29,7 +29,11 @@ final class MusicOnHoldController extends BaseController
         }
         unset($r);
 
-        return $this->view('moh/index', ['rows' => $rows]);
+        $announcements = $this->db()->all(
+            'SELECT * FROM announcements WHERE tenant_id = ? ORDER BY name',
+            [$this->requireTenant()]
+        );
+        return $this->view('moh/index', ['rows' => $rows, 'announcements' => $announcements]);
     }
 
     /** POST /moh */

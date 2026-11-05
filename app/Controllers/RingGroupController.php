@@ -20,7 +20,9 @@ final class RingGroupController extends BaseController
     {
         $tid  = $this->requireTenant();
         $rows = $this->db()->all(
-            'SELECT * FROM ring_groups WHERE tenant_id = ? ORDER BY extension',
+            'SELECT g.*, a.name AS announcement_name FROM ring_groups g
+             LEFT JOIN announcements a ON a.id = g.announcement_id AND a.tenant_id = g.tenant_id
+             WHERE g.tenant_id = ? ORDER BY g.extension',
             [$tid]
         );
 
@@ -44,7 +46,7 @@ final class RingGroupController extends BaseController
         return $this->view('ringgroups/form', [
             'row'        => null,
             'extensions' => $this->extensionOptions(),
-            'mohClasses' => $this->db()->all('SELECT name FROM moh_classes ORDER BY name'),
+            'announcements' => $this->announcementOptions(),
             'next'       => $this->suggestNext(),
         ]);
     }
@@ -59,7 +61,8 @@ final class RingGroupController extends BaseController
             'name'      => $request->str('name'),
             'strategy'  => $request->str('strategy', 'ringall'),
             'timeout'   => $request->int('timeout', 30),
-            'ringback'  => $request->str('ringback'),
+            'ringback'  => '',
+            'announcement_id' => $this->validAnnouncementId($request->int('announcement_id'), $tid),
             'enabled'   => $request->bool('enabled', true) ? 1 : 0,
             'tenant_id' => $tid,
         ];
@@ -114,7 +117,7 @@ final class RingGroupController extends BaseController
         return $this->view('ringgroups/form', [
             'row'        => $row,
             'extensions' => $this->extensionOptions(),
-            'mohClasses' => $this->db()->all('SELECT name FROM moh_classes ORDER BY name'),
+            'announcements' => $this->announcementOptions(),
             'next'       => [],
         ]);
     }
@@ -132,7 +135,8 @@ final class RingGroupController extends BaseController
             'name'      => $request->str('name'),
             'strategy'  => $request->str('strategy', 'ringall'),
             'timeout'   => $request->int('timeout', 30),
-            'ringback'  => $request->str('ringback'),
+            'ringback'  => '',
+            'announcement_id' => $this->validAnnouncementId($request->int('announcement_id'), (int) $row['tenant_id']),
             'enabled'   => $request->bool('enabled', true) ? 1 : 0,
         ];
 
@@ -229,6 +233,21 @@ final class RingGroupController extends BaseController
             'SELECT id, extension, name FROM extensions WHERE tenant_id = ? AND enabled = 1 ORDER BY extension',
             [$tid]
         );
+    }
+
+    private function announcementOptions(): array
+    {
+        return $this->db()->all(
+            'SELECT id, name FROM announcements WHERE tenant_id = ? AND enabled = 1 ORDER BY name',
+            [$this->tenantId()]
+        );
+    }
+
+    private function validAnnouncementId(int $id, int $tenantId): ?int
+    {
+        if ($id <= 0) { return null; }
+        return $this->db()->scalar('SELECT COUNT(*) FROM announcements WHERE id = ? AND tenant_id = ? AND enabled = 1', [$id, $tenantId])
+            ? $id : null;
     }
 
     private function suggestNext(): array

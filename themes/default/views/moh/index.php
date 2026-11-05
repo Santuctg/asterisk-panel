@@ -8,16 +8,42 @@ require dirname(__DIR__) . '/partials/fields.php';
 <div class="page-head">
     <div>
         <h1>Audio</h1>
-        <div class="subtitle">Upload and manage audio used for queues, ring groups, IVR and callers on hold</div>
+        <div class="subtitle">Manage non-skippable announcements separately from music played while callers wait</div>
     </div>
     <div class="page-actions">
-        <button class="btn btn-primary" data-modal-open="mohModal">
-            <?= $this->fragment('icons/plus') ?> New class
-        </button>
+        <button class="btn" data-modal-open="announcementModal"><?= $this->fragment('icons/plus') ?> New announcement</button>
+        <button class="btn btn-primary" data-modal-open="mohModal"><?= $this->fragment('icons/plus') ?> New MOH class</button>
     </div>
 </div>
 
 <div class="card">
+    <div class="card-head"><h2>Announcements</h2></div>
+    <div class="card-body tight">
+        <?php if (empty($announcements)): ?>
+            <?= \App\Core\View::fragment('partials/empty', [
+                'icon' => 'music', 'title' => 'No announcements',
+                'message' => 'Upload a prompt that plays completely before a call starts ringing or enters a queue.',
+                'action_html' => '<button class="btn btn-primary" data-modal-open="announcementModal">Upload announcement</button>',
+            ]) ?>
+        <?php else: ?>
+            <div class="table-wrap"><table>
+                <thead><tr><th>Name</th><th>File</th><th>Status</th><th class="actions">Actions</th></tr></thead>
+                <tbody><?php foreach ($announcements as $a): ?><tr>
+                    <td><strong><?= e($a['name']) ?></strong></td>
+                    <td><code class="text-xs"><?= e($a['filename']) ?></code></td>
+                    <td><span class="badge <?= $a['enabled'] ? 'green' : 'gray' ?>"><?= $a['enabled'] ? 'Active' : 'Disabled' ?></span></td>
+                    <td class="actions">
+                        <button class="btn btn-sm" data-modal-open="announcementModal" data-edit='<?= e(json_encode($a, JSON_HEX_APOS | JSON_HEX_QUOT)) ?>'>Edit</button>
+                        <form method="post" action="/announcements/<?= (int) $a['id'] ?>"><?= csrf() ?><input type="hidden" name="_method" value="DELETE"><button class="btn btn-sm btn-ghost" data-confirm-btn="Delete this announcement?"><?= $this->fragment('icons/trash') ?></button></form>
+                    </td>
+                </tr><?php endforeach; ?></tbody>
+            </table></div>
+        <?php endif; ?>
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-head"><h2>Music on Hold</h2></div>
     <div class="card-body tight">
         <?php if (empty($rows)): ?>
             <?= \App\Core\View::fragment('partials/empty', [
@@ -71,6 +97,19 @@ require dirname(__DIR__) . '/partials/fields.php';
     </div>
 </div>
 
+<div class="modal-overlay" id="announcementModal" hidden>
+    <div class="modal"><form method="post" action="/announcements" id="announcementForm" enctype="multipart/form-data">
+        <?= csrf() ?>
+        <div class="modal-head"><h2 id="announcementTitle">New announcement</h2><button type="button" class="icon-btn" data-modal-close><?= $this->fragment('icons/x') ?></button></div>
+        <div class="modal-body"><div class="form-grid">
+            <?= field_text('name', 'Announcement name', '', ['required' => true, 'span' => true, 'placeholder' => 'e.g. Welcome message']) ?>
+            <div class="field span-2"><label for="announcementAudio">Audio file</label><input id="announcementAudio" type="file" name="audio" required accept=".wav,.mp3,.ogg,.flac,.gsm,.ulaw,.alaw"><div class="hint">Converted to an Asterisk-compatible 8 kHz mono WAV. Maximum 25 MB.</div></div>
+            <div class="span-2"><?= field_check('enabled', 'Announcement active', true) ?></div>
+        </div></div>
+        <div class="modal-foot"><button type="button" class="btn" data-modal-close>Cancel</button><button class="btn btn-primary" id="announcementSubmit">Upload announcement</button></div>
+    </form></div>
+</div>
+
 <div class="modal-overlay" id="mohModal" hidden>
     <div class="modal">
         <form method="post" action="/moh" id="mohForm" enctype="multipart/form-data">
@@ -110,6 +149,29 @@ require dirname(__DIR__) . '/partials/fields.php';
 
 <script>
 (function () {
+    var announcementForm = document.getElementById('announcementForm');
+    var announcementTitle = document.getElementById('announcementTitle');
+    var announcementSubmit = document.getElementById('announcementSubmit');
+    document.querySelectorAll('[data-modal-open="announcementModal"][data-edit]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var d = JSON.parse(btn.getAttribute('data-edit'));
+            announcementForm.action = '/announcements/' + d.id;
+            announcementTitle.textContent = 'Edit announcement';
+            announcementSubmit.textContent = 'Save changes';
+            announcementForm.elements.name.value = d.name || '';
+            announcementForm.elements.enabled.checked = Number(d.enabled) === 1;
+            announcementForm.elements.audio.required = false;
+            announcementForm.elements.audio.value = '';
+        });
+    });
+    document.querySelectorAll('[data-modal-open="announcementModal"]:not([data-edit])').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            announcementForm.reset(); announcementForm.action = '/announcements';
+            announcementTitle.textContent = 'New announcement'; announcementSubmit.textContent = 'Upload announcement';
+            announcementForm.elements.audio.required = true;
+        });
+    });
+
     var modal  = document.getElementById('mohModal');
     var form   = document.getElementById('mohForm');
     var title  = document.getElementById('mohTitle');

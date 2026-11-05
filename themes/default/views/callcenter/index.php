@@ -74,6 +74,7 @@ foreach ((array) $live as $lq) {
                         <div><div class="text-xs muted">Max wait</div><strong class="mono"><?= (int) $q['max_wait'] ?>s</strong></div>
                         <div><div class="text-xs muted">Wrap-up</div><strong class="mono"><?= (int) $q['wrapup'] ?>s</strong></div>
                         <div><div class="text-xs muted">Music on hold</div><strong class="mono"><?= e($q['moh_class']) ?></strong></div>
+                        <div><div class="text-xs muted">Announcement</div><strong><?= e($q['announcement_name'] ?? '—') ?></strong></div>
                     </div>
 
                     <h3 class="mb-2">Agents</h3>
@@ -116,6 +117,14 @@ foreach ((array) $live as $lq) {
                     $mohOpts = [];
                     foreach ((array) $mohClasses as $c) { $mohOpts[$c['name']] = $c['name']; }
                     echo field_select('moh_class', 'Music on hold class', $mohOpts + ['default' => 'default'], 'default');
+                    ?>
+                    <?php
+                    $announcementOpts = [];
+                    foreach ((array) ($announcements ?? []) as $a) { $announcementOpts[(int) $a['id']] = $a['name']; }
+                    echo field_select('announcement_id', 'Caller announcement', $announcementOpts, null, [
+                        'placeholder' => 'No announcement',
+                        'hint' => 'Plays completely before the caller enters the queue and cannot be skipped.',
+                    ]);
                     ?>
                     <?php echo field_text('timeout', 'Ring timeout (seconds)', 15, ['type' => 'number']); ?>
                     <?php echo field_text('max_wait', 'Max wait time (seconds)', 300, ['type' => 'number']); ?>
@@ -174,7 +183,7 @@ foreach ((array) $live as $lq) {
         submit.textContent = 'Save changes';
 
         ['extension','name','strategy','moh_class','timeout','max_wait',
-         'service_level','wrapup','retry','member_delay','agent_announce'].forEach(function (k) {
+         'service_level','wrapup','retry','member_delay','agent_announce','announcement_id'].forEach(function (k) {
             var el = form.elements[k];
             if (el && d[k] !== undefined && d[k] !== null) el.value = d[k];
         });

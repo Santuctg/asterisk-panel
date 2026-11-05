@@ -30,7 +30,12 @@ final class RouteController extends BaseController
         $tid = $this->requireTenant();
         $db  = $this->db();
 
-        $inbound  = $db->all('SELECT * FROM inbound_routes WHERE tenant_id = ? ORDER BY priority, id', [$tid]);
+        $inbound  = $db->all(
+            'SELECT r.*, a.name AS announcement_name FROM inbound_routes r
+             LEFT JOIN announcements a ON a.id = r.announcement_id AND a.tenant_id = r.tenant_id
+             WHERE r.tenant_id = ? ORDER BY r.priority, r.id',
+            [$tid]
+        );
         $outbound = $db->all(
             'SELECT o.*, t.name AS trunk_name, tc.name AS time_condition_name, tc.enabled AS time_condition_enabled FROM outbound_routes o
              LEFT JOIN trunks t ON t.id = o.trunk_id
@@ -122,6 +127,7 @@ final class RouteController extends BaseController
             'outbound'    => $outbound,
             'trunks'      => $trunks,
             'times'       => $times,
+            'announcements'=> $db->all('SELECT id, name FROM announcements WHERE tenant_id = ? AND enabled = 1 ORDER BY name', [$tid]),
             'destinations'=> $this->destinationOptions(),
             'destTypes'   => self::DEST_TYPES,
             'trunkStatusAvailable' => $trunkStatusAvailable,
@@ -144,6 +150,7 @@ final class RouteController extends BaseController
             'priority'    => $request->int('priority', 0),
             'enabled'     => $request->bool('enabled', true) ? 1 : 0,
             'record'      => $request->int('record', 0),
+            'announcement_id' => $this->validAnnouncementId($request->int('announcement_id'), $tid),
         ];
 
         $v = Validator::make($data, [
@@ -181,6 +188,7 @@ final class RouteController extends BaseController
             'priority'    => $request->int('priority', 0),
             'enabled'     => $request->bool('enabled', true) ? 1 : 0,
             'record'      => $request->int('record', 0),
+            'announcement_id' => $this->validAnnouncementId($request->int('announcement_id'), (int) $row['tenant_id']),
         ];
 
         $v = Validator::make($data, [
@@ -529,6 +537,15 @@ final class RouteController extends BaseController
             'SELECT id FROM time_conditions WHERE id = ? AND tenant_id = ? AND enabled = 1',
             [$conditionId, $tid]
         ) ? $conditionId : null;
+    }
+
+    private function validAnnouncementId(int $announcementId, int $tid): ?int
+    {
+        if ($announcementId <= 0) { return null; }
+        return $this->db()->scalar(
+            'SELECT id FROM announcements WHERE id = ? AND tenant_id = ? AND enabled = 1',
+            [$announcementId, $tid]
+        ) ? $announcementId : null;
     }
 
     /** Options for destination pickers, grouped by type. */
