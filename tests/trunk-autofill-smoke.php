@@ -32,7 +32,7 @@ foreach ([
     [str_contains($html, 'name="sip_trunk_auth_id"'), 'separate SIP auth ID field'],
     [str_contains($html, 'name="sip_trunk_auth_secret"'), 'separate SIP secret field'],
     [str_contains($html, 'autocomplete="new-password"'), 'prevent login-password autofill'],
-    [str_contains($html, '>Registration<') && str_contains($html, 'Unregistered'), 'trunk registration status renders'],
+    [str_contains($html, '>Registration<') && str_contains($html, 'Unknown'), 'trunk registration status renders when AMI is unavailable'],
 ] as [$ok, $description]) {
     if (!$ok) {
         throw new RuntimeException('FAIL: ' . $description);
