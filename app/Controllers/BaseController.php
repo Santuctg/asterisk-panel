@@ -23,7 +23,7 @@ abstract class BaseController
     {
         $this->app = App::getInstance();
         try {
-            $tenantId = (int) ($this->app->auth()->user()['tenant_id'] ?? 0);
+            $tenantId = (int) (\tenant_id() ?? 0);
             if ($tenantId > 0) {
                 $timezone = $this->app->db()->scalar('SELECT timezone FROM tenants WHERE id = ?', [$tenantId]);
                 date_default_timezone_set(\normalize_timezone(is_string($timezone) ? $timezone : null, (string) config('app.timezone', 'UTC')));

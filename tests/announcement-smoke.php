@@ -67,6 +67,11 @@ $db->update('tenants', $a, ['timezone'=>'Asia/Dhaka']);
 $settingsPage = (new App\Controllers\SystemController())->settings(new App\Core\Request('GET', '/system/settings'));
 if (!str_contains($settingsPage->body(), 'value="Asia/Dhaka" selected')) throw new RuntimeException('Tenant timezone is not available in System Settings');
 if (format_cdr_date('2026-11-05 17:40:00') !== 'Nov 5, 2026 11:40 PM') throw new RuntimeException('UTC CDR time was not converted to the tenant timezone');
+$super = $db->insert('users', ['tenant_id'=>null,'username'=>'root-admin','password'=>'x','role'=>'superadmin','active'=>1]);
+$app->auth()->login($super); $_SESSION['active_tenant']=$a;
+new App\Controllers\CdrController();
+if (date_default_timezone_get() !== 'Asia/Dhaka') throw new RuntimeException('Superadmin active-tenant timezone was not applied');
+$app->auth()->login($user); unset($_SESSION['active_tenant']);
 if (!str_contains($settingsPage->body(), 'After the call is answered (conversation only)')) throw new RuntimeException('Recording start selector is missing from System Settings');
 $dialplan = (new App\Services\Asterisk\ConfigGenerator())->renderDialplan();
 if (!str_contains($dialplan, '[a-announcement-'.$aa.']')
