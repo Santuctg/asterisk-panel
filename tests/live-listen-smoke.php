@@ -116,6 +116,10 @@ $outboundRoute = $db->insert('outbound_routes', [
     'tenant_id' => $tid, 'name' => 'Outside via 9', 'prefix' => '9', 'match_pattern' => '_X.',
     'trunk_id' => $trackedTrunk, 'time_condition_id' => $outboundTime, 'priority' => 0, 'enabled' => 1,
 ]);
+$db->insert('outbound_route_schedules', [
+    'tenant_id' => $tid, 'outbound_route_id' => $outboundRoute, 'name' => 'Office hours',
+    'days_of_week' => 'mon-fri', 'start_time' => '09:00', 'end_time' => '17:00', 'ordering' => 0,
+]);
 $db->update('extensions', $targetExtension, ['outbound_route_id' => $outboundRoute]);
 $outboundDialplan = $gen->renderDialplan();
 $outboundPjsip = $gen->renderPjsipEndpoints();
@@ -123,9 +127,9 @@ $check(str_contains($outboundDialplan, '[tenant_a-outbound]')
     && str_contains($outboundDialplan, '${PANEL_OUTBOUND_ROUTE_ID}"="' . $outboundRoute)
     && str_contains($outboundDialplan, '[tenant_a-outbound-' . $outboundRoute . ']')
     && str_contains($outboundDialplan, 'GotoIfTime(09:00-17:00,mon-fri,*,*,America/New_York?time-allowed)')
+    && str_contains($outboundDialplan, 'Outbound calling schedule matched')
     && str_contains($outboundDialplan, '[tenant_a-timecond-' . $outboundTime . ']')
     && str_contains($outboundDialplan, 'Gosub(tenant_a-timecond-' . $outboundTime . ',s,1 )')
-    && str_contains($outboundDialplan, 'Outbound blocked by time condition: Business hours')
     && str_contains($outboundDialplan, 'exten => _9X.,1,NoOp(Outbound: Outside via 9)')
     && str_contains($outboundDialplan, 'Dial(PJSIP/${EXTEN:1}@trunk-' . $trackedTrunk . ',30,Tt)')
     && str_contains($outboundPjsip, 'set_var = PANEL_OUTBOUND_ROUTE_ID=' . $outboundRoute), 'assigned outbound route, schedule, and prefix stripping are enforced');

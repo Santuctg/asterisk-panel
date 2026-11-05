@@ -489,6 +489,11 @@ final class ConfigGenerator
             $trunk   = $this->trunkEndpoint((int) $r['trunk_id']);
             $dialed  = $prefix !== '' ? '${EXTEN:' . strlen((string) $prefix) . '}' : '${EXTEN}';
             $condition = null;
+            $schedules = $this->db->all(
+                'SELECT name, days_of_week, start_time, end_time FROM outbound_route_schedules
+                 WHERE tenant_id = ? AND outbound_route_id = ? ORDER BY ordering, id',
+                [$tid, (int) $r['id']]
+            );
             if (!empty($r['time_condition_id'])) {
                 $condition = $this->db->one(
                     'SELECT * FROM time_conditions WHERE id = ? AND tenant_id = ? AND enabled = 1',
@@ -499,7 +504,17 @@ final class ConfigGenerator
             $out .= "[{$ctx}-outbound-{$r['id']}]\n";
             $out .= "; {$r['name']}\n";
             $out .= "exten => {$pattern},1,NoOp(Outbound: {$r['name']})\n";
-            if (!empty($r['time_condition_id'])) {
+            if ($schedules) {
+                foreach ($schedules as $schedule) {
+                    $start = preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', (string) $schedule['start_time']) ? $schedule['start_time'] : '00:00';
+                    $end = preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', (string) $schedule['end_time']) ? $schedule['end_time'] : '23:59';
+                    $days = preg_match('/^[a-z*,\-]+$/', (string) $schedule['days_of_week']) ? $schedule['days_of_week'] : '*';
+                    $out .= " same => n,GotoIfTime({$start}-{$end},{$days},*,*,{$this->tenantTimezone($tid)}?time-allowed)\n";
+                }
+                $out .= " same => n,NoOp(Outbound blocked: no route calling schedule matched)\n";
+                $out .= " same => n,Hangup(21)\n";
+                $out .= " same => n(time-allowed),NoOp(Outbound calling schedule matched)\n";
+            } elseif (!empty($r['time_condition_id'])) {
                 if ($condition) {
                     $out .= " same => n,GotoIfTime(" . $this->timeMatch($condition, $this->tenantTimezone($tid)) . "?time-allowed)\n";
                     $out .= " same => n,NoOp(Outbound blocked by time condition: {$this->esc($condition['name'])})\n";

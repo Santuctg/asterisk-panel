@@ -286,6 +286,20 @@ return [
             updated_at    DATETIME
         )',
 
+    'outbound_route_schedules' => '
+        CREATE TABLE IF NOT EXISTS outbound_route_schedules (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            tenant_id         INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+            outbound_route_id INTEGER NOT NULL REFERENCES outbound_routes(id) ON DELETE CASCADE,
+            name              VARCHAR(120) NOT NULL,
+            days_of_week      VARCHAR(40) DEFAULT "*",
+            start_time        VARCHAR(5) NOT NULL,
+            end_time          VARCHAR(5) NOT NULL,
+            ordering          INTEGER DEFAULT 0,
+            created_at        DATETIME,
+            updated_at        DATETIME
+        )',
+
     'time_conditions' => '
         CREATE TABLE IF NOT EXISTS time_conditions (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,

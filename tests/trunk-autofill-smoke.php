@@ -47,10 +47,12 @@ if (!str_contains($outboundHtml, '<option value="1">Test trunk</option>')) {
     throw new RuntimeException('FAIL: outbound route selector renders trunk names and IDs');
 }
 echo "PASS: outbound route selector renders trunk names and IDs\n";
-if (!str_contains($outboundHtml, 'name="time_condition_id"') || !str_contains($outboundHtml, 'Always allowed')) {
-    throw new RuntimeException('FAIL: outbound route supports an optional time condition');
+if (!str_contains($outboundHtml, 'id="addOutboundSchedule"')
+    || !str_contains($outboundHtml, 'name="schedules"')
+    || !str_contains($outboundHtml, 'Always allowed — no schedule restrictions.')) {
+    throw new RuntimeException('FAIL: outbound route supports direct calling schedules');
 }
-echo "PASS: outbound route supports an optional time condition\n";
+echo "PASS: outbound route supports direct calling schedules\n";
 $routeView = file_get_contents(BASE_PATH . '/themes/default/views/routes/index.php');
 if (!str_contains($routeView, 'Registration uptime history') || !str_contains($routeView, 'Dial 9 for an outside line')) {
     throw new RuntimeException('FAIL: trunk history and outbound route examples render');

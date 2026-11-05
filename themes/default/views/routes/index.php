@@ -147,7 +147,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
             <?php else: ?>
                 <div class="table-wrap">
                     <table>
-                        <thead><tr><th>Name</th><th>Prefix</th><th>Match pattern</th><th>Trunk</th><th>Time condition</th><th class="num">Priority</th><th class="actions">Actions</th></tr></thead>
+                        <thead><tr><th>Name</th><th>Prefix</th><th>Match pattern</th><th>Trunk</th><th>Allowed calling times</th><th class="num">Priority</th><th class="actions">Actions</th></tr></thead>
                         <tbody>
                             <?php foreach ($outbound as $r): ?>
                                 <tr>
@@ -156,8 +156,8 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                                     <td><code class="mono"><?= e($r['match_pattern']) ?></code></td>
                                     <td><?= e($r['trunk_name'] ?? '—') ?></td>
                                     <td>
-                                        <?php if (!empty($r['time_condition_name'])): ?>
-                                            <span class="badge <?= $r['time_condition_enabled'] ? 'blue' : 'gray' ?>"><?= e($r['time_condition_name']) ?></span>
+                                        <?php if (!empty($r['schedules'])): ?>
+                                            <?php foreach ($r['schedules'] as $schedule): ?><span class="badge blue"><?= e($schedule['start_time'] . '–' . $schedule['end_time'] . ' · ' . $schedule['days_of_week']) ?></span><?php endforeach; ?>
                                         <?php else: ?>
                                             <span class="muted">Always</span>
                                         <?php endif; ?>
@@ -211,16 +211,6 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                             foreach ($trunks as $t) { $trunkOpts[(int) $t['id']] = $t['name']; }
                             echo field_select('trunk_id', 'Trunk', $trunkOpts, null, ['required' => true, 'placeholder' => 'Choose a trunk…']);
                             ?>
-                            <?php
-                            $timeOpts = [];
-                            foreach ($times as $time) {
-                                if ($time['enabled']) { $timeOpts[(int) $time['id']] = $time['name']; }
-                            }
-                            echo field_select('time_condition_id', 'Time condition', $timeOpts, null, [
-                                'placeholder' => 'Always allowed',
-                                'hint' => 'When selected, this route works only during the condition’s in-hours period.',
-                            ]);
-                            ?>
                             <?php echo field_text('cid_override', 'Caller ID override', '', [
                                 'hint' => 'Force outbound caller ID (leave blank to use the extension\'s).',
                             ]); ?>
@@ -234,6 +224,10 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                                 'hint' => 'Override the tenant-wide automatic recording setting for this outbound route.',
                             ]); ?>
                         </div>
+                        <div class="divider"></div>
+                        <div class="flex justify-between items-center mb-3"><div><strong>Allowed calling times</strong><div class="hint">No schedule means outbound calls are always allowed. Times use <?= e(date_default_timezone_get()) ?>.</div></div><button type="button" class="btn btn-sm" id="addOutboundSchedule">＋ Add schedule</button></div>
+                        <input type="hidden" name="schedules" id="outboundSchedulesJson" value="[]">
+                        <div class="table-wrap"><table><thead><tr><th>Name</th><th>Time</th><th>Week</th><th class="actions">Options</th></tr></thead><tbody id="outboundScheduleRows"><tr data-empty><td colspan="4" class="muted">Always allowed — no schedule restrictions.</td></tr></tbody></table></div>
                     </div>
                     <div class="modal-foot">
                         <button type="button" class="btn" data-modal-close>Cancel</button>
@@ -566,6 +560,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
     }
 
     var inboundForm = document.getElementById('inboundForm');
+    var outboundForm = document.getElementById('outboundForm');
     var timeForm = document.getElementById('timeForm');
     if (inboundForm) bindDestinationFilter(inboundForm, 'dest_type', 'dest_id');
     if (timeForm) {
@@ -579,6 +574,38 @@ $activeTab = $_GET['tab'] ?? 'inbound';
         });
     }
 
+    var outboundScheduleRows = document.getElementById('outboundScheduleRows');
+    var outboundSchedulesJson = document.getElementById('outboundSchedulesJson');
+    var outboundSchedules = [];
+    var dayOptions = {'*':'Every day','mon-fri':'Mon–Fri','sat-sun':'Sat–Sun','mon':'Monday','tue':'Tuesday','wed':'Wednesday','thu':'Thursday','fri':'Friday','sat':'Saturday','sun':'Sunday'};
+    function renderOutboundSchedules(rows) {
+        outboundSchedules = Array.isArray(rows) ? rows.map(function (row) { return {name:row.name || 'Custom time', start_time:row.start_time || '09:00', end_time:row.end_time || '17:00', days_of_week:row.days_of_week || '*'}; }) : [];
+        if (!outboundScheduleRows) return;
+        outboundScheduleRows.replaceChildren();
+        if (!outboundSchedules.length) {
+            var empty = document.createElement('tr'); empty.dataset.empty = '1';
+            var cell = document.createElement('td'); cell.colSpan = 4; cell.className = 'muted'; cell.textContent = 'Always allowed — no schedule restrictions.'; empty.appendChild(cell); outboundScheduleRows.appendChild(empty);
+        }
+        outboundSchedules.forEach(function (row, index) {
+            var tr = document.createElement('tr');
+            var nameCell = document.createElement('td'); var name = document.createElement('input'); name.type = 'text'; name.value = row.name; name.maxLength = 120; name.dataset.scheduleField = 'name'; nameCell.appendChild(name);
+            var timeCell = document.createElement('td'); timeCell.className = 'nowrap'; var start = document.createElement('input'); start.type = 'time'; start.value = row.start_time; start.dataset.scheduleField = 'start_time'; var dash = document.createTextNode(' – '); var end = document.createElement('input'); end.type = 'time'; end.value = row.end_time; end.dataset.scheduleField = 'end_time'; timeCell.append(start, dash, end);
+            var daysCell = document.createElement('td'); var days = document.createElement('select'); days.dataset.scheduleField = 'days_of_week'; Object.keys(dayOptions).forEach(function (value) { var option = document.createElement('option'); option.value = value; option.textContent = dayOptions[value]; option.selected = value === row.days_of_week; days.appendChild(option); }); daysCell.appendChild(days);
+            var actionCell = document.createElement('td'); actionCell.className = 'actions'; var remove = document.createElement('button'); remove.type = 'button'; remove.className = 'btn btn-sm btn-ghost'; remove.textContent = 'Delete'; remove.addEventListener('click', function () { collectOutboundSchedules(); var rows = JSON.parse(outboundSchedulesJson.value || '[]'); rows.splice(index, 1); renderOutboundSchedules(rows); }); actionCell.appendChild(remove);
+            tr.append(nameCell, timeCell, daysCell, actionCell); outboundScheduleRows.appendChild(tr);
+        });
+    }
+    function collectOutboundSchedules() {
+        if (!outboundScheduleRows || !outboundSchedulesJson) return;
+        var rows = [];
+        outboundScheduleRows.querySelectorAll('tr:not([data-empty])').forEach(function (tr) { var row = {}; tr.querySelectorAll('[data-schedule-field]').forEach(function (field) { row[field.dataset.scheduleField] = field.value; }); rows.push(row); });
+        outboundSchedulesJson.value = JSON.stringify(rows);
+    }
+    var addOutboundSchedule = document.getElementById('addOutboundSchedule');
+    if (addOutboundSchedule) addOutboundSchedule.addEventListener('click', function () { collectOutboundSchedules(); var rows = JSON.parse(outboundSchedulesJson.value || '[]'); rows.push({name:'Custom time',start_time:'09:00',end_time:'17:00',days_of_week:'*'}); renderOutboundSchedules(rows); });
+    if (outboundForm) outboundForm.addEventListener('submit', collectOutboundSchedules);
+    renderOutboundSchedules([]);
+
     // Generic modal populate-on-edit for the four tabs.
     var configs = [
         { modal: 'inboundModal',  form: 'inboundForm',  title: 'inboundTitle',  submit: 'inboundSubmit',
@@ -587,7 +614,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
           checks: [['enabled',1]], label: 'inbound route' },
         { modal: 'outboundModal', form: 'outboundForm', title: 'outboundTitle', submit: 'outboundSubmit',
           action: '/routes/outbound', editAction: function (id) { return '/routes/outbound/' + id; },
-          fields: ['name','prefix','match_pattern','trunk_id','time_condition_id','cid_override','priority','record'],
+          fields: ['name','prefix','match_pattern','trunk_id','cid_override','priority','record'],
           checks: [['enabled',1]], label: 'outbound route' },
         { modal: 'trunkModal',    form: 'trunkForm',    title: 'trunkTitle',    submit: 'trunkSubmit',
           action: '/routes/trunks', editAction: function (id) { return '/routes/trunks/' + id; },
@@ -623,6 +650,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                   }
               });
               refreshDestinationFilters(form);
+              if (cfg.modal === 'outboundModal') renderOutboundSchedules(data.schedules || []);
              if (cfg.modal === 'trunkModal') {
                  form.elements.sip_trunk_auth_id.value = data.username || '';
                  form.elements.sip_trunk_auth_secret.value = '';
@@ -642,6 +670,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                 title.textContent = 'Add ' + cfg.label;
                 submit.textContent = 'Add';
                 refreshDestinationFilters(form);
+                if (cfg.modal === 'outboundModal') renderOutboundSchedules([]);
             });
         });
     });

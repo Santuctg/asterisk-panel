@@ -21,10 +21,33 @@ $db->exec($schema['cdr_import_log']);
 $db->exec($schema['trunk_status_history']);
 $db->exec($schema['extension_status_history']);
 $db->exec($schema['announcements']);
+$db->exec($schema['outbound_route_schedules']);
 
 // Outbound calling is denied by default and enabled per extension by assigning
 // one tenant-scoped outbound route.
 $driver = (string) $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+
+// Preserve existing outbound Time Condition assignments as route-local
+// schedules. Direct schedules take precedence; the legacy relation remains
+// readable until the route is next saved.
+$hasTimeConditions = $driver === 'sqlite'
+    ? (bool) $db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'time_conditions'")
+    : (bool) $db->scalar("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'time_conditions'");
+$hasTimeConditionLink = $driver === 'sqlite'
+    ? in_array('time_condition_id', array_column($db->all('PRAGMA table_info(outbound_routes)'), 'name'), true)
+    : (bool) $db->scalar("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'outbound_routes' AND COLUMN_NAME = 'time_condition_id'");
+if ($hasTimeConditions && $hasTimeConditionLink) {
+    $timeSql = $driver === 'sqlite'
+        ? 'printf("%02d:%02d", tc.start_hour, COALESCE(tc.start_minute, 0)), printf("%02d:%02d", tc.end_hour, COALESCE(tc.end_minute, 0))'
+        : 'CONCAT(LPAD(tc.start_hour, 2, "0"), ":", LPAD(COALESCE(tc.start_minute, 0), 2, "0")), CONCAT(LPAD(tc.end_hour, 2, "0"), ":", LPAD(COALESCE(tc.end_minute, 0), 2, "0"))';
+    $db->run('INSERT INTO outbound_route_schedules
+        (tenant_id, outbound_route_id, name, days_of_week, start_time, end_time, ordering, created_at)
+        SELECT o.tenant_id, o.id, tc.name, COALESCE(NULLIF(tc.days_of_week, ""), "*"), '
+        . $timeSql . ', 0, CURRENT_TIMESTAMP
+        FROM outbound_routes o JOIN time_conditions tc ON tc.id = o.time_condition_id AND tc.tenant_id = o.tenant_id
+        WHERE tc.start_hour IS NOT NULL AND tc.end_hour IS NOT NULL
+          AND NOT EXISTS (SELECT 1 FROM outbound_route_schedules s WHERE s.outbound_route_id = o.id)');
+}
 if ($driver === 'sqlite') {
     $hasMohClasses = (int) $db->scalar(
         "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'moh_classes'"

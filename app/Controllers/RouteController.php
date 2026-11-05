@@ -43,6 +43,14 @@ final class RouteController extends BaseController
              WHERE o.tenant_id = ? ORDER BY o.priority, o.id',
             [$tid]
         );
+        foreach ($outbound as &$route) {
+            $route['schedules'] = $db->all(
+                'SELECT id, name, days_of_week, start_time, end_time, ordering
+                 FROM outbound_route_schedules WHERE tenant_id = ? AND outbound_route_id = ? ORDER BY ordering, id',
+                [$tid, (int) $route['id']]
+            );
+        }
+        unset($route);
         $trunks = $db->all('SELECT * FROM trunks WHERE tenant_id = ? ORDER BY name', [$tid]);
         $times  = $db->all('SELECT * FROM time_conditions WHERE tenant_id = ? ORDER BY name', [$tid]);
 
@@ -241,6 +249,11 @@ final class RouteController extends BaseController
     public function storeOutbound(Request $request): Response
     {
         $tid = $this->requireTenant();
+        $schedules = $this->outboundSchedules($request);
+        if ($schedules === null) {
+            Flash::error('Check the outbound calling schedule names, days and times.');
+            return Response::redirect('/routes?tab=outbound');
+        }
 
         $data = [
             'tenant_id'     => $tid,
@@ -248,7 +261,7 @@ final class RouteController extends BaseController
             'prefix'        => $request->str('prefix'),
             'match_pattern' => $request->str('match_pattern'),
             'trunk_id'      => $request->int('trunk_id') ?: null,
-            'time_condition_id' => $this->validTimeConditionId($request->int('time_condition_id'), $tid),
+            'time_condition_id' => null,
             'cid_override'  => $request->str('cid_override'),
             'priority'      => $request->int('priority', 0),
             'enabled'       => $request->bool('enabled', true) ? 1 : 0,
@@ -267,6 +280,7 @@ final class RouteController extends BaseController
         }
 
         $id = $this->db()->insert('outbound_routes', $data);
+        $this->syncOutboundSchedules($id, $tid, $schedules);
         $this->audit('route.outbound.create', 'outbound_route', $id);
         $this->applyToAsterisk('route');
 
@@ -280,13 +294,18 @@ final class RouteController extends BaseController
         if (!$row) {
             return Response::redirect('/routes?tab=outbound');
         }
+        $schedules = $this->outboundSchedules($request);
+        if ($schedules === null) {
+            Flash::error('Check the outbound calling schedule names, days and times.');
+            return Response::redirect('/routes?tab=outbound');
+        }
 
         $data = [
             'name'          => $request->str('name'),
             'prefix'        => $request->str('prefix'),
             'match_pattern' => $request->str('match_pattern'),
             'trunk_id'      => $request->int('trunk_id') ?: null,
-            'time_condition_id' => $this->validTimeConditionId($request->int('time_condition_id'), (int) $row['tenant_id']),
+            'time_condition_id' => null,
             'cid_override'  => $request->str('cid_override'),
             'priority'      => $request->int('priority', 0),
             'enabled'       => $request->bool('enabled', true) ? 1 : 0,
@@ -304,6 +323,7 @@ final class RouteController extends BaseController
         }
 
         $this->db()->update('outbound_routes', (int) $row['id'], $data);
+        $this->syncOutboundSchedules((int) $row['id'], (int) $row['tenant_id'], $schedules);
         if (!$data['enabled']) {
             $this->db()->run(
                 'UPDATE extensions SET outbound_route_id = NULL WHERE tenant_id = ? AND outbound_route_id = ?',
@@ -560,6 +580,42 @@ final class RouteController extends BaseController
             'SELECT id FROM time_conditions WHERE id = ? AND tenant_id = ? AND enabled = 1',
             [$conditionId, $tid]
         ) ? $conditionId : null;
+    }
+
+    /** @return list<array{name:string,days_of_week:string,start_time:string,end_time:string}>|null */
+    private function outboundSchedules(Request $request): ?array
+    {
+        $raw = $request->str('schedules', '[]');
+        $rows = json_decode($raw, true);
+        if (!is_array($rows) || count($rows) > 20) { return null; }
+        $allowedDays = ['*', 'mon-fri', 'sat-sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+        $result = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) { return null; }
+            $name = trim((string) ($row['name'] ?? ''));
+            $days = strtolower(trim((string) ($row['days_of_week'] ?? '*')));
+            $start = trim((string) ($row['start_time'] ?? ''));
+            $end = trim((string) ($row['end_time'] ?? ''));
+            if ($name === '' || mb_strlen($name) > 120 || !in_array($days, $allowedDays, true)
+                || !preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $start)
+                || !preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $end)) {
+                return null;
+            }
+            $result[] = ['name' => $name, 'days_of_week' => $days, 'start_time' => $start, 'end_time' => $end];
+        }
+        return $result;
+    }
+
+    /** @param list<array{name:string,days_of_week:string,start_time:string,end_time:string}> $schedules */
+    private function syncOutboundSchedules(int $routeId, int $tenantId, array $schedules): void
+    {
+        $this->db()->run('DELETE FROM outbound_route_schedules WHERE outbound_route_id = ? AND tenant_id = ?', [$routeId, $tenantId]);
+        foreach ($schedules as $ordering => $schedule) {
+            $this->db()->insert('outbound_route_schedules', $schedule + [
+                'tenant_id' => $tenantId, 'outbound_route_id' => $routeId, 'ordering' => $ordering,
+                'created_at' => date('Y-m-d H:i:s'),
+            ]);
+        }
     }
 
     private function validAnnouncementId(int $announcementId, int $tid): ?int
