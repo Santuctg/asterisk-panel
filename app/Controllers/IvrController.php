@@ -226,6 +226,9 @@ final class IvrController extends BaseController
         foreach ($db->all('SELECT id, extension, name FROM time_conditions WHERE tenant_id = ? AND enabled = 1 ORDER BY name', [$tid]) as $r) {
             $opts['timecond'][] = ['id' => $r['id'], 'label' => "{$r['name']}"];
         }
+        foreach ($db->all('SELECT id, name FROM announcements WHERE tenant_id = ? AND enabled = 1 ORDER BY name', [$tid]) as $r) {
+            $opts['announcement'][] = ['id' => $r['id'], 'label' => $r['name']];
+        }
 
         return $opts;
     }
@@ -240,6 +243,7 @@ final class IvrController extends BaseController
             'conference' => 'conferences',
             'parking'    => 'parking_lots',
             'timecond'   => 'time_conditions',
+            'announcement' => 'announcements',
             default      => '',
         };
 
@@ -247,8 +251,12 @@ final class IvrController extends BaseController
             return $type === 'hangup' ? 'Hang up' : ($type === 'external' ? 'External number' : '—');
         }
 
+        if ($type === 'announcement') {
+            $r = $this->db()->one('SELECT name FROM announcements WHERE id = ?', [$id]);
+            return $r ? (string) $r['name'] : '—';
+        }
         $r = $this->db()->one("SELECT extension, name FROM {$table} WHERE id = ?", [$id]);
-        return $r ? "{$r['extension']} — {$r['name']}" : '—';
+        return $r ? trim((string) ($r['extension'] ?? '') . ' — ' . $r['name'], ' —') : '—';
     }
 
     private function suggestNext(): array

@@ -64,10 +64,13 @@ $selected = array_map(
                 foreach ((array) ($announcements ?? []) as $announcement) {
                     $announcementOptions[(int) $announcement['id']] = $announcement['name'];
                 }
-                echo field_select('announcement_id', 'Announcement', $announcementOptions, $val('announcement_id'), [
-                    'placeholder' => 'No announcement',
-                    'hint' => 'Plays completely and cannot be skipped; ringing starts afterwards.',
-                ]);
+                echo '<div class="field"><label for="announcement_id">Custom prompt</label><div class="flex gap-2">';
+                echo '<select id="announcement_id" name="announcement_id"><option value="">No custom prompt</option>';
+                foreach ($announcementOptions as $id => $label) {
+                    echo '<option value="' . (int) $id . '"' . ((string) $val('announcement_id') === (string) $id ? ' selected' : '') . '>' . e($label) . '</option>';
+                }
+                echo '</select><a class="btn" href="/moh?add=announcement">Add Audio</a></div>';
+                echo '<span class="hint">Plays completely and cannot be skipped; ringing starts afterwards.</span></div>';
                 ?>
 
                 <div class="span-2">

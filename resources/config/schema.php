@@ -178,6 +178,8 @@ return [
             name        VARCHAR(120) NOT NULL,
             filename    VARCHAR(255) NOT NULL,
             sound_path  VARCHAR(255) NOT NULL,
+            dest_type   VARCHAR(30) DEFAULT "hangup",
+            dest_id     INTEGER,
             enabled     INTEGER DEFAULT 1,
             created_at  DATETIME,
             updated_at  DATETIME,

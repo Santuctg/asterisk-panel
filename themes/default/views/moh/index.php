@@ -1,8 +1,13 @@
 <?php
-/** @var array $rows @var array|null $selected @var array $tracks @var array $announcements */
+/** @var array $rows @var array|null $selected @var array $tracks @var array $announcements @var array $announcementDestinations */
 require dirname(__DIR__) . '/partials/fields.php';
 $formatBytes = static fn (int $bytes): string => $bytes >= 1048576 ? number_format($bytes / 1048576, 1) . ' MB' : number_format($bytes / 1024, 1) . ' KB';
 $formatDuration = static fn (float $seconds): string => $seconds > 0 ? sprintf('%d:%02d', (int) floor($seconds / 60), (int) round(fmod($seconds, 60))) : '—';
+$announcementDestTypes = [
+    'extension' => 'Extension', 'ringgroup' => 'Ring group', 'ivr' => 'IVR menu',
+    'queue' => 'Call queue', 'conference' => 'Conference', 'parking' => 'Parking lot',
+    'timecond' => 'Time condition', 'hangup' => 'Hang up',
+];
 ?>
 
 <div class="page-head">
@@ -70,9 +75,9 @@ $formatDuration = static fn (float $seconds): string => $seconds > 0 ? sprintf('
     <div class="card-head"><div><h2>Announcements</h2><span class="text-xs muted">Separate from Music on Hold; plays completely before routing or ringing</span></div><button class="btn btn-sm" data-modal-open="announcementModal">New announcement</button></div>
     <div class="card-body tight">
         <?php if (!$announcements): ?><div class="moh-empty-small">No announcements uploaded.</div><?php else: ?>
-            <div class="table-wrap"><table><thead><tr><th>Name</th><th>File</th><th>Status</th><th class="actions">Actions</th></tr></thead><tbody>
+            <div class="table-wrap"><table><thead><tr><th>Name</th><th>Prompt</th><th>Default destination</th><th>Status</th><th class="actions">Actions</th></tr></thead><tbody>
             <?php foreach ($announcements as $announcement): ?><tr>
-                <td><strong><?= e($announcement['name']) ?></strong></td><td><code class="text-xs"><?= e($announcement['filename']) ?></code></td>
+                <td><strong><?= e($announcement['name']) ?></strong></td><td><code class="text-xs"><?= e($announcement['filename']) ?></code></td><td><?= e($announcement['dest_label'] ?? 'Hang up') ?></td>
                 <td><span class="badge <?= $announcement['enabled'] ? 'green' : 'gray' ?>"><?= $announcement['enabled'] ? 'Active' : 'Disabled' ?></span></td>
                 <td class="actions"><button class="btn btn-sm" data-modal-open="announcementModal" data-edit='<?= e(json_encode($announcement, JSON_HEX_APOS | JSON_HEX_QUOT)) ?>'>Edit</button><form method="post" action="/announcements/<?= (int) $announcement['id'] ?>"><?= csrf() ?><input type="hidden" name="_method" value="DELETE"><button class="btn btn-sm btn-ghost moh-danger" data-confirm-btn="Delete this announcement?"><?= $this->fragment('icons/trash') ?></button></form></td>
             </tr><?php endforeach; ?></tbody></table></div>
@@ -108,7 +113,7 @@ $formatDuration = static fn (float $seconds): string => $seconds > 0 ? sprintf('
 
 <div class="modal-overlay" id="announcementModal" hidden><div class="modal"><form method="post" action="/announcements" id="announcementForm" enctype="multipart/form-data"><?= csrf() ?>
     <div class="modal-head"><h2 id="announcementTitle">New announcement</h2><button type="button" class="icon-btn" data-modal-close><?= $this->fragment('icons/x') ?></button></div>
-    <div class="modal-body"><div class="form-grid"><?= field_text('name', 'Announcement name (optional)', '', ['span' => true, 'placeholder' => 'Uses the audio filename when left blank', 'hint' => 'The option is created only after the audio uploads successfully.']) ?><div class="field span-2"><label for="announcementAudio">Audio file</label><input id="announcementAudio" type="file" name="audio" required accept="audio/*,.wav,.mp3,.ogg,.flac,.gsm,.ulaw,.alaw,.m4a,.mp4,.webm"><div class="hint">Converted to an Asterisk-compatible 8 kHz mono WAV. Maximum 25 MB.</div></div><div class="span-2"><?= field_check('enabled', 'Announcement active', true) ?></div></div></div>
+    <div class="modal-body"><div class="form-grid"><?= field_text('name', 'Announcement name (optional)', '', ['span' => true, 'placeholder' => 'Uses the audio filename when left blank', 'hint' => 'The option is created only after the audio uploads successfully.']) ?><div class="field span-2"><label for="announcementAudio">Prompt audio</label><input id="announcementAudio" type="file" name="audio" required accept="audio/*,.wav,.mp3,.ogg,.flac,.gsm,.ulaw,.alaw,.m4a,.mp4,.webm"><div class="hint">Converted to an Asterisk-compatible 8 kHz mono WAV. Maximum 25 MB. On edit, leave blank to keep the current prompt.</div></div><?= field_select('dest_type', 'Default destination type', $announcementDestTypes, 'hangup', ['required' => true]) ?><?= field_select('dest_id', 'Default destination', $announcementDestinations, null, ['placeholder' => 'Choose destination']) ?><div class="span-2"><?= field_check('enabled', 'Announcement active', true) ?></div></div></div>
     <div class="modal-foot"><button type="button" class="btn" data-modal-close>Cancel</button><button class="btn btn-primary" id="announcementSubmit">Upload announcement</button></div>
 </form></div></div>
 
@@ -120,8 +125,12 @@ $formatDuration = static fn (float $seconds): string => $seconds > 0 ? sprintf('
     document.querySelectorAll('[data-modal-open="playlistModal"]:not([data-edit])').forEach(function (button) { button.addEventListener('click', function () { playlistForm.reset(); playlistForm.action = '/moh'; document.getElementById('playlistTitle').textContent = 'New playlist'; document.getElementById('playlistSubmit').textContent = 'Create playlist'; }); });
 
     var announcementForm = document.getElementById('announcementForm');
-    document.querySelectorAll('[data-modal-open="announcementModal"][data-edit]').forEach(function (button) { button.addEventListener('click', function () { var data = JSON.parse(button.getAttribute('data-edit')); announcementForm.action = '/announcements/' + data.id; document.getElementById('announcementTitle').textContent = 'Edit announcement'; document.getElementById('announcementSubmit').textContent = 'Save changes'; announcementForm.elements.name.value = data.name || ''; announcementForm.elements.enabled.checked = Number(data.enabled) === 1; announcementForm.elements.audio.required = false; announcementForm.elements.audio.value = ''; }); });
-    document.querySelectorAll('[data-modal-open="announcementModal"]:not([data-edit])').forEach(function (button) { button.addEventListener('click', function () { announcementForm.reset(); announcementForm.action = '/announcements'; document.getElementById('announcementTitle').textContent = 'New announcement'; document.getElementById('announcementSubmit').textContent = 'Upload announcement'; announcementForm.elements.audio.required = true; }); });
+    var filterAnnouncementDestinations = function () { var type = announcementForm.elements.dest_type.value; var destination = announcementForm.elements.dest_id; Array.prototype.forEach.call(destination.querySelectorAll('optgroup'), function (group) { group.hidden = group.dataset.type !== type; Array.prototype.forEach.call(group.querySelectorAll('option'), function (option) { option.disabled = group.dataset.type !== type; }); }); destination.disabled = type === 'hangup'; if (type === 'hangup') destination.value = ''; };
+    announcementForm.elements.dest_type.addEventListener('change', filterAnnouncementDestinations);
+    document.querySelectorAll('[data-modal-open="announcementModal"][data-edit]').forEach(function (button) { button.addEventListener('click', function () { var data = JSON.parse(button.getAttribute('data-edit')); announcementForm.action = '/announcements/' + data.id; document.getElementById('announcementTitle').textContent = 'Edit announcement'; document.getElementById('announcementSubmit').textContent = 'Save changes'; announcementForm.elements.name.value = data.name || ''; announcementForm.elements.enabled.checked = Number(data.enabled) === 1; announcementForm.elements.audio.required = false; announcementForm.elements.audio.value = ''; announcementForm.elements.dest_type.value = data.dest_type || 'hangup'; filterAnnouncementDestinations(); announcementForm.elements.dest_id.value = data.dest_id || ''; }); });
+    document.querySelectorAll('[data-modal-open="announcementModal"]:not([data-edit])').forEach(function (button) { button.addEventListener('click', function () { announcementForm.reset(); announcementForm.action = '/announcements'; document.getElementById('announcementTitle').textContent = 'New announcement'; document.getElementById('announcementSubmit').textContent = 'Upload announcement'; announcementForm.elements.audio.required = true; announcementForm.elements.dest_type.value = 'hangup'; filterAnnouncementDestinations(); }); });
+    filterAnnouncementDestinations();
+    if (new URLSearchParams(window.location.search).get('add') === 'announcement') { var modal = document.getElementById('announcementModal'); if (modal) { modal.hidden = false; document.body.style.overflow = 'hidden'; } }
 
     var player = document.getElementById('mohAudioPlayer');
     document.querySelectorAll('[data-track-play]').forEach(function (button) { button.addEventListener('click', function () { if (!player) return; var url = button.getAttribute('data-track-play') + '?inline=1'; if (player.src && player.src.indexOf(url) !== -1 && !player.paused) { player.pause(); button.textContent = '▶ Play'; return; } document.querySelectorAll('[data-track-play]').forEach(function (item) { item.textContent = '▶ Play'; }); player.src = url; player.hidden = false; player.play().then(function () { button.textContent = '❚❚ Pause'; }).catch(function () {}); }); });

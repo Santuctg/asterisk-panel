@@ -13,6 +13,7 @@ $typeLabels = [
     'conference' => 'Conference',
     'parking'    => 'Parking lot',
     'timecond'   => 'Time condition',
+    'announcement' => 'Announcement',
     'external'   => 'External number',
     'hangup'     => 'Hang up',
 ];
@@ -103,12 +104,12 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                             <?php
                             $announcementOpts = [];
                             foreach ((array) ($announcements ?? []) as $a) { $announcementOpts[(int) $a['id']] = $a['name']; }
-                            echo field_select('announcement_id', 'Announcement', $announcementOpts, null, [
-                                'placeholder' => 'No announcement',
+                            echo field_select('announcement_id', 'Custom prompt', $announcementOpts, null, [
+                                'placeholder' => 'No custom prompt',
                                 'hint' => 'Answers the inbound call and plays completely before routing; it cannot be skipped.',
-                                'span' => true,
                             ]);
                             ?>
+                            <div class="field"><label>Prompt audio</label><a class="btn" href="/moh?add=announcement">Add Audio</a><span class="hint">Upload a new prompt, then return to select it.</span></div>
                             <?php echo field_text('priority', 'Priority', 0, ['type' => 'number',
                                 'hint' => 'Lower numbers are evaluated first.']); ?>
                             <div class="span-2"><?php echo field_check('enabled', 'Route active', true); ?></div>

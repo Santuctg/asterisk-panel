@@ -33,14 +33,21 @@ final class MusicOnHoldController extends BaseController
             $selected = $rows[0];
         }
 
+        $announcements = $this->db()->all(
+            'SELECT * FROM announcements WHERE tenant_id = ? ORDER BY name',
+            [$tid]
+        );
+        foreach ($announcements as &$announcement) {
+            $announcement['dest_label'] = $this->announcementDestinationLabel($announcement, $tid);
+        }
+        unset($announcement);
+
         return $this->view('moh/index', [
             'rows' => $rows,
             'selected' => $selected,
             'tracks' => $selected ? $this->tracks($selected) : [],
-            'announcements' => $this->db()->all(
-                'SELECT * FROM announcements WHERE tenant_id = ? ORDER BY name',
-                [$tid]
-            ),
+            'announcements' => $announcements,
+            'announcementDestinations' => $this->announcementDestinations($tid),
         ]);
     }
 
@@ -481,5 +488,45 @@ final class MusicOnHoldController extends BaseController
             elseif (is_file($path) || is_link($path)) { @unlink($path); }
         }
         @rmdir($directory);
+    }
+
+    private function announcementDestinations(int $tenantId): array
+    {
+        $tables = [
+            'extension' => 'extensions', 'ringgroup' => 'ring_groups', 'ivr' => 'ivr_menus',
+            'queue' => 'queues', 'conference' => 'conferences', 'parking' => 'parking_lots',
+            'timecond' => 'time_conditions',
+        ];
+        $options = [];
+        foreach ($tables as $type => $table) {
+            foreach ($this->db()->all(
+                "SELECT id, extension, name FROM {$table} WHERE tenant_id = ? AND enabled = 1 ORDER BY name",
+                [$tenantId]
+            ) as $row) {
+                $prefix = trim((string) ($row['extension'] ?? ''));
+                $options[$type][] = [
+                    'id' => (int) $row['id'],
+                    'label' => ($prefix !== '' ? $prefix . ' — ' : '') . $row['name'],
+                ];
+            }
+        }
+        return $options;
+    }
+
+    private function announcementDestinationLabel(array $announcement, int $tenantId): string
+    {
+        $type = (string) ($announcement['dest_type'] ?? 'hangup');
+        if ($type === 'hangup' || empty($announcement['dest_id'])) { return 'Hang up'; }
+        $tables = [
+            'extension' => 'extensions', 'ringgroup' => 'ring_groups', 'ivr' => 'ivr_menus',
+            'queue' => 'queues', 'conference' => 'conferences', 'parking' => 'parking_lots',
+            'timecond' => 'time_conditions',
+        ];
+        $table = $tables[$type] ?? null;
+        if (!$table) { return 'Unavailable'; }
+        $row = $this->db()->one("SELECT extension, name FROM {$table} WHERE id = ? AND tenant_id = ?", [(int) $announcement['dest_id'], $tenantId]);
+        if (!$row) { return 'Unavailable'; }
+        $extension = trim((string) ($row['extension'] ?? ''));
+        return ($extension !== '' ? $extension . ' — ' : '') . $row['name'];
     }
 }

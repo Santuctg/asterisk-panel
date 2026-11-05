@@ -50,6 +50,8 @@ if ((int)$db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND 
 if (!in_array('outbound_route_id', array_column($db->all('PRAGMA table_info(extensions)'), 'name'), true)) throw new RuntimeException('Extension outbound route column missing');
 if (!in_array('time_condition_id', array_column($db->all('PRAGMA table_info(outbound_routes)'), 'name'), true)) throw new RuntimeException('Outbound route time condition column missing');
 if ((int)$db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='announcements'") !== 1) throw new RuntimeException('Announcements table missing');
+$announcementColumns = array_column($db->all('PRAGMA table_info(announcements)'), 'name');
+if (!in_array('dest_type', $announcementColumns, true) || !in_array('dest_id', $announcementColumns, true)) throw new RuntimeException('Announcement destination columns missing');
 foreach (['ring_groups','inbound_routes','queues'] as $table) {
     if (!in_array('announcement_id', array_column($db->all("PRAGMA table_info({$table})"), 'name'), true)) throw new RuntimeException("Announcement column missing from {$table}");
 }

@@ -98,6 +98,13 @@ if ($driver === 'sqlite') {
             $pdo->exec("ALTER TABLE {$table} ADD COLUMN announcement_id INTEGER");
         }
     }
+    $announcementColumns = array_column($db->all('PRAGMA table_info(announcements)'), 'name');
+    if (!in_array('dest_type', $announcementColumns, true)) {
+        $pdo->exec('ALTER TABLE announcements ADD COLUMN dest_type VARCHAR(30) DEFAULT "hangup"');
+    }
+    if (!in_array('dest_id', $announcementColumns, true)) {
+        $pdo->exec('ALTER TABLE announcements ADD COLUMN dest_id INTEGER');
+    }
 } else {
     $hasMohTenant = (int) $db->scalar(
         'SELECT COUNT(*) FROM information_schema.COLUMNS
@@ -142,6 +149,13 @@ if ($driver === 'sqlite') {
         if (!$hasAnnouncement) {
             $pdo->exec("ALTER TABLE {$table} ADD COLUMN announcement_id BIGINT NULL");
         }
+    }
+    foreach (['dest_type' => 'VARCHAR(30) DEFAULT "hangup"', 'dest_id' => 'BIGINT NULL'] as $column => $definition) {
+        $exists = (int) $db->scalar(
+            'SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+            ['announcements', $column]
+        );
+        if (!$exists) { $pdo->exec("ALTER TABLE announcements ADD COLUMN {$column} {$definition}"); }
     }
 }
 

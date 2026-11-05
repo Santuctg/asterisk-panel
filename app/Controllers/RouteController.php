@@ -21,7 +21,7 @@ final class RouteController extends BaseController
 {
     private const DEST_TYPES = [
         'extension', 'ringgroup', 'ivr', 'queue', 'conference',
-        'parking', 'timecond', 'external', 'hangup',
+        'parking', 'timecond', 'announcement', 'external', 'hangup',
     ];
 
     /** GET /routes */
@@ -107,8 +107,12 @@ final class RouteController extends BaseController
             if (!$table) {
                 return '—';
             }
+            if ($type === 'announcement') {
+                $r = $db->one('SELECT name FROM announcements WHERE id = ?', [$id]);
+                return $r ? (string) $r['name'] : '—';
+            }
             $r = $db->one("SELECT extension, name FROM {$table} WHERE id = ?", [$id]);
-            return $r ? "{$r['extension']} — {$r['name']}" : '—';
+            return $r ? trim((string) ($r['extension'] ?? '') . ' — ' . $r['name'], ' —') : '—';
         };
 
         foreach ($inbound as &$r) {
@@ -163,6 +167,10 @@ final class RouteController extends BaseController
             Flash::error($v->firstError());
             return Response::redirect('/routes');
         }
+        if (!$this->validDestination($data['dest_type'], $data['dest_id'], $tid)) {
+            Flash::error('Choose a valid tenant destination.');
+            return Response::redirect('/routes');
+        }
 
         $id = $this->db()->insert('inbound_routes', $data);
         $this->audit('route.inbound.create', 'inbound_route', $id);
@@ -198,6 +206,10 @@ final class RouteController extends BaseController
         ]);
         if ($v->fails()) {
             Flash::error($v->firstError());
+            return Response::redirect('/routes');
+        }
+        if (!$this->validDestination($data['dest_type'], $data['dest_id'], (int) $row['tenant_id'])) {
+            Flash::error('Choose a valid tenant destination.');
             return Response::redirect('/routes');
         }
 
@@ -437,6 +449,11 @@ final class RouteController extends BaseController
             Flash::error($v->firstError());
             return Response::redirect('/routes');
         }
+        if (!$this->validDestination($data['open_type'], $data['open_dest_id'], $tid)
+            || !$this->validDestination($data['closed_type'], $data['closed_dest_id'], $tid)) {
+            Flash::error('Choose valid tenant destinations for both time-condition branches.');
+            return Response::redirect('/routes?tab=time');
+        }
 
         $id = $this->db()->insert('time_conditions', $data);
         $this->audit('route.time.create', 'time_condition', $id);
@@ -472,6 +489,11 @@ final class RouteController extends BaseController
             'enabled'        => $request->bool('enabled', true) ? 1 : 0,
         ];
 
+        if (!$this->validDestination($data['open_type'], $data['open_dest_id'], (int) $row['tenant_id'])
+            || !$this->validDestination($data['closed_type'], $data['closed_dest_id'], (int) $row['tenant_id'])) {
+            Flash::error('Choose valid tenant destinations for both time-condition branches.');
+            return Response::redirect('/routes?tab=time');
+        }
         $this->db()->update('time_conditions', (int) $row['id'], $data);
         $this->audit('route.time.update', 'time_condition', (int) $row['id']);
         $this->applyToAsterisk('timecondition');
@@ -523,6 +545,7 @@ final class RouteController extends BaseController
             'conference' => 'conferences',
             'parking'    => 'parking_lots',
             'timecond'   => 'time_conditions',
+            'announcement' => 'announcements',
             default      => null,
         };
     }
@@ -548,6 +571,18 @@ final class RouteController extends BaseController
         ) ? $announcementId : null;
     }
 
+    private function validDestination(string $type, mixed $id, int $tenantId): bool
+    {
+        if (in_array($type, ['hangup', 'external'], true)) { return true; }
+        $table = self::destTable($type);
+        $id = (int) $id;
+        if (!$table || $id <= 0) { return false; }
+        return (bool) $this->db()->scalar(
+            "SELECT COUNT(*) FROM {$table} WHERE id = ? AND tenant_id = ? AND enabled = 1",
+            [$id, $tenantId]
+        );
+    }
+
     /** Options for destination pickers, grouped by type. */
     public function destinationOptions(): array
     {
@@ -560,8 +595,11 @@ final class RouteController extends BaseController
             if (!$table) {
                 continue;
             }
-            foreach ($db->all("SELECT id, extension, name FROM {$table} WHERE tenant_id = ? AND enabled = 1 ORDER BY extension", [$tid]) as $r) {
-                $opts[$type][] = ['id' => $r['id'], 'label' => "{$r['extension']} — {$r['name']}"];
+            $columns = $type === 'announcement' ? 'id, name' : 'id, extension, name';
+            $order = $type === 'announcement' ? 'name' : 'extension';
+            foreach ($db->all("SELECT {$columns} FROM {$table} WHERE tenant_id = ? AND enabled = 1 ORDER BY {$order}", [$tid]) as $r) {
+                $extension = trim((string) ($r['extension'] ?? ''));
+                $opts[$type][] = ['id' => $r['id'], 'label' => ($extension !== '' ? $extension . ' — ' : '') . $r['name']];
             }
         }
 

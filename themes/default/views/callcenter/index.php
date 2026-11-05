@@ -121,11 +121,12 @@ foreach ((array) $live as $lq) {
                     <?php
                     $announcementOpts = [];
                     foreach ((array) ($announcements ?? []) as $a) { $announcementOpts[(int) $a['id']] = $a['name']; }
-                    echo field_select('announcement_id', 'Caller announcement', $announcementOpts, null, [
-                        'placeholder' => 'No announcement',
+                    echo field_select('announcement_id', 'Custom prompt', $announcementOpts, null, [
+                        'placeholder' => 'No custom prompt',
                         'hint' => 'Plays completely before the caller enters the queue and cannot be skipped.',
                     ]);
                     ?>
+                    <div class="field"><label>Prompt audio</label><a class="btn" href="/moh?add=announcement">Add Audio</a><span class="hint">Upload a new prompt, then return to select it.</span></div>
                     <?php echo field_text('timeout', 'Ring timeout (seconds)', 15, ['type' => 'number']); ?>
                     <?php echo field_text('max_wait', 'Max wait time (seconds)', 300, ['type' => 'number']); ?>
                     <?php echo field_text('service_level', 'Service level (%)', 60, ['type' => 'number']); ?>

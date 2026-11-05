@@ -12,6 +12,12 @@ use App\Core\Validator;
 /** Tenant-scoped, non-skippable caller announcements. */
 final class AnnouncementController extends BaseController
 {
+    private const DEST_TABLES = [
+        'extension' => 'extensions', 'ringgroup' => 'ring_groups', 'ivr' => 'ivr_menus',
+        'queue' => 'queues', 'conference' => 'conferences', 'parking' => 'parking_lots',
+        'timecond' => 'time_conditions',
+    ];
+
     public function store(Request $request): Response
     {
         $tid = $this->requireTenant();
@@ -33,6 +39,11 @@ final class AnnouncementController extends BaseController
             Flash::error('An announcement with that name already exists.');
             return Response::redirect('/moh');
         }
+        $destination = $this->destination($request, $tid);
+        if ($destination === null) {
+            Flash::error('Choose a valid default destination.');
+            return Response::redirect('/moh');
+        }
 
         $upload = $this->upload($tid, $file);
         if (isset($upload['error'])) {
@@ -46,6 +57,8 @@ final class AnnouncementController extends BaseController
                 'name' => $name,
                 'filename' => $upload['filename'],
                 'sound_path' => $upload['sound_path'],
+                'dest_type' => $destination['type'],
+                'dest_id' => $destination['id'],
                 'enabled' => $request->bool('enabled', true) ? 1 : 0,
                 'created_at' => date('Y-m-d H:i:s'),
             ]);
@@ -84,6 +97,13 @@ final class AnnouncementController extends BaseController
             'enabled' => $request->bool('enabled', true) ? 1 : 0,
             'updated_at' => date('Y-m-d H:i:s'),
         ];
+        $destination = $this->destination($request, $tid);
+        if ($destination === null) {
+            Flash::error('Choose a valid default destination.');
+            return Response::redirect('/moh');
+        }
+        $data['dest_type'] = $destination['type'];
+        $data['dest_id'] = $destination['id'];
         $file = $request->files('audio');
         if ($file && (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
             $upload = $this->upload($tid, $file);
@@ -111,6 +131,33 @@ final class AnnouncementController extends BaseController
         if (!$row) { return Response::redirect('/moh'); }
         foreach (['ring_groups', 'inbound_routes', 'queues'] as $table) {
             $this->db()->run("UPDATE {$table} SET announcement_id = NULL WHERE tenant_id = ? AND announcement_id = ?", [$tid, (int) $row['id']]);
+        }
+        $this->db()->run(
+            'UPDATE inbound_routes SET dest_type = "hangup", dest_id = NULL WHERE tenant_id = ? AND dest_type = "announcement" AND dest_id = ?',
+            [$tid, (int) $row['id']]
+        );
+        $this->db()->run(
+            'UPDATE time_conditions SET open_type = "hangup", open_dest_id = NULL WHERE tenant_id = ? AND open_type = "announcement" AND open_dest_id = ?',
+            [$tid, (int) $row['id']]
+        );
+        $this->db()->run(
+            'UPDATE time_conditions SET closed_type = "hangup", closed_dest_id = NULL WHERE tenant_id = ? AND closed_type = "announcement" AND closed_dest_id = ?',
+            [$tid, (int) $row['id']]
+        );
+        foreach ($this->db()->all('SELECT id, keys, timeout_action, timeout_dest_id FROM ivr_menus WHERE tenant_id = ?', [$tid]) as $ivr) {
+            $changes = [];
+            $keys = json_decode((string) ($ivr['keys'] ?? ''), true) ?: [];
+            foreach ($keys as $key => $destination) {
+                if (($destination['type'] ?? '') === 'announcement' && (int) ($destination['id'] ?? 0) === (int) $row['id']) {
+                    unset($keys[$key]);
+                    $changes['keys'] = json_encode($keys, JSON_UNESCAPED_SLASHES);
+                }
+            }
+            if (($ivr['timeout_action'] ?? '') === 'announcement' && (int) ($ivr['timeout_dest_id'] ?? 0) === (int) $row['id']) {
+                $changes['timeout_action'] = null;
+                $changes['timeout_dest_id'] = null;
+            }
+            if ($changes) { $this->db()->update('ivr_menus', (int) $ivr['id'], $changes); }
         }
         $this->db()->delete('announcements', (int) $row['id']);
         $this->deleteFile((string) $row['filename'], $tid);
@@ -191,6 +238,21 @@ final class AnnouncementController extends BaseController
             UPLOAD_ERR_EXTENSION => 'A server extension stopped the announcement upload.',
             default => 'The announcement upload failed.',
         };
+    }
+
+    /** @return array{type:string,id:?int}|null */
+    private function destination(Request $request, int $tenantId): ?array
+    {
+        $type = $request->str('dest_type', 'hangup');
+        if ($type === 'hangup') { return ['type' => 'hangup', 'id' => null]; }
+        $table = self::DEST_TABLES[$type] ?? null;
+        $id = $request->int('dest_id');
+        if (!$table || $id <= 0) { return null; }
+        $exists = $this->db()->scalar(
+            "SELECT COUNT(*) FROM {$table} WHERE id = ? AND tenant_id = ? AND enabled = 1",
+            [$id, $tenantId]
+        );
+        return $exists ? ['type' => $type, 'id' => $id] : null;
     }
 
     private function deleteFile(string $filename, int $tenantId): void

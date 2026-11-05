@@ -425,6 +425,7 @@ final class ConfigGenerator
 
             $out .= $this->dialplanTimeConditionContexts($tid, $ctx);
             $out .= $this->dialplanIvrContexts($tid, $ctx);
+            $out .= $this->dialplanAnnouncementContexts($tid, $ctx);
             $out .= $this->dialplanOutboundRoutes($tid, $ctx, $recordOutbound);
         }
 
@@ -665,6 +666,33 @@ final class ConfigGenerator
             $out .= " same => n,Goto({$ctx}-ivr-{$ivr['extension']},s,1)\n\n";
         }
 
+        return $out;
+    }
+
+    /** Routable announcements: play the prompt completely, then continue. */
+    private function dialplanAnnouncementContexts(int $tid, string $ctx): string
+    {
+        $rows = $this->db->all(
+            'SELECT * FROM announcements WHERE tenant_id = ? AND enabled = 1 ORDER BY id',
+            [$tid]
+        );
+        $out = '';
+        foreach ($rows as $row) {
+            $path = (string) ($row['sound_path'] ?? '');
+            if (!preg_match('#^[A-Za-z0-9_./-]+$#', $path)) { continue; }
+            $type = (string) ($row['dest_type'] ?? 'hangup');
+            $id = $row['dest_id'] ?? 0;
+            $out .= "[{$ctx}-announcement-{$row['id']}]\n";
+            $out .= "exten => s,1,NoOp(Announcement: {$this->esc($row['name'])})\n";
+            $out .= " same => n,Answer()\n";
+            $out .= " same => n,Playback({$path})\n";
+            if ($type === 'hangup') {
+                $out .= " same => n,Hangup()\n\n";
+            } else {
+                $out .= " same => n,Gosub({$this->destinationGosub($type, $id, $ctx)})\n";
+                $out .= " same => n,Return()\n\n";
+            }
+        }
         return $out;
     }
 
@@ -1030,6 +1058,7 @@ final class ConfigGenerator
             'queue'      => $this->queueGosub((int) $id, $ctx),
             'parking'    => $this->parkingGosub((int) $id, $ctx),
             'timecond'   => $this->timeCondGosub((int) $id, $ctx),
+            'announcement' => "{$ctx}-announcement-" . (int) $id . ',s,1',
             'external'   => 'app-dial,1,Dial(SIP/' . $this->esc((string) $id) . ')',
             'hangup'     => 'app-dial,1,Hangup()',
             'voicemail'  => $this->voicemailGosub((int) $id, $ctx),

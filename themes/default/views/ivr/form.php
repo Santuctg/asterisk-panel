@@ -18,6 +18,7 @@ $typeLabels = [
     'conference' => 'Conference',
     'parking'    => 'Parking lot',
     'timecond'   => 'Time condition',
+    'announcement' => 'Announcement',
     'external'   => 'External number',
     'hangup'     => 'Hang up',
 ];
