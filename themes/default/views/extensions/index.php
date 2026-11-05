@@ -44,7 +44,8 @@ require dirname(__DIR__) . '/partials/fields.php';
                             <th>SIP password</th>
                             <th>Voicemail</th>
                             <th>Device</th>
-                            <th>Status</th>
+                            <th>Registration</th>
+                            <th>Config</th>
                             <th class="actions">Actions</th>
                         </tr>
                     </thead>
@@ -86,6 +87,17 @@ require dirname(__DIR__) . '/partials/fields.php';
                                         <div class="text-xs muted mono"><?= e(human_mac($r['device_mac'])) ?></div>
                                     <?php else: ?>
                                         <span class="muted">—</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php if (!$r['enabled']): ?>
+                                        <span class="badge gray"><span class="dot"></span>Disabled</span>
+                                    <?php elseif (!$registrationAvailable): ?>
+                                        <span class="badge gray"><span class="dot"></span>Unknown</span>
+                                    <?php elseif ($r['registration_status'] !== null): ?>
+                                        <span class="badge green" title="Asterisk contact status: <?= e($r['registration_status']) ?>"><span class="dot"></span>Registered</span>
+                                    <?php else: ?>
+                                        <span class="badge amber"><span class="dot"></span>Unregistered</span>
                                     <?php endif; ?>
                                 </td>
                                 <td>

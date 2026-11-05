@@ -353,6 +353,13 @@ return [
             created_at DATETIME
         )',
 
+    'cdr_import_log' => '
+        CREATE TABLE IF NOT EXISTS cdr_import_log (
+            uniqueid    VARCHAR(60) PRIMARY KEY,
+            tenant_id   INTEGER,
+            imported_at DATETIME
+        )',
+
     'cdr' => '
         CREATE TABLE IF NOT EXISTS cdr (
             id           INTEGER PRIMARY KEY AUTOINCREMENT,

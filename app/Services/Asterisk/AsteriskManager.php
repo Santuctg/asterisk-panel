@@ -64,8 +64,42 @@ final class AsteriskManager
 
     public function registeredEndpoints(): int
     {
-        $out = $this->ami->command('pjsip show contacts');
-        return preg_match_all('/^Contact:\s+\S+\s+\S+\s+\S+/mi', $out) ?: 0;
+        return count($this->contactStatuses());
+    }
+
+    /** AOR => contact status for every currently registered SIP contact. */
+    public function contactStatuses(): array
+    {
+        return self::parseContactStatuses($this->ami->command('pjsip show contacts'));
+    }
+
+    public static function parseContactStatuses(string $out): array
+    {
+        $rows = [];
+        foreach (explode("\n", $out) as $line) {
+            if (!preg_match('/^Contact:\s+(\S+)\s+(\S+)\s+(\S+)(?:\s+(\S+))?/', trim($line), $m)) { continue; }
+            if (str_starts_with($m[1], '<')) { continue; }
+            $aor = strstr($m[1], '/', true) ?: $m[1];
+            $rows[$aor] = $m[3];
+        }
+        return $rows;
+    }
+
+    /** Registration name => state for outbound SIP trunks. */
+    public function outboundRegistrations(): array
+    {
+        return self::parseOutboundRegistrations($this->ami->command('pjsip show registrations outbound'));
+    }
+
+    public static function parseOutboundRegistrations(string $out): array
+    {
+        $rows = [];
+        foreach (explode("\n", $out) as $line) {
+            if (!preg_match('/^\s*(\S+)\/\S+\s+\S+\s+(\S+)/', $line, $m)) { continue; }
+            if (str_starts_with($m[1], '<')) { continue; }
+            $rows[$m[1]] = $m[2];
+        }
+        return $rows;
     }
 
     /** Live channel list for the dashboard. */
@@ -191,11 +225,12 @@ final class AsteriskManager
         $rows = [];
 
         foreach (explode("\n", $out) as $line) {
-            if (preg_match('/^Contact:\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)/', trim($line), $m)) {
+            if (preg_match('/^Contact:\s+(\S+)\s+(\S+)\s+(\S+)(?:\s+(\S+))?/', trim($line), $m)
+                && !str_starts_with($m[1], '<')) {
                 $rows[] = [
                     'uri'    => $m[1],
-                    'status' => $m[2],
-                    'agent'  => $m[5] ?? '',
+                    'status' => $m[3],
+                    'agent'  => '',
                 ];
             }
         }

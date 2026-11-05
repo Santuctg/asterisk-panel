@@ -39,6 +39,22 @@ final class RouteController extends BaseController
         $trunks = $db->all('SELECT * FROM trunks WHERE tenant_id = ? ORDER BY name', [$tid]);
         $times  = $db->all('SELECT * FROM time_conditions WHERE tenant_id = ? ORDER BY name', [$tid]);
 
+        $trunkStatusAvailable = false;
+        $trunkRegistrations = [];
+        if ($request->str('tab', 'inbound') === 'trunks') {
+            try {
+                $mgr = asterisk();
+                $trunkStatusAvailable = $mgr->isOnline();
+                if ($trunkStatusAvailable) { $trunkRegistrations = $mgr->outboundRegistrations(); }
+            } catch (\Throwable) {
+                $trunkStatusAvailable = false;
+            }
+        }
+        foreach ($trunks as &$trunk) {
+            $trunk['registration_status'] = $trunkRegistrations['trunk-' . $trunk['id']] ?? null;
+        }
+        unset($trunk);
+
         // Resolve destination labels for display.
         $resolve = function (string $type, ?int $id) use ($db): string {
             if ($id === null || $id === 0) {
@@ -70,6 +86,7 @@ final class RouteController extends BaseController
             'times'       => $times,
             'destinations'=> $this->destinationOptions(),
             'destTypes'   => self::DEST_TYPES,
+            'trunkStatusAvailable' => $trunkStatusAvailable,
         ]);
     }
 

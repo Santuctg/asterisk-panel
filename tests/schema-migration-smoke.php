@@ -30,6 +30,7 @@ $db->insert('users', ['tenant_id'=>2,'username'=>'same','password'=>'x','role'=>
 if ((int)$db->scalar("SELECT COUNT(*) FROM users WHERE username='same'") !== 2) throw new RuntimeException('Tenant username uniqueness migration failed');
 if ((int)$db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='roles'") !== 1) throw new RuntimeException('Roles table missing');
 if ((int)$db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='tenant_login_bans'") !== 1) throw new RuntimeException('Tenant login bans table missing');
+if ((int)$db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='cdr_import_log'") !== 1) throw new RuntimeException('CDR import ledger table missing');
 // Subsequent migrations must ignore the partial global-superadmin index.
 $migration = file_get_contents($base . '/scripts/migrate.php');
 if (!str_contains($migration, "index['partial']")) throw new RuntimeException('Partial-index idempotence guard missing');

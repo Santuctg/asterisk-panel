@@ -97,8 +97,10 @@ while (($row = fgetcsv($handle, 0, ',', '"', '\\')) !== false) {
         continue;
     }
 
-    // Idempotency: skip rows already imported.
-    if ($db->scalar('SELECT COUNT(*) FROM cdr WHERE uniqueid = ?', [$uniqueid]) > 0) {
+    // Permanent idempotency: history may be deleted from `cdr`, but rows still
+    // present in Master.csv must never come back on the next timer run.
+    if ($db->scalar('SELECT COUNT(*) FROM cdr_import_log WHERE uniqueid = ?', [$uniqueid]) > 0
+        || $db->scalar('SELECT COUNT(*) FROM cdr WHERE uniqueid = ?', [$uniqueid]) > 0) {
         $skipped++;
         continue;
     }
@@ -123,6 +125,11 @@ while (($row = fgetcsv($handle, 0, ',', '"', '\\')) !== false) {
         'accountcode' => (string) $get('accountcode'),
         'uniqueid'    => $uniqueid,
         'userfield'   => (string) $get('userfield'),
+    ]);
+    $db->insert('cdr_import_log', [
+        'uniqueid' => $uniqueid,
+        'tenant_id' => $tenantId,
+        'imported_at' => date('Y-m-d H:i:s'),
     ]);
 
     $inserted++;

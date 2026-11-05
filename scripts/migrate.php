@@ -16,6 +16,20 @@ $pdo = $db->pdo();
 $schema = require BASE_PATH . '/resources/config/schema.php';
 $db->exec($schema['roles']);
 $db->exec($schema['tenant_login_bans']);
+$db->exec($schema['cdr']);
+$db->exec($schema['cdr_import_log']);
+
+// Keep a permanent import ledger so clearing call history does not cause old
+// rows still present in Asterisk's Master.csv to be imported again.
+if ((string) $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite') {
+    $db->run('INSERT OR IGNORE INTO cdr_import_log (uniqueid, tenant_id, imported_at)
+              SELECT uniqueid, tenant_id, COALESCE(calldate, CURRENT_TIMESTAMP)
+              FROM cdr WHERE uniqueid IS NOT NULL AND uniqueid <> ""');
+} else {
+    $db->run('INSERT IGNORE INTO cdr_import_log (uniqueid, tenant_id, imported_at)
+              SELECT uniqueid, tenant_id, COALESCE(calldate, CURRENT_TIMESTAMP)
+              FROM cdr WHERE uniqueid IS NOT NULL AND uniqueid <> ""');
+}
 
 if ((string) $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite') {
     $hasGlobalUsernameUnique = false;

@@ -55,8 +55,29 @@ final class ExtensionController extends BaseController
             $params
         );
 
+        $registrationAvailable = false;
+        $contactStatuses = [];
+        try {
+            $mgr = asterisk();
+            $registrationAvailable = $mgr->isOnline();
+            if ($registrationAvailable) { $contactStatuses = $mgr->contactStatuses(); }
+        } catch (\Throwable) {
+            $registrationAvailable = false;
+        }
+        $context = (string) $db->scalar('SELECT context FROM tenants WHERE id = ?', [$tid]);
+        $context = preg_replace('/[^a-zA-Z0-9_]/', '_', $context) ?: '';
+        foreach ($rows as &$row) {
+            $endpoint = $context . '_' . $row['extension'];
+            $row['registration_status'] = $contactStatuses[$endpoint]
+                ?? $contactStatuses[$endpoint . '-phone-web']
+                ?? $contactStatuses[$endpoint . '-web']
+                ?? null;
+        }
+        unset($row);
+
         return $this->view('extensions/index', [
             'rows' => $rows, 'q' => $q, 'page' => $page, 'pages' => $pages, 'total' => $total,
+            'registrationAvailable' => $registrationAvailable,
         ]);
     }
 

@@ -226,7 +226,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
             <?php else: ?>
                 <div class="table-wrap">
                     <table>
-                        <thead><tr><th>Name</th><th>Host</th><th>Username</th><th>From domain</th><th>Status</th><th class="actions">Actions</th></tr></thead>
+                        <thead><tr><th>Name</th><th>Host</th><th>Username</th><th>From domain</th><th>Registration</th><th>Config</th><th class="actions">Actions</th></tr></thead>
                         <tbody>
                             <?php foreach ($trunks as $t): ?>
                                 <tr>
@@ -234,6 +234,19 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                                     <td class="mono"><?= e($t['host']) ?></td>
                                     <td class="mono"><?= e($t['username']) ?></td>
                                     <td class="mono"><?= e($t['from_domain'] ?: '—') ?></td>
+                                    <td>
+                                        <?php if (!$t['enabled']): ?>
+                                            <span class="badge gray"><span class="dot"></span>Disabled</span>
+                                        <?php elseif (!$trunkStatusAvailable): ?>
+                                            <span class="badge gray"><span class="dot"></span>Unknown</span>
+                                        <?php elseif (strcasecmp((string) $t['registration_status'], 'Registered') === 0): ?>
+                                            <span class="badge green"><span class="dot"></span>Registered</span>
+                                        <?php elseif ($t['registration_status']): ?>
+                                            <span class="badge red" title="Asterisk status: <?= e($t['registration_status']) ?>"><span class="dot"></span><?= e($t['registration_status']) ?></span>
+                                        <?php else: ?>
+                                            <span class="badge amber"><span class="dot"></span>Unregistered</span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td><?= $t['enabled'] ? '<span class="badge green">On</span>' : '<span class="badge gray">Off</span>' ?></td>
                                     <td class="actions">
                                         <button class="btn btn-sm" data-modal-open="trunkModal"
