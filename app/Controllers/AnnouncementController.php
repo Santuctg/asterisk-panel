@@ -71,7 +71,7 @@ final class AnnouncementController extends BaseController
                 'sound_path' => $upload['sound_path'],
                 'dest_type' => $destination['type'],
                 'dest_id' => $destination['id'],
-                'enabled' => $request->bool('enabled', true) ? 1 : 0,
+                'enabled' => 1,
                 'created_at' => date('Y-m-d H:i:s'),
             ]);
         } catch (\Throwable $e) {
@@ -106,7 +106,7 @@ final class AnnouncementController extends BaseController
         }
         $data = [
             'name' => $name,
-            'enabled' => $request->bool('enabled', true) ? 1 : 0,
+            'enabled' => 1,
             'updated_at' => date('Y-m-d H:i:s'),
         ];
         $destination = $this->destination($request, $tid);

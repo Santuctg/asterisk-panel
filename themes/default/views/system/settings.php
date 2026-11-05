@@ -40,6 +40,10 @@ $s = static fn (string $k, string $d = '') => $settings[$k] ?? $d;
                 <?php echo field_text('company_name', 'Company name', $s('company_name'), ['span' => true]); ?>
                 <?php echo field_text('company_email', 'Email address', $s('company_email'), ['type' => 'email']); ?>
                 <?php echo field_text('company_phone', 'Phone number', $s('company_phone'), ['type' => 'tel']); ?>
+                <?php echo field_select('timezone', 'Timezone', timezone_options(), $s('timezone', 'UTC'), [
+                    'span' => true,
+                    'hint' => 'Controls timestamps shown in the panel. Current time: ' . date('M j, Y g:i:s A'),
+                ]); ?>
             </div>
         </div>
     </div>

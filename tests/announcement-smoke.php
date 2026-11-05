@@ -63,6 +63,9 @@ $_SERVER['HTTP_HOST'] = 'a.example.test';
 $page = (new App\Controllers\MusicOnHoldController())->index(new App\Core\Request('GET', '/moh'));
 if (!str_contains($page->body(), 'Tenant A welcome') || !str_contains($page->body(), 'welcome-message.wav')
     || str_contains($page->body(), 'Tenant B secret') || str_contains($page->body(), 'tenant-b-secret.wav')) throw new RuntimeException('Announcement library crossed tenant scope or hid the uploaded filename');
+$db->update('tenants', $a, ['timezone'=>'Asia/Dhaka']);
+$settingsPage = (new App\Controllers\SystemController())->settings(new App\Core\Request('GET', '/system/settings'));
+if (!str_contains($settingsPage->body(), 'value="Asia/Dhaka" selected')) throw new RuntimeException('Tenant timezone is not available in System Settings');
 $dialplan = (new App\Services\Asterisk\ConfigGenerator())->renderDialplan();
 if (!str_contains($dialplan, '[a-announcement-'.$aa.']')
     || !str_contains($dialplan, 'Playback(asterisk-panel/a/a)')
@@ -111,7 +114,11 @@ if (!str_contains($mohView, 'data-announcement-play')
     || !str_contains($mohView, '/audio?download=1')
     || !str_contains($mohView, '>Prompt</label>')
     || !str_contains($mohView, '＋ Add Audio')
-    || !str_contains($mohView, 'announcementPromptPlay')) throw new RuntimeException('Announcement browser audio controls or edit prompt library are invalid');
+    || !str_contains($mohView, 'announcementPromptPlayer')
+    || str_contains($mohView, 'Announcement active')) throw new RuntimeException('Announcement browser audio controls or edit prompt library are invalid');
+$css = file_get_contents(BASE_PATH . '/public/assets/css/app.css');
+if (!str_contains($css, '.announcement-prompt-select-wrap::after')
+    || !str_contains($css, '[data-theme="dark"] .announcement-prompt-player')) throw new RuntimeException('Announcement prompt theme controls are missing');
 foreach (glob($configDir . '/*') ?: [] as $file) { if (is_file($file)) { @unlink($file); } }
 @unlink($audioDir . '/a/a.wav');
 @unlink($audioDir . '/a/c.wav');

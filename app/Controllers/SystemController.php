@@ -117,9 +117,14 @@ final class SystemController extends BaseController
     public function settings(Request $request): Response
     {
         $tid = $this->tenantId();
+        $settings = $this->loadSettings($tid);
+        if ($tid) {
+            $tenantTimezone = $this->db()->scalar('SELECT timezone FROM tenants WHERE id = ?', [$tid]);
+            $settings['timezone'] = \normalize_timezone(is_string($tenantTimezone) ? $tenantTimezone : null, 'UTC');
+        }
 
         return $this->view('system/settings', [
-            'settings' => $this->loadSettings($tid),
+            'settings' => $settings,
             'sipPort'  => SipPort::configured(),
             'canChangeSipPort' => $this->app->auth()->isSuperAdmin(),
             'ami'      => [
@@ -140,6 +145,17 @@ final class SystemController extends BaseController
             Flash::error('The selected automatic recording mode is invalid.');
             return Response::redirect('/system/settings');
         }
+        $timezone = $request->str('timezone', 'UTC');
+        if (!\is_valid_timezone($timezone)) {
+            Flash::error('The selected timezone is invalid.');
+            return Response::redirect('/system/settings');
+        }
+        if ($tid) {
+            $this->db()->update('tenants', $tid, ['timezone' => $timezone, 'updated_at' => date('Y-m-d H:i:s')]);
+        } else {
+            $this->saveGlobalSetting('timezone', $timezone);
+        }
+        date_default_timezone_set($timezone);
         $sipPort = null;
         if ($this->app->auth()->isSuperAdmin()) {
             $sipPort = $request->str('sip_udp_port', (string) SipPort::DEFAULT);

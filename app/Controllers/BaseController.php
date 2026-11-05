@@ -22,6 +22,15 @@ abstract class BaseController
     public function __construct()
     {
         $this->app = App::getInstance();
+        try {
+            $tenantId = (int) ($this->app->auth()->user()['tenant_id'] ?? 0);
+            if ($tenantId > 0) {
+                $timezone = $this->app->db()->scalar('SELECT timezone FROM tenants WHERE id = ?', [$tenantId]);
+                date_default_timezone_set(\normalize_timezone(is_string($timezone) ? $timezone : null, (string) config('app.timezone', 'UTC')));
+            }
+        } catch (\Throwable) {
+            // Bootstrap, migrations and isolated tests may construct a controller before tenant tables exist.
+        }
     }
 
     protected function db(): \App\Core\Database
