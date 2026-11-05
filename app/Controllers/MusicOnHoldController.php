@@ -361,11 +361,22 @@ final class MusicOnHoldController extends BaseController
         foreach ($names as $index => $original) {
             $extension = strtolower(pathinfo((string) $original, PATHINFO_EXTENSION));
             $tmp = (string) ($temporary[$index] ?? '');
-            if ((int) ($errors[$index] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK
-                || (int) ($sizes[$index] ?? 0) > 25 * 1024 * 1024
-                || !in_array($extension, $allowed, true)
-                || !is_uploaded_file($tmp)) {
-                $failed[] = basename((string) $original) ?: 'audio';
+            $uploadError = (int) ($errors[$index] ?? UPLOAD_ERR_NO_FILE);
+            $displayName = basename((string) $original) ?: 'audio';
+            if ($uploadError !== UPLOAD_ERR_OK) {
+                $failed[] = $displayName . ' (' . $this->uploadErrorMessage($uploadError) . ')';
+                continue;
+            }
+            if ((int) ($sizes[$index] ?? 0) > 25 * 1024 * 1024) {
+                $failed[] = $displayName . ' (larger than 25 MB)';
+                continue;
+            }
+            if (!in_array($extension, $allowed, true)) {
+                $failed[] = $displayName . ' (unsupported format)';
+                continue;
+            }
+            if (!is_uploaded_file($tmp)) {
+                $failed[] = $displayName . ' (invalid upload)';
                 continue;
             }
             $label = $forcedName ?? pathinfo((string) $original, PATHINFO_FILENAME);
@@ -380,8 +391,21 @@ final class MusicOnHoldController extends BaseController
         }
         return [
             'count' => $count,
-            'error' => $failed ? 'Could not convert: ' . implode(', ', array_slice($failed, 0, 3)) . '.' : '',
+            'error' => $failed ? 'Could not upload: ' . implode(', ', array_slice($failed, 0, 3)) . '.' : '',
         ];
+    }
+
+    private function uploadErrorMessage(int $error): string
+    {
+        return match ($error) {
+            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'file exceeds the server upload limit',
+            UPLOAD_ERR_PARTIAL => 'upload was interrupted',
+            UPLOAD_ERR_NO_FILE => 'no file received',
+            UPLOAD_ERR_NO_TMP_DIR => 'temporary upload directory is missing',
+            UPLOAD_ERR_CANT_WRITE => 'server could not write the upload',
+            UPLOAD_ERR_EXTENSION => 'upload was stopped by a server extension',
+            default => 'upload failed',
+        };
     }
 
     private function convertAudio(string $source, string $target): bool

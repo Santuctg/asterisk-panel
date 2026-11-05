@@ -11,6 +11,7 @@ server {
     server_name __DOMAIN__;
     root "__PUBLIC_ROOT__";
     index index.php;
+    client_max_body_size 30m;
     ssl_certificate /etc/letsencrypt/live/__DOMAIN__/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/__DOMAIN__/privkey.pem;
     ssl_protocols TLSv1.2 TLSv1.3;

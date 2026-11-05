@@ -163,6 +163,8 @@ pm.max_children = 12
 pm.start_servers = 2
 pm.min_spare_servers = 1
 pm.max_spare_servers = 4
+php_admin_value[upload_max_filesize] = 25M
+php_admin_value[post_max_size] = 30M
 clear_env = no
 env[APP_URL] = ${APP_URL}
 env[APP_PRIMARY_HOST] = ${PRIMARY_HOST}
@@ -408,7 +410,7 @@ server {
     server_name ${SERVER_NAME};
     root "${INSTALL_DIR}/public";
     index index.php;
-    client_max_body_size 20m;
+    client_max_body_size 30m;
 
     location / { try_files \$uri \$uri/ /index.php?\$query_string; }
     include /etc/nginx/snippets/asterisk-panel-recordings.conf;

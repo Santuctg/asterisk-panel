@@ -44,6 +44,22 @@ update() {
     rsync -a --delete --exclude=storage/ --exclude=.env "$REPO/" "$APP/"
     install -d -o www-data -g asterisk -m 2775 /var/lib/asterisk/sounds/asterisk-panel /var/lib/asterisk/moh
     install -o root -g root -m 0644 "$APP/resources/deploy/nginx-recordings.conf" /etc/nginx/snippets/asterisk-panel-recordings.conf
+    install -d -o root -g root -m 0755 /usr/local/lib/asterisk-panel
+    install -o root -g root -m 0644 "$APP/resources/deploy/nginx-https.conf.template" /usr/local/lib/asterisk-panel/nginx-https.conf.template
+    install -o root -g root -m 0644 "$APP/resources/deploy/nginx-tenant-https.conf.template" /usr/local/lib/asterisk-panel/nginx-tenant-https.conf.template
+    local pool=/etc/php/8.3/fpm/pool.d/asterisk-panel.conf
+    if [[ -f "$pool" ]]; then
+        sed -i '/^php_admin_value\[upload_max_filesize\]/d; /^php_admin_value\[post_max_size\]/d' "$pool"
+        printf '\nphp_admin_value[upload_max_filesize] = 25M\nphp_admin_value[post_max_size] = 30M\n' >>"$pool"
+    fi
+    for site in /etc/nginx/sites-available/asterisk-panel /etc/nginx/sites-available/asterisk-panel-tenant-*; do
+        [[ -f "$site" ]] || continue
+        if grep -q 'client_max_body_size' "$site"; then
+            sed -i 's/client_max_body_size[[:space:]][[:space:]]*[0-9][0-9]*[mM];/client_max_body_size 30m;/g' "$site"
+        else
+            sed -i '/^[[:space:]]*index index\.php;/a\    client_max_body_size 30m;' "$site"
+        fi
+    done
     DB_DRIVER=sqlite DB_NAME="$APP/storage/database/asterisk_panel.sqlite" php "$APP/scripts/migrate.php"
     DB_DRIVER=sqlite DB_NAME="$APP/storage/database/asterisk_panel.sqlite" php "$APP/scripts/apply-config.php"
     local voicemail_modules_changed=0
