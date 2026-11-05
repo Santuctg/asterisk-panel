@@ -472,7 +472,7 @@ final class ConfigGenerator
         foreach ($routes as $r) {
             $prefix  = $r['prefix'] ?? '';
             $pattern = $this->outboundPattern((string) $prefix, (string) $r['match_pattern']);
-            $trunk   = $this->trunkChannel((int) $r['trunk_id']);
+            $trunk   = $this->trunkEndpoint((int) $r['trunk_id']);
             $dialed  = $prefix !== '' ? '${EXTEN:' . strlen((string) $prefix) . '}' : '${EXTEN}';
             $condition = null;
             if (!empty($r['time_condition_id'])) {
@@ -500,7 +500,7 @@ final class ConfigGenerator
                 $out .= $this->recordingGosub('outbound', $ctx);
             }
             $out .= " same => n,Set(CALLERID(num)=" . ($r['cid_override'] ?: '${CALLERID(num)}') . ")\n";
-            $out .= " same => n,Dial({$trunk}/{$dialed},30,Tt)\n";
+            $out .= " same => n,Dial(PJSIP/{$dialed}@{$trunk},30,Tt)\n";
             $out .= " same => n,Hangup()\n\n";
         }
 
@@ -1063,10 +1063,10 @@ final class ConfigGenerator
         return implode(',', $eps);
     }
 
-    private function trunkChannel(int $trunkId): string
+    private function trunkEndpoint(int $trunkId): string
     {
         $t = $this->db->one('SELECT id FROM trunks WHERE id = ?', [$trunkId]);
-        return $t ? 'PJSIP/trunk-' . $trunkId : 'PJSIP/invalid';
+        return $t ? 'trunk-' . $trunkId : 'invalid';
     }
 
     /** Add an optional dial prefix without corrupting Asterisk's leading _. */
