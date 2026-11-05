@@ -141,13 +141,13 @@ final class AsteriskManager
     public function tenantChannels(int $tenantId, int $limit = 25): array
     {
         $db = App::getInstance()->db();
-        $ctx = $db->scalar('SELECT context FROM tenants WHERE id = ? AND enabled = 1', [$tenantId]);
-        if (!$ctx) {
+        $tenant = $db->one('SELECT context, domain FROM tenants WHERE id = ? AND enabled = 1', [$tenantId]);
+        if (!$tenant) {
             return [];
         }
-        $safeCtx = preg_replace('/[^a-zA-Z0-9_]/', '_', (string) $ctx);
+        $realm = strtolower(rtrim(trim((string) ($tenant['domain'] ?? '')), '.')) ?: (string) $tenant['context'];
         $extensions = $db->all('SELECT extension FROM extensions WHERE tenant_id = ? AND enabled = 1', [$tenantId]);
-        $prefixes = array_map(static fn ($row) => 'PJSIP/' . $safeCtx . '_' . $row['extension'] . '-', $extensions);
+        $prefixes = array_map(static fn ($row) => 'PJSIP/' . $row['extension'] . '@' . $realm . '-', $extensions);
         $rows = [];
         foreach ($this->channels(200) as $channel) {
             foreach ($prefixes as $prefix) {
@@ -174,7 +174,7 @@ final class AsteriskManager
         $rows = [];
         foreach (explode("\n", $out) as $line) {
             $fields = explode('!', trim($line));
-            if (count($fields) >= 12 && preg_match('/^PJSIP\/[A-Za-z0-9_-]+-[a-fA-F0-9]+$/', $fields[0])) {
+            if (count($fields) >= 12 && preg_match('/^PJSIP\/[A-Za-z0-9_.@-]+-[a-fA-F0-9]+$/', $fields[0])) {
                 $rows[$fields[0]] = [
                     'name' => $fields[0], 'context' => $fields[1],
                     'caller' => $fields[7], 'duration' => $fields[10],

@@ -17,11 +17,12 @@ final class LiveListenController extends BaseController
         $extensions = $tid ? $this->db()->all(
             'SELECT extension, name FROM extensions WHERE tenant_id = ? AND enabled = 1 ORDER BY extension', [$tid]
         ) : [];
-        $tenant = $tid ? $this->db()->one('SELECT context FROM tenants WHERE id = ? AND enabled = 1', [$tid]) : null;
+        $tenant = $tid ? $this->db()->one('SELECT context, domain FROM tenants WHERE id = ? AND enabled = 1', [$tid]) : null;
         $context = $tenant ? ($this->uniqueEndpointContext((int) $tid, $tenant['context']) ?? '') : '';
+        $realm = $tenant ? (strtolower(rtrim(trim((string) ($tenant['domain'] ?? '')), '.')) ?: (string) $tenant['context']) : '';
         $allowed = [];
         foreach ($extensions as $ext) {
-            $allowed[$context . '_' . $ext['extension']] = true;
+            $allowed[$ext['extension'] . '@' . $realm] = true;
         }
         $channels = [];
         try {
@@ -47,13 +48,13 @@ final class LiveListenController extends BaseController
     public function start(Request $request): Response
     {
         $tid = $this->scopedTenantId();
-        $tenant = $tid ? $this->db()->one('SELECT context FROM tenants WHERE id = ? AND enabled = 1', [$tid]) : null;
+        $tenant = $tid ? $this->db()->one('SELECT context, domain FROM tenants WHERE id = ? AND enabled = 1', [$tid]) : null;
         $target = $request->str('channel');
         $extension = $request->str('supervisor');
         $mode = $request->str('mode');
         if (!$tenant || !in_array($mode, ['phone', 'browser'], true)
             || !preg_match('/^[A-Za-z0-9_-]{1,90}$/', $extension)
-            || !preg_match('/^PJSIP\/[A-Za-z0-9_-]+-[a-fA-F0-9]+$/', $target)) {
+            || !preg_match('/^PJSIP\/[A-Za-z0-9_.@-]+-[a-fA-F0-9]+$/', $target)) {
             return Response::json(['error' => 'Invalid request'], 400);
         }
         if ($mode === 'browser' && !str_starts_with((string) Config::get('app.url', ''), 'https://')) {
@@ -70,13 +71,19 @@ final class LiveListenController extends BaseController
         if ($ctx === null) {
             return Response::json(['error' => 'Tenant endpoint namespace is ambiguous'], 409);
         }
-        $prefix = 'PJSIP/' . $ctx . '_';
+        $realm = strtolower(rtrim(trim((string) ($tenant['domain'] ?? '')), '.')) ?: (string) $tenant['context'];
+        $prefix = 'PJSIP/';
         if (!str_starts_with($target, $prefix) || !str_contains($target, '-')) {
             return Response::json(['error' => 'Call not in this tenant'], 403);
         }
         $endpoint = substr($target, strlen($prefix));
         $dash = strrpos($endpoint, '-');
-        $targetExt = substr($endpoint, 0, $dash);
+        $identity = substr($endpoint, 0, $dash);
+        $suffix = '@' . $realm;
+        if (!str_ends_with($identity, $suffix)) {
+            return Response::json(['error' => 'Call not in this tenant'], 403);
+        }
+        $targetExt = substr($identity, 0, -strlen($suffix));
         if ($targetExt === $extension || $targetExt === '' || str_ends_with($targetExt, '-web')
             || !$this->db()->one(
                 'SELECT id FROM extensions WHERE tenant_id = ? AND extension = ? AND enabled = 1', [$tid, $targetExt]
@@ -90,7 +97,7 @@ final class LiveListenController extends BaseController
             if (!isset($snapshot[$target]) || $snapshot[$target]['bridged'] === '') {
                 return Response::json(['error' => 'Call has ended or is not connected'], 409);
             }
-            $device = $ctx . '_' . $extension . ($mode === 'browser' ? '-web' : '');
+            $device = $mode === 'browser' ? $ctx . '_' . $extension . '-web' : $extension . '@' . $realm;
             $reply = $mgr->ami()->action('Originate', [
                 'Channel' => 'PJSIP/' . $device,
                 'Application' => 'ChanSpy',

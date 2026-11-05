@@ -162,7 +162,7 @@ final class ProvisioningService
         $extension = $e['extension'] ?? '';
         $sipPass  = $e['secret'] ?? '';
         $ctx      = $e['ctx'] ?? 'default';
-        $sipUser  = $extension === '' ? '' : (preg_replace('/[^a-zA-Z0-9_]/', '_', (string) $ctx) . '_' . $extension);
+        $sipUser  = $extension;
         $sipHost  = (string) ($e['tenant_domain'] ?? '') ?: (string) $data['server']['sip'];
         if (str_contains($sipHost, '://')) {
             $sipHost = (string) (parse_url($sipHost, PHP_URL_HOST) ?: $sipHost);
@@ -175,7 +175,7 @@ final class ProvisioningService
             'SIP_USER'     => $sipUser,
             'SIP_PASS'     => $sipPass,
             'SIP_AUTH'     => $sipUser,
-            'DOMAIN'       => $ctx,
+            'DOMAIN'       => $sipHost,
             'SIP_SERVER'   => $sipHost,
             'SIP_PORT'     => SipPort::configured(),
             'PROXY'        => $sipHost,

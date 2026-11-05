@@ -66,14 +66,16 @@ final class ExtensionController extends BaseController
         } catch (\Throwable) {
             $registrationAvailable = false;
         }
-        $context = (string) $db->scalar('SELECT context FROM tenants WHERE id = ?', [$tid]);
-        $context = preg_replace('/[^a-zA-Z0-9_]/', '_', $context) ?: '';
+        $tenant = $db->one('SELECT context, domain FROM tenants WHERE id = ?', [$tid]) ?? [];
+        $context = preg_replace('/[^a-zA-Z0-9_]/', '_', (string) ($tenant['context'] ?? '')) ?: '';
+        $realm = strtolower(rtrim(trim((string) ($tenant['domain'] ?? '')), '.')) ?: (string) ($tenant['context'] ?? '');
         foreach ($rows as &$row) {
-            $endpoint = $context . '_' . $row['extension'];
-            $row['sip_username'] = $endpoint;
+            $endpoint = $row['extension'] . '@' . $realm;
+            $row['sip_username'] = $row['extension'];
+            $row['sip_realm'] = $realm;
             $row['registration_status'] = $contactStatuses[$endpoint]
-                ?? $contactStatuses[$endpoint . '-phone-web']
-                ?? $contactStatuses[$endpoint . '-web']
+                ?? $contactStatuses[$context . '_' . $row['extension'] . '-phone-web']
+                ?? $contactStatuses[$context . '_' . $row['extension'] . '-web']
                 ?? null;
         }
         unset($row);
@@ -349,7 +351,8 @@ final class ExtensionController extends BaseController
             'server' => $host,
             'port' => SipPort::configured(),
             'transport' => 'UDP',
-            'username' => $context !== '' && $extension !== '' ? $context . '_' . $extension : '',
+            'username' => $extension,
+            'realm' => strtolower(rtrim($host, '.')),
             'extension' => $extension,
         ];
     }

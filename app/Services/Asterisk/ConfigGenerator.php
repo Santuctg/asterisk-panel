@@ -138,16 +138,19 @@ final class ConfigGenerator
 
         $out .= "[global]\n";
         $out .= "type = global\n";
-        $out .= "endpoint_identifier_order = ip,username\n\n";
+        $out .= "disable_multi_domain = no\n";
+        $out .= "endpoint_identifier_order = ip,username,auth_username\n\n";
 
         $extensions = $this->db->all(
-            'SELECT e.*, t.context AS ctx FROM extensions e
+            'SELECT e.*, t.context AS ctx, t.domain AS tenant_domain FROM extensions e
              JOIN tenants t ON t.id = e.tenant_id
              WHERE e.enabled = 1 ORDER BY t.id, e.extension'
         );
 
         foreach ($extensions as $ext) {
-            $name = $this->endpointName($ext['ctx'], $ext['extension']);
+            $realm = $this->tenantRealm((string) ($ext['tenant_domain'] ?? ''), (string) $ext['ctx']);
+            $name = $ext['extension'] . '@' . $realm;
+            $webBase = $this->endpointName($ext['ctx'], $ext['extension']);
             $ctx  = $ext['ctx'];
 
             $out .= "; ---- {$ext['extension']} ({$ext['name']}) context={$ctx} ----\n";
@@ -166,12 +169,11 @@ final class ConfigGenerator
             $out .= "[{$name}]\n";
             $out .= "type = auth\n";
             $out .= "auth_type = userpass\n";
-            // Authentication IDs must be globally unique. Extension numbers
-            // are only tenant-unique, so "201" cannot identify an endpoint
-            // when several tenants each have extension 201.
-            $out .= "username = {$name}\n";
+            // FusionPBX-style multi-domain identity: the user remains "201"
+            // while the endpoint/AOR is qualified as "201@tenant-domain".
+            $out .= "username = {$ext['extension']}\n";
             $out .= "password = {$this->esc($ext['secret'])}\n";
-            $out .= "realm = {$ctx}\n\n";
+            $out .= "realm = {$realm}\n\n";
 
             $out .= "[{$name}]\n";
             $out .= "type = aor\n";
@@ -180,7 +182,7 @@ final class ConfigGenerator
 
             // Separate WebRTC identity. Never use the ordinary phone's endpoint
             // for browser registration (different transport and media settings).
-            $web = $name . '-web';
+            $web = $webBase . '-web';
             $out .= "[{$web}]\n";
             $out .= "type = endpoint\n";
             $out .= "transport = panel-transport-ws\n";
@@ -204,7 +206,7 @@ final class ConfigGenerator
 
             // A separate identity is used for normal browser calling. Keeping
             // it distinct preserves the listen-only endpoint's restrictions.
-            $phone = $name . '-phone-web';
+            $phone = $webBase . '-phone-web';
             $out .= "[{$phone}]\n";
             $out .= "type = endpoint\ntransport = panel-transport-ws\n";
             $out .= "context = {$ctx}\nauth = {$phone}\naors = {$phone}\n";
@@ -389,11 +391,12 @@ final class ConfigGenerator
             $out .= "[{$ctx}]\n";
             $out .= $this->dialplanTimeConditionEntries($tid, $ctx, $recordInternal);
             $out .= $this->dialplanIvrEntries($tid, $ctx, $recordInternal);
-            $out .= $this->dialplanRingGroups($tid, $ctx, $recordInternal);
+            $realm = $this->tenantRealm((string) ($t['domain'] ?? ''), (string) $ctx);
+            $out .= $this->dialplanRingGroups($tid, $ctx, $recordInternal, $realm);
             $out .= $this->dialplanQueueEntries($tid, $ctx, $recordInternal);
             $out .= $this->dialplanConferences($tid, $ctx, $recordInternal);
             $out .= $this->dialplanParking($tid, $ctx, $recordInternal);
-            $out .= $this->dialplanExtensions($tid, $ctx, $recordInternal);
+            $out .= $this->dialplanExtensions($tid, $ctx, $recordInternal, $realm);
             $out .= "include => {$ctx}-outbound\n\n";
 
             $out .= $this->dialplanTimeConditionContexts($tid, $ctx);
@@ -469,7 +472,7 @@ final class ConfigGenerator
         return "{$ctx}-local,1";
     }
 
-    private function dialplanExtensions(int $tid, string $ctx, bool $record = false): string
+    private function dialplanExtensions(int $tid, string $ctx, bool $record, string $realm): string
     {
         $exts = $this->db->all(
             'SELECT * FROM extensions WHERE tenant_id = ? AND enabled = 1 ORDER BY extension',
@@ -479,7 +482,7 @@ final class ConfigGenerator
         $out = '';
 
         foreach ($exts as $e) {
-            $ep    = $this->endpointName($ctx, $e['extension']);
+            $ep    = $e['extension'] . '@' . $realm;
             $label = $this->esc($e['name']);
 
             $out .= "; {$e['extension']} {$label}\n";
@@ -500,7 +503,7 @@ final class ConfigGenerator
         return $out;
     }
 
-    private function dialplanRingGroups(int $tid, string $ctx, bool $record = false): string
+    private function dialplanRingGroups(int $tid, string $ctx, bool $record, string $realm): string
     {
         $groups = $this->db->all(
             'SELECT * FROM ring_groups WHERE tenant_id = ? AND enabled = 1 ORDER BY extension',
@@ -509,7 +512,7 @@ final class ConfigGenerator
 
         $out = '';
         foreach ($groups as $g) {
-            $members = $this->memberEndpoints((int) $g['id'], $ctx);
+            $members = $this->memberEndpoints((int) $g['id'], $realm);
             $strategy = $this->ringStrategy($g['strategy']);
 
             $out .= "; Ring group {$g['extension']} {$this->esc($g['name'])}\n";
@@ -727,7 +730,7 @@ final class ConfigGenerator
     {
         $out  = ";; Generated by Asterisk Panel - do not edit by hand.\n\n";
 
-        $tenants = $this->db->all('SELECT id, context, name FROM tenants ORDER BY id');
+        $tenants = $this->db->all('SELECT id, context, domain, name FROM tenants ORDER BY id');
 
         foreach ($tenants as $t) {
             $queues = $this->db->all(
@@ -741,6 +744,7 @@ final class ConfigGenerator
 
             foreach ($queues as $q) {
                 $ctx = $t['context'];
+                $realm = $this->tenantRealm((string) ($t['domain'] ?? ''), (string) $ctx);
                 $out .= "; {$q['name']} ({$q['extension']})\n";
                 $out .= "[{$q['extension']}]\n";
                 $out .= "context = {$ctx}\n";
@@ -767,7 +771,7 @@ final class ConfigGenerator
                 );
 
                 foreach ($agents as $ag) {
-                    $out .= "member => PJSIP/{$ag['extension']},{$ag['penalty']},{$ag['name']}" .
+                    $out .= "member => PJSIP/{$ag['extension']}@{$realm},{$ag['penalty']},{$ag['name']}" .
                         ($ag['paused'] ? ',paused' : '') . "\n";
                 }
                 $out .= "\n";
@@ -1011,7 +1015,7 @@ final class ConfigGenerator
     }
 
     /** Comma-delimited PJSIP dial string for a ring group. */
-    private function memberEndpoints(int $groupId, string $ctx): string
+    private function memberEndpoints(int $groupId, string $realm): string
     {
         $members = $this->db->all(
             'SELECT e.extension FROM ring_group_members m
@@ -1022,7 +1026,7 @@ final class ConfigGenerator
 
         $eps = [];
         foreach ($members as $m) {
-            $eps[] = 'PJSIP/' . $this->endpointName($ctx, $m['extension']);
+            $eps[] = 'PJSIP/' . $m['extension'] . '@' . $realm;
         }
 
         return implode(',', $eps);
@@ -1095,6 +1099,16 @@ final class ConfigGenerator
         // PJSIP section names cannot contain '@', so flatten ctx -> label.
         $safeCtx = preg_replace('/[^a-zA-Z0-9_]/', '_', $ctx) ?? $ctx;
         return $safeCtx . '_' . $extension;
+    }
+
+    /** SIP realm used to distinguish the same username across tenants. */
+    private function tenantRealm(string $domain, string $ctx): string
+    {
+        $realm = strtolower(rtrim(trim($domain), '.'));
+        if ($realm === '') {
+            $realm = preg_replace('/[^a-zA-Z0-9_.-]/', '_', $ctx) ?? $ctx;
+        }
+        return $realm;
     }
 
     private function esc(string $s): string

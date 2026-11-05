@@ -23,6 +23,6 @@ $check(str_contains($view, 'Any non-empty password is accepted.'), 'extension fo
 $check(str_contains($view, 'SIP username / Auth ID') && str_contains($view, 'SIP server / registrar'), 'extension form shows phone registration settings');
 $listView = file_get_contents(BASE_PATH . '/themes/default/views/extensions/index.php');
 $check(str_contains($listView, 'Registered') && str_contains($listView, 'Unregistered'), 'extension list shows registration state');
-$check(str_contains($listView, 'SIP username'), 'extension list shows tenant-unique SIP username');
+$check(str_contains($listView, 'SIP login'), 'extension list shows username and tenant realm');
 
 echo "All extension SIP password checks passed.\n";
