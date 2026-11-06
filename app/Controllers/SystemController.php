@@ -27,6 +27,7 @@ final class SystemController extends BaseController
         $confs   = [];
         $queues  = [];
         $extIps  = [];
+        $configDir = '';
 
         try {
             $mgr = asterisk();
@@ -42,15 +43,18 @@ final class SystemController extends BaseController
 
                 // Collect per-extension connected IP from channel snapshot.
                 if ($this->tenantId()) {
-                    $snapshot = $mgr->channelSnapshot();
-                    foreach ($snapshot as $chan) {
-                        $ext = (string) ($chan['extension'] ?? '');
-                        if ($ext !== '' && !isset($extIps[$ext])) {
-                            // uniqueid often includes host; take the part after the last '-' as a best-effort IP indicator
-                            $ui = (string) ($chan['uniqueid'] ?? '');
-                            $ip = $ui !== '' ? substr($ui, strrpos($ui, '-') + 1) : '';
-                            $extIps[$ext] = $ip;
+                    try {
+                        $snapshot = $mgr->channelSnapshot();
+                        foreach ($snapshot as $chan) {
+                            $ext = (string) ($chan['extension'] ?? '');
+                            if ($ext !== '' && !isset($extIps[$ext])) {
+                                $ui = (string) ($chan['uniqueid'] ?? '');
+                                $ip = $ui !== '' ? substr($ui, strrpos($ui, '-') + 1) : '';
+                                $extIps[$ext] = $ip;
+                            }
                         }
+                    } catch (\Throwable $e) {
+                        \App\Core\Logger::info('Status page: channel snapshot unavailable', ['error' => $e->getMessage()]);
                     }
                 }
             }
@@ -58,8 +62,11 @@ final class SystemController extends BaseController
             \App\Core\Logger::info('Status page: Asterisk unavailable', ['error' => $e->getMessage()]);
         }
 
-        // Show where generated config would be written.
-        $gen = new \App\Services\Asterisk\ConfigGenerator();
+        try {
+            $configDir = (new \App\Services\Asterisk\ConfigGenerator())->dir();
+        } catch (\Throwable $e) {
+            $configDir = '/etc/asterisk/asterisk_panel';
+        }
 
         return $this->view('system/status', [
             'online'     => $online,
@@ -69,7 +76,7 @@ final class SystemController extends BaseController
             'contacts'   => $contacts,
             'conferences'=> $confs,
             'queues'     => $queues,
-            'configDir'  => $gen->dir(),
+            'configDir'  => $configDir,
             'extIps'     => $extIps,
         ]);
     }
