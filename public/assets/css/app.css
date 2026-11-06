@@ -165,12 +165,13 @@ code, .mono { font-family: var(--mono); font-size: 12.5px; }
 .webphone-app.is-locked .webphone-login-card h1 { margin:5px 0 42px; color:#f3f4f6; font-size:25px; }.webphone-app.is-locked .webphone-login-card > p { display:none; }
 .webphone-app.is-locked .webphone-login-card .field { margin-bottom:12px; }.webphone-app.is-locked .webphone-login-card .field label { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
 .webphone-app.is-locked .webphone-login-card input { height:41px; border-color:#41444a; background:#202224; color:#f3f4f6; }.webphone-app.is-locked .webphone-login-card input:focus { border-color:#5b8def; box-shadow:0 0 0 1px #5b8def; }
+.webphone-password-wrap,.webphone-number-wrap { position:relative; }.webphone-password-wrap input,.webphone-number-wrap input { width:100%; padding-right:42px; }.webphone-password-wrap button,.webphone-number-wrap button { position:absolute; top:50%; right:5px; width:32px; height:32px; display:grid; place-items:center; padding:0; transform:translateY(-50%); border:0; border-radius:6px; background:transparent; color:var(--text-muted); cursor:pointer; }.webphone-password-wrap button:hover,.webphone-number-wrap button:hover { background:var(--surface-alt); color:var(--text); }
 .webphone-app.is-locked .webphone-login-card .btn-primary { height:42px; margin-top:53px; border-radius:22px; background:#5684e7; }.webphone-app.is-locked .webphone-login-card > a { display:block; color:#a5a7ab; text-align:center; }
 .webphone-qr-corner { position:absolute; top:0; right:0; width:50px; height:50px; display:grid; place-items:center; padding:0 0 12px 12px; background:linear-gradient(225deg,#31518c 0 50%,transparent 51%); color:#fff; font-size:24px; }
 .webphone-dialer { width:min(680px,100%); display:grid; grid-template-columns:minmax(0,1fr) 300px; align-items:center; gap:44px; }
 .webphone-welcome { text-align:center; }.webphone-welcome > span { color:var(--text-muted); font:12px var(--mono); }.webphone-welcome h1 { margin:8px 0; font-size:25px; }.webphone-welcome p { color:var(--text-muted); }
 .webphone-call-panel { padding:22px; border:1px solid var(--border); border-radius:14px; background:var(--surface); box-shadow:var(--shadow-lg); text-align:center; }
-.webphone-call-panel > input { text-align:center; font:16px var(--mono); }
+.webphone-number-wrap input { text-align:center; font:16px var(--mono); }
 .webphone-keypad { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin:16px 0; }.webphone-keypad button { height:44px; display:flex; flex-direction:column; align-items:center; justify-content:center; border:1px solid var(--border); border-radius:9px; background:var(--surface-alt); color:var(--text); cursor:pointer; }.webphone-keypad button strong { font:600 15px var(--font); }.webphone-keypad button small { min-height:10px; color:var(--text-muted); font-size:7px; letter-spacing:1px; }.webphone-keypad button:hover { border-color:var(--brand-500); color:var(--brand-600); }
 .webphone-call-actions { display:flex; justify-content:center; gap:12px; }.webphone-call-actions button { width:48px; height:48px; border:0; border-radius:50%; color:#fff; font-size:19px; cursor:pointer; }.webphone-call-actions button:disabled { opacity:.4; cursor:not-allowed; }.webphone-call-btn,.webphone-answer-btn { background:var(--success-500); }.webphone-hangup-btn { background:var(--danger-500); transform:rotate(135deg); }
 .webphone-call-panel #web-phone-status { min-height:20px; margin:12px 0; color:var(--text-muted); font-size:11px; }
@@ -923,8 +924,12 @@ th.col-check input:indeterminate::after, td.col-check input:indeterminate::after
     .webphone-dialer { grid-template-columns:1fr; gap:18px; }
     .webphone-welcome { display:none; }
     .webphone-main { padding:14px; }
-    .webphone-app[data-view="contacts"] .webphone-side { display:flex; }
-    .webphone-app[data-view="contacts"] .webphone-main { display:none; }
+    .webphone-app[data-view="calls"] .webphone-side,.webphone-app[data-view="contacts"] .webphone-side { display:flex; }
+    .webphone-app[data-view="calls"] .webphone-main,.webphone-app[data-view="contacts"] .webphone-main { display:none; }
+    .webphone-app[data-view="dialpad"] .webphone-side { display:none; }
+    .webphone-app[data-view="dialpad"] .webphone-main { display:grid; }
+    .webphone-app.is-locked .webphone-side { display:none; }
+    .webphone-app.is-locked .webphone-main { display:grid; }
     .tenant-switch select { max-width:92px; }
     .tenant-badge { max-width:82px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .language-control select { min-width:78px; max-width:82px; padding-left:8px; padding-right:29px; background-position:right 7px center; }

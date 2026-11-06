@@ -48,6 +48,12 @@ $checks = [
     [str_contains($phoneJs, 'JsSIP emits newRTCSession synchronously')
         && !str_contains($phoneJs, 'setupSession(ua.call(')
         && str_contains($phoneJs, 'config.history'), 'outgoing WebRTC calls are initialized once and merge PBX history'],
+    [str_contains($phoneJs, 'await startPhone(config, password)')
+        && str_contains($phoneJs, 'SIP registration timed out')
+        && str_contains($phoneJs, 'session !== current'), 'web phone waits for SIP registration and ignores stale session events'],
+    [str_contains($phoneView, 'data-phone-view="dialpad"') && str_contains($phoneView, 'web-phone-backspace')
+        && str_contains($phoneView, 'web-phone-password-toggle')
+        && str_contains($css, '.webphone-app[data-view="calls"] .webphone-side'), 'web phone provides complete desktop and mobile dialer navigation'],
     [str_contains($phoneJs, 'ua.call(`sip:${destination}@${realm}`')
         && str_contains($phoneView, 'name="extension"') && !str_contains($phoneView, 'name="tenant_domain"'), 'web phone calls from URL-scoped extension login without a tenant field'],
     [str_contains($phoneView, 'webphone-app is-locked') && str_contains($css, '.webphone-app.is-locked .webphone-rail')
