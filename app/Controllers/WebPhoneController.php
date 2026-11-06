@@ -16,12 +16,7 @@ final class WebPhoneController extends BaseController
 {
     public function index(Request $request): Response
     {
-        $tid = TenantHost::tenantIdForRequest();
-        if (!$tid && auth()->check()) $tid = $this->tenantId();
-        $tenant = $tid ? $this->db()->one('SELECT context FROM tenants WHERE id = ? AND enabled = 1', [$tid]) : null;
-
         return $this->view('web-phone/index', [
-            'tenantDetected' => $tenant !== null,
             'browserReady' => str_starts_with((string) Config::get('app.url', ''), 'https://'),
         ], 'layouts/phone');
     }
@@ -31,7 +26,6 @@ final class WebPhoneController extends BaseController
     {
         $extension = trim($request->str('extension'));
         $secret = (string) $request->input('secret', '');
-        $domain = strtolower(rtrim(trim($request->str('tenant_domain')), '.'));
         $throttleKey = 'web-phone:' . md5($request->ip());
         $throttle = Session::throttle($throttleKey);
         if ($throttle['attempts'] >= 5 && time() - $throttle['last'] < 300) {
@@ -42,26 +36,26 @@ final class WebPhoneController extends BaseController
         }
 
         $tenantId = TenantHost::tenantIdForRequest();
-        if (!$tenantId && $domain !== '') {
-            foreach ($this->db()->all('SELECT id, domain FROM tenants WHERE enabled = 1') as $candidate) {
-                $candidateDomain = strtolower(rtrim(trim((string) ($candidate['domain'] ?? '')), '.'));
-                if ($candidateDomain !== '' && hash_equals($candidateDomain, $domain)) {
-                    $tenantId = (int) $candidate['id'];
-                    break;
-                }
-            }
-        }
         if (!$tenantId && auth()->check()) $tenantId = $this->tenantId();
+        $select = 'SELECT e.extension, e.name, e.secret, e.tenant_id, t.context, t.domain
+             FROM extensions e JOIN tenants t ON t.id = e.tenant_id
+             WHERE e.extension = ? AND e.enabled = 1 AND t.enabled = 1';
+        $candidates = $tenantId
+            ? $this->db()->all($select . ' AND e.tenant_id = ?', [$extension, $tenantId])
+            : $this->db()->all($select, [$extension]);
+        $matches = array_values(array_filter($candidates, static fn (array $candidate): bool =>
+            hash_equals((string) $candidate['secret'], $secret)
+        ));
+        if (count($matches) > 1) {
+            Session::throttleHit($throttleKey);
+            return $this->json(['error' => 'This extension exists in multiple tenants. Open the tenant-specific PBX URL.'], 409);
+        }
+        $row = $matches[0] ?? null;
+        $tenantId = $row ? (int) $row['tenant_id'] : $tenantId;
         if ($tenantId && (new TenantSecurity())->isBlocked($tenantId, $request->ip())) {
             return $this->json(['error' => 'Web Phone access from this IP address is blocked.'], 403);
         }
-        $row = $tenantId ? $this->db()->one(
-            'SELECT e.extension, e.name, e.secret, t.context, t.domain
-             FROM extensions e JOIN tenants t ON t.id = e.tenant_id
-             WHERE e.tenant_id = ? AND e.extension = ? AND e.enabled = 1 AND t.enabled = 1',
-            [$tenantId, $extension]
-        ) : null;
-        if (!$row || !hash_equals((string) $row['secret'], $secret)) {
+        if (!$row) {
             Session::throttleHit($throttleKey);
             return $this->json(['error' => 'SIP extension or password is incorrect.'], 401);
         }
@@ -75,11 +69,28 @@ final class WebPhoneController extends BaseController
             'SELECT extension, name FROM extensions WHERE tenant_id = ? AND enabled = 1 AND extension <> ? ORDER BY name, extension',
             [$tenantId, $extension]
         ));
+        $history = array_map(static function (array $call) use ($extension): array {
+            $outgoing = (string) ($call['src'] ?? '') === $extension;
+            $timestamp = strtotime((string) ($call['calldate'] ?? ''));
+            return [
+                'id' => 'cdr:' . ((string) ($call['uniqueid'] ?: $call['id'])),
+                'number' => (string) ($outgoing ? $call['dst'] : $call['src']),
+                'direction' => $outgoing ? 'outgoing' : 'incoming',
+                'result' => (string) ($call['disposition'] ?: 'UNKNOWN'),
+                'duration' => (int) ($call['billsec'] ?? 0),
+                'time' => $timestamp ? date(DATE_ATOM, $timestamp) : (string) $call['calldate'],
+            ];
+        }, $this->db()->all(
+            'SELECT id, calldate, src, dst, disposition, billsec, uniqueid FROM cdr
+             WHERE tenant_id = ? AND (src = ? OR dst = ?) ORDER BY calldate DESC LIMIT 100',
+            [$tenantId, $extension, $extension]
+        ));
         return $this->json([
             'extension' => $row['extension'], 'name' => $row['name'],
             'username' => $context . '_' . $row['extension'] . '-phone-web',
             'realm' => $realm,
             'contacts' => $contacts,
+            'history' => $history,
         ]);
     }
 }

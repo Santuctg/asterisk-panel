@@ -24,7 +24,6 @@
                 <span class="webphone-qr-corner" aria-hidden="true">▦</span>
                 <h1>Welcome to Web Phone</h1>
                 <p>Log in with your extension SIP credentials.</p>
-                <?php if (!$tenantDetected): ?><div class="field"><label for="web-phone-domain">PBX tenant domain</label><input id="web-phone-domain" name="tenant_domain" placeholder="pbx.example.com" required></div><?php else: ?><input type="hidden" name="tenant_domain" value=""><?php endif; ?>
                 <div class="field"><label for="web-phone-extension">Extension</label><input id="web-phone-extension" name="extension" inputmode="numeric" autocomplete="username" placeholder="Extension" required></div>
                 <div class="field"><label for="web-phone-secret">SIP password</label><input id="web-phone-secret" name="secret" type="password" autocomplete="current-password" placeholder="User Password" required></div>
                 <button type="submit" class="btn btn-primary btn-block" id="web-phone-start">Log in</button>

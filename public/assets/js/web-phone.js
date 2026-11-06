@@ -63,13 +63,21 @@ setClock();
 window.setInterval(setClock, 30000);
 
 function historyStorageKey() { return `panel-webphone-history:${accountKey}`; }
-function loadHistory() {
-    try { history = JSON.parse(localStorage.getItem(historyStorageKey()) || '[]'); }
-    catch (_) { history = []; }
-    if (!Array.isArray(history)) history = [];
+function loadHistory(serverHistory = []) {
+    let localHistory = [];
+    try { localHistory = JSON.parse(localStorage.getItem(historyStorageKey()) || '[]'); }
+    catch (_) { localHistory = []; }
+    if (!Array.isArray(localHistory)) localHistory = [];
+    const unique = new Map();
+    [...serverHistory, ...localHistory].forEach(item => {
+        const key = item.id || `${item.direction}:${item.number}:${item.time}`;
+        if (!unique.has(key)) unique.set(key, item);
+    });
+    history = [...unique.values()].sort((left, right) => new Date(right.time) - new Date(left.time)).slice(0, 100);
     renderList();
 }
 function saveHistory(entry) {
+    entry.id = entry.id || `local:${Date.now()}:${entry.direction}:${entry.number}`;
     history.unshift(entry);
     history = history.slice(0, 100);
     try { localStorage.setItem(historyStorageKey(), JSON.stringify(history)); } catch (_) {}
@@ -103,7 +111,8 @@ function renderList() {
         } else {
             const when = new Date(item.time);
             const direction = item.direction === 'incoming' ? 'Incoming' : 'Outgoing';
-            target.appendChild(listRow(item.number, `${direction} · ${item.result} · ${formatTime(when)}`, item.number));
+            const duration = item.duration ? ` · ${formatDuration(Number(item.duration))}` : '';
+            target.appendChild(listRow(item.number, `${direction} · ${item.result}${duration} · ${formatTime(when)}`, item.number));
         }
     });
     if (!rows.length) {
@@ -200,7 +209,7 @@ function startPhone(config, password) {
     realm = config.realm;
     accountKey = `${config.realm}:${config.extension}`;
     contacts = Array.isArray(config.contacts) ? config.contacts : [];
-    loadHistory(); renderList();
+    loadHistory(Array.isArray(config.history) ? config.history : []); renderList();
     const socket = new JsSIP.WebSocketInterface(`wss://${window.location.host}/ws`);
     ua = new JsSIP.UA({
         sockets: [socket], uri: `sip:${config.username}@${config.realm}`,
@@ -250,7 +259,9 @@ document.querySelectorAll('#web-phone-keypad [data-key]').forEach(button => {
 callButton.addEventListener('click', () => {
     const destination = number.value.trim();
     if (!ua || !destination || !/^[0-9*+#().-]{2,40}$/.test(destination)) { setStatus('Enter a valid number or extension.'); return; }
-    setupSession(ua.call(`sip:${destination}@${realm}`, {mediaConstraints: {audio: true, video: false}, sessionTimersExpires: 90}), 'local');
+    // JsSIP emits newRTCSession synchronously for local calls; that event is the
+    // single owner of setupSession. Setting it up again here terminates it as a duplicate.
+    ua.call(`sip:${destination}@${realm}`, {mediaConstraints: {audio: true, video: false}, sessionTimersExpires: 90});
 });
 answerButton.addEventListener('click', () => {
     if (!session) return;

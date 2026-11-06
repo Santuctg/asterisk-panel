@@ -45,6 +45,9 @@ $checks = [
         && str_contains($phoneView, 'data-phone-view="contacts"'), 'web phone exposes Wave-style contacts and in-call controls'],
     [str_contains($phoneJs, 'session.sendDTMF') && str_contains($phoneJs, 'session.refer')
         && str_contains($phoneJs, 'session.hold') && str_contains($phoneJs, 'localStorage.setItem(historyStorageKey()'), 'web phone implements DTMF, transfer, hold, and persistent history'],
+    [str_contains($phoneJs, 'JsSIP emits newRTCSession synchronously')
+        && !str_contains($phoneJs, 'setupSession(ua.call(')
+        && str_contains($phoneJs, 'config.history'), 'outgoing WebRTC calls are initialized once and merge PBX history'],
     [str_contains($phoneView, 'webphone-app is-locked') && str_contains($css, '.webphone-app.is-locked .webphone-rail')
         && str_contains($phoneJs, "classList.remove('is-locked')"), 'web phone hides workspace navigation until SIP login succeeds'],
     [!str_contains($listenView, 'listen-supervisor') && str_contains($listenView, 'Listen in browser')

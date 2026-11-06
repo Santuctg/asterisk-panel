@@ -238,13 +238,33 @@ $check(App\Controllers\DashboardController::activeCallCount([
     ['name' => 'PJSIP/trunk-b', 'bridged' => 'PJSIP/202-a'],
 ]) === 1, 'reciprocal bridge peers count as one call without AMI identifiers');
 
+$db->insert('cdr', [
+    'tenant_id' => $tid, 'calldate' => '2026-11-06 10:00:00', 'src' => '1001', 'dst' => '09611544567',
+    'disposition' => 'ANSWERED', 'billsec' => 42, 'uniqueid' => 'webphone-history-1',
+]);
 $phoneLogin = (new App\Controllers\WebPhoneController())->connect(new App\Core\Request(
     'POST', '/web-phone/connect', [], ['extension' => '1001', 'secret' => 'test-secret'], ['REMOTE_ADDR' => '192.0.2.44']
 ));
 $phoneConfig = json_decode($phoneLogin->body(), true);
 $check($phoneLogin->status() === 200 && ($phoneConfig['username'] ?? '') === 'tenant_a_1001-phone-web'
-    && !isset($phoneConfig['password']) && count($phoneConfig['contacts'] ?? []) === 1,
-    'public Web Phone login validates SIP credentials and returns only tenant contacts without exposing the password');
+    && !isset($phoneConfig['password']) && count($phoneConfig['contacts'] ?? []) === 1
+    && ($phoneConfig['history'][0]['number'] ?? '') === '09611544567'
+    && ($phoneConfig['history'][0]['direction'] ?? '') === 'outgoing',
+    'public Web Phone login returns tenant contacts and extension CDR history without exposing the password');
+$_SERVER['HTTP_HOST'] = 'tenant-b.example.test';
+$tenantUrlPhone = (new App\Controllers\WebPhoneController())->connect(new App\Core\Request(
+    'POST', '/web-phone/connect', [], ['extension' => '1001', 'secret' => 'test-secret3'], ['REMOTE_ADDR' => '192.0.2.45']
+));
+$check((json_decode($tenantUrlPhone->body(), true)['username'] ?? '') === 'tenant_b_1001-phone-web',
+    'tenant Web Phone URL accepts only that panel tenant extension');
+$app->auth()->logout();
+$_SERVER['HTTP_HOST'] = 'pbx.example.test';
+$primaryUrlPhone = (new App\Controllers\WebPhoneController())->connect(new App\Core\Request(
+    'POST', '/web-phone/connect', [], ['extension' => '1001', 'secret' => 'test-secret'], ['REMOTE_ADDR' => '192.0.2.46']
+));
+$check($primaryUrlPhone->status() === 200, 'primary panel URL resolves one exact extension and SIP-password match');
+$app->auth()->login($user);
+unset($_SERVER['HTTP_HOST']);
 
 $controller = new App\Controllers\LiveListenController();
 $page = $controller->index(new App\Core\Request('GET', '/live-listen'));
