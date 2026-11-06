@@ -508,7 +508,7 @@ final class ConfigGenerator
                 foreach ($schedules as $schedule) {
                     $start = preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', (string) $schedule['start_time']) ? $schedule['start_time'] : '00:00';
                     $end = preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', (string) $schedule['end_time']) ? $schedule['end_time'] : '23:59';
-                    $days = preg_match('/^[a-z*,\-]+$/', (string) $schedule['days_of_week']) ? $schedule['days_of_week'] : '*';
+                    $days = preg_match('/^[a-z*&\-]+$/', (string) $schedule['days_of_week']) ? $schedule['days_of_week'] : '*';
                     $out .= " same => n,GotoIfTime({$start}-{$end},{$days},*,*,{$this->tenantTimezone($tid)}?time-allowed)\n";
                 }
                 $out .= " same => n,NoOp(Outbound blocked: no route calling schedule matched)\n";

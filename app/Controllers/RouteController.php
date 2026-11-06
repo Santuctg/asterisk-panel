@@ -588,7 +588,7 @@ final class RouteController extends BaseController
         $raw = $request->str('schedules', '[]');
         $rows = json_decode($raw, true);
         if (!is_array($rows) || count($rows) > 20) { return null; }
-        $allowedDays = ['*', 'mon-fri', 'sat-sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+        $dayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
         $result = [];
         foreach ($rows as $row) {
             if (!is_array($row)) { return null; }
@@ -596,7 +596,15 @@ final class RouteController extends BaseController
             $days = strtolower(trim((string) ($row['days_of_week'] ?? '*')));
             $start = trim((string) ($row['start_time'] ?? ''));
             $end = trim((string) ($row['end_time'] ?? ''));
-            if ($name === '' || mb_strlen($name) > 120 || !in_array($days, $allowedDays, true)
+            if ($days === 'mon-fri') {
+                $days = 'mon&tue&wed&thu&fri';
+            } elseif ($days === 'sat-sun') {
+                $days = 'sat&sun';
+            }
+            $selectedDays = $days === '*' ? $dayNames : explode('&', $days);
+            if ($name === '' || mb_strlen($name) > 120 || !$selectedDays
+                || count($selectedDays) !== count(array_unique($selectedDays))
+                || array_diff($selectedDays, $dayNames)
                 || !preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $start)
                 || !preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $end)) {
                 return null;

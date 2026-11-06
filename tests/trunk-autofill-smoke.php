@@ -53,6 +53,41 @@ if (!str_contains($outboundHtml, 'id="addOutboundSchedule"')
     throw new RuntimeException('FAIL: outbound route supports direct calling schedules');
 }
 echo "PASS: outbound route supports direct calling schedules\n";
+if (!str_contains($outboundHtml, "var scheduleDays = ['sun','mon','tue','wed','thu','fri','sat']")
+    || !str_contains($outboundHtml, "selectedDays.join('&')")
+    || !str_contains($outboundHtml, 'Select at least one day for every outbound schedule.')) {
+    throw new RuntimeException('FAIL: outbound schedules support individual weekday selection');
+}
+echo "PASS: outbound schedules support individual weekday selection\n";
+$routeController = new App\Controllers\RouteController();
+$scheduleParser = new ReflectionMethod($routeController, 'outboundSchedules');
+$selectedSchedule = new App\Core\Request('POST', '/routes/outbound', [], [
+    'schedules' => json_encode([[
+        'name' => 'Selected days', 'days_of_week' => 'sun&mon&wed&sat',
+        'start_time' => '09:00', 'end_time' => '17:00',
+    ]], JSON_THROW_ON_ERROR),
+]);
+$legacySchedule = new App\Core\Request('POST', '/routes/outbound', [], [
+    'schedules' => json_encode([[
+        'name' => 'Weekdays', 'days_of_week' => 'mon-fri',
+        'start_time' => '09:00', 'end_time' => '17:00',
+    ]], JSON_THROW_ON_ERROR),
+]);
+$emptyDaysSchedule = new App\Core\Request('POST', '/routes/outbound', [], [
+    'schedules' => json_encode([[
+        'name' => 'No days', 'days_of_week' => '',
+        'start_time' => '09:00', 'end_time' => '17:00',
+    ]], JSON_THROW_ON_ERROR),
+]);
+$selectedResult = $scheduleParser->invoke($routeController, $selectedSchedule);
+$legacyResult = $scheduleParser->invoke($routeController, $legacySchedule);
+$emptyDaysResult = $scheduleParser->invoke($routeController, $emptyDaysSchedule);
+if (($selectedResult[0]['days_of_week'] ?? '') !== 'sun&mon&wed&sat'
+    || ($legacyResult[0]['days_of_week'] ?? '') !== 'mon&tue&wed&thu&fri'
+    || $emptyDaysResult !== null) {
+    throw new RuntimeException('FAIL: outbound weekday values serialize and validate correctly');
+}
+echo "PASS: outbound weekday values serialize and validate correctly\n";
 $routeView = file_get_contents(BASE_PATH . '/themes/default/views/routes/index.php');
 if (!str_contains($routeView, 'Registration uptime history') || !str_contains($routeView, 'Dial 9 for an outside line')) {
     throw new RuntimeException('FAIL: trunk history and outbound route examples render');
