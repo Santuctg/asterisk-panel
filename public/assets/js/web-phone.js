@@ -230,6 +230,9 @@ function setupSession(current, originator) {
     if (originator === 'remote') {
         switchView('dialpad');
         document.title = `Incoming: ${currentTarget}`;
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+            try { new Notification('Incoming Web Phone call', {body: currentTarget, tag: 'web-phone-incoming'}); } catch (_) {}
+        }
     }
     partyNumber.textContent = originator === 'remote' && current.remote_identity?.display_name
         ? `${current.remote_identity.display_name} · ${currentTarget}` : currentTarget;
@@ -293,6 +296,20 @@ function startPhone(config, password) {
     });
 }
 
+async function requestPhonePermissions() {
+    if (!navigator.mediaDevices?.getUserMedia) throw new Error('This browser cannot access the microphone.');
+    const notificationRequest = typeof Notification !== 'undefined' && Notification.permission === 'default'
+        ? Notification.requestPermission().catch(() => 'denied') : Promise.resolve('unavailable');
+    let stream;
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation: true, noiseSuppression: true}, video: false});
+    } catch (_) {
+        throw new Error('Microphone permission is required. Allow microphone access, then log in again.');
+    }
+    stream.getTracks().forEach(track => track.stop());
+    await notificationRequest;
+}
+
 login.addEventListener('submit', async event => {
     event.preventDefault(); loginStatus.textContent = '';
     if (!window.isSecureContext) { loginStatus.textContent = 'HTTPS is required for Web Phone.'; return; }
@@ -300,6 +317,9 @@ login.addEventListener('submit', async event => {
     const data = new FormData(login); const password = String(data.get('secret') || '');
     submit.disabled = true; submit.textContent = 'Connecting…';
     try {
+        loginStatus.textContent = 'Requesting browser permissions…';
+        await requestPhonePermissions();
+        loginStatus.textContent = 'Checking SIP credentials…';
         const response = await fetch('/web-phone/connect', {method: 'POST', body: data, headers: {Accept: 'application/json'}});
         const config = await response.json();
         if (!response.ok) throw new Error(config.error || 'Unable to sign in.');

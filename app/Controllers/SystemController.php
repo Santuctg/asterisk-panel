@@ -38,9 +38,25 @@ final class SystemController extends BaseController
                 $contacts = $mgr->contacts();
                 $confs    = $mgr->conferences();
                 $queues   = $mgr->queueStatus();
+
+                // Collect per-extension connected IP from channel snapshot.
+                $extIps = [];
+                if ($this->tenantId()) {
+                    $snapshot = $mgr->channelSnapshot();
+                    foreach ($snapshot as $chan) {
+                        $ext = (string) ($chan['extension'] ?? '');
+                        if ($ext !== '' && !isset($extIps[$ext])) {
+                            // uniqueid often includes host; take the part after the last '-' as a best-effort IP indicator
+                            $ui = (string) ($chan['uniqueid'] ?? '');
+                            $ip = $ui !== '' ? substr($ui, strrpos($ui, '-') + 1) : '';
+                            $extIps[$ext] = $ip;
+                        }
+                    }
+                }
             }
         } catch (\Throwable $e) {
             \App\Core\Logger::info('Status page: Asterisk unavailable', ['error' => $e->getMessage()]);
+            $extIps = [];
         }
 
         // Show where generated config would be written.
