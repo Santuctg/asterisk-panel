@@ -234,6 +234,7 @@ final class AsteriskManager
                     'state' => $fields[4], 'app' => $fields[5], 'data' => $fields[6],
                     'caller' => $fields[7], 'duration' => $fields[10],
                     'bridged' => $fields[11],
+                    'uniqueid' => $fields[12] ?? '', 'linkedid' => $fields[13] ?? '',
                 ];
             }
         }

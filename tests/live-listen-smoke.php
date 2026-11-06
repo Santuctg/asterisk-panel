@@ -79,8 +79,9 @@ $check(str_contains($dashboard->body(), '/dashboard/live-calls') && str_contains
 $check(str_contains($dashboard->body(), 'method="post" action="/system/apply"')
     && !str_contains($dashboard->body(), 'href="/system/apply"'), 'dashboard applies Asterisk config with a protected POST form');
 $check(App\Controllers\DashboardController::activeCallCount([
-    ['name' => 'PJSIP/1001-a', 'bridged' => 'PJSIP/2002-b'],
-    ['name' => 'PJSIP/2002-b', 'bridged' => 'PJSIP/1001-a'],
+    ['name' => 'PJSIP/trunk-a', 'bridged' => '', 'linkedid' => 'call-1'],
+    ['name' => 'PJSIP/1001-a', 'bridged' => 'PJSIP/2002-b', 'linkedid' => 'call-1'],
+    ['name' => 'PJSIP/2002-b', 'bridged' => 'PJSIP/1001-a', 'linkedid' => 'call-1'],
     ['name' => 'PJSIP/1001-c', 'bridged' => ''],
 ]) === 2, 'bridged channel legs render as one active call card');
 $updateProgress = (new App\Controllers\SystemController())->updateProgress(new App\Core\Request('GET', '/system/update/progress'));
@@ -190,9 +191,9 @@ $check(count($timelineSegments) === 2
     && status_timeline_class('Disabled') === 'off', 'availability timeline segments are clamped and classified');
 
 $snapshot = App\Services\Asterisk\AsteriskManager::parseConciseChannels(
-    'PJSIP/1001@tenant-a.example.test-00000001!tenant_a!1001!1!Up!Dial!PJSIP/trunk!Caller!acct!0!00:20!PJSIP/trunk-00000002!uid' . "\n" .
-    'PJSIP/2002@tenant-a.example.test-00000003!tenant_a!2002!1!Ringing!Dial!x!Caller!acct!0!00:02!!uid' . "\n" .
-    'PJSIP/trunk-1-00000004!tenant_a-inbound!5551234!1!Ring!Dial!PJSIP/1001!External!acct!0!00:01!PJSIP/1001@tenant-a.example.test-00000001!uid' . "\n" .
+    'PJSIP/1001@tenant-a.example.test-00000001!tenant_a!1001!1!Up!Dial!PJSIP/trunk!Caller!acct!0!00:20!PJSIP/trunk-00000002!uid-1!linked-1' . "\n" .
+    'PJSIP/2002@tenant-a.example.test-00000003!tenant_a!2002!1!Ringing!Dial!x!Caller!acct!0!00:02!!uid-2!linked-2' . "\n" .
+    'PJSIP/trunk-1-00000004!tenant_a-inbound!5551234!1!Ring!Dial!PJSIP/1001!External!acct!0!00:01!PJSIP/1001@tenant-a.example.test-00000001!uid-3!linked-1' . "\n" .
     'not a channel'
 );
 $tenantSnapshot = App\Services\Asterisk\AsteriskManager::filterTenantChannels(
@@ -203,8 +204,16 @@ $tenantSnapshot = App\Services\Asterisk\AsteriskManager::filterTenantChannels(
 );
 $check(count($snapshot) === 3
     && $snapshot['PJSIP/1001@tenant-a.example.test-00000001']['bridged'] === 'PJSIP/trunk-00000002'
+    && $snapshot['PJSIP/1001@tenant-a.example.test-00000001']['linkedid'] === 'linked-1'
     && $snapshot['PJSIP/1001@tenant-a.example.test-00000001']['app'] === 'Dial'
     && count($tenantSnapshot) === 3, 'concise live channels include tenant trunk and extension legs');
+
+$phoneLogin = (new App\Controllers\WebPhoneController())->connect(new App\Core\Request(
+    'POST', '/web-phone/connect', [], ['extension' => '1001', 'secret' => 'test-secret'], ['REMOTE_ADDR' => '192.0.2.44']
+));
+$phoneConfig = json_decode($phoneLogin->body(), true);
+$check($phoneLogin->status() === 200 && ($phoneConfig['username'] ?? '') === 'tenant_a_1001-phone-web'
+    && !isset($phoneConfig['password']), 'public Web Phone login validates SIP credentials without exposing the password');
 
 $controller = new App\Controllers\LiveListenController();
 $page = $controller->index(new App\Core\Request('GET', '/live-listen'));

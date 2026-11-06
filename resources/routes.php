@@ -27,6 +27,8 @@ use App\Core\Csrf;
 $router->get('/login', [AuthController::class, 'showLogin']);
 $router->post('/login', [AuthController::class, 'login'], [Csrf::middleware(...)]);
 $router->post('/logout', [AuthController::class, 'logout'], [Csrf::middleware(...)]);
+$router->get('/web-phone', [WebPhoneController::class, 'index']);
+$router->post('/web-phone/connect', [WebPhoneController::class, 'connect'], [Csrf::middleware(...)]);
 
 // Phones poll their config here; no session auth (MAC-address keyed).
 $router->get('/prov/{file}', [ProvisionController::class, 'serve']);
@@ -42,9 +44,6 @@ $router->get('/dashboard/live-calls', [DashboardController::class, 'liveCalls'],
 $router->post('/dashboard/switch-tenant', [DashboardController::class, 'switchTenant'], array_merge($auth, $csrf));
 $router->get('/live-listen', [LiveListenController::class, 'index'], [Auth::require('call.listen')]);
 $router->post('/live-listen/start', [LiveListenController::class, 'start'], [Auth::require('call.listen'), Csrf::middleware(...)]);
-
-// Browser WebRTC softphone
-$router->get('/web-phone', [WebPhoneController::class, 'index'], [Auth::require('webphone.use')]);
 
 // Extensions
 $router->get('/extensions', [ExtensionController::class, 'index'], [Auth::require('extension.view')]);

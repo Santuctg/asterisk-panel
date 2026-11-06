@@ -141,10 +141,16 @@ final class DashboardController extends BaseController
     {
         $known = [];
         foreach ($channels as $channel) $known[(string) ($channel['name'] ?? '')] = true;
-        $seen = []; $count = 0;
+        $seen = []; $linked = []; $count = 0;
         foreach ($channels as $channel) {
             $name = (string) ($channel['name'] ?? '');
             if ($name === '' || isset($seen[$name])) continue;
+            $linkedId = (string) ($channel['linkedid'] ?? '');
+            if ($linkedId !== '') {
+                $seen[$name] = true;
+                if (!isset($linked[$linkedId])) { $linked[$linkedId] = true; $count++; }
+                continue;
+            }
             $seen[$name] = true;
             $bridged = (string) ($channel['bridged'] ?? '');
             if ($bridged !== '' && isset($known[$bridged])) $seen[$bridged] = true;

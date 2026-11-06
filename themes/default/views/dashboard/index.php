@@ -147,13 +147,20 @@ $tile = function (string $icon, string $tone, int|string $value, string $label, 
     function callCards(channels) {
         var byName = {};
         channels.forEach(function (channel) { byName[channel.name] = channel; });
+        var byLinked = {};
+        channels.forEach(function (channel) {
+            if (!channel.linkedid) return;
+            if (!byLinked[channel.linkedid]) byLinked[channel.linkedid] = [];
+            byLinked[channel.linkedid].push(channel);
+        });
         var seen = {};
         var calls = [];
         channels.forEach(function (channel) {
             if (seen[channel.name]) return;
-            var peer = channel.bridged && byName[channel.bridged] ? byName[channel.bridged] : null;
-            seen[channel.name] = true;
-            if (peer) seen[peer.name] = true;
+            var linked = channel.linkedid && byLinked[channel.linkedid] ? byLinked[channel.linkedid] : [channel];
+            linked.forEach(function (leg) { seen[leg.name] = true; });
+            var peer = channel.bridged && byName[channel.bridged] ? byName[channel.bridged] : (linked.length > 1 ? linked[linked.length - 1] : null);
+            if (peer === channel && linked.length > 1) peer = linked[0];
             var destination = peer ? endpoint(peer) : String(channel.extension || channel.data || '—').split(',')[0];
             calls.push({
                 from: String(channel.caller || endpoint(channel) || '—'),

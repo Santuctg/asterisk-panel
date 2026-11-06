@@ -14,6 +14,8 @@ $routesView = file_get_contents(BASE_PATH . '/themes/default/views/routes/index.
 $extensionsView = file_get_contents(BASE_PATH . '/themes/default/views/extensions/index.php');
 $phoneLayout = file_get_contents(BASE_PATH . '/themes/default/layouts/phone.php');
 $updateView = file_get_contents(BASE_PATH . '/themes/default/views/system/update.php');
+$loginView = file_get_contents(BASE_PATH . '/themes/default/views/auth/login.php');
+$routes = file_get_contents(BASE_PATH . '/resources/routes.php');
 
 $checks = [
     [str_contains($appLayout, 'id="themeToggle"') && str_contains($authLayout, 'id="themeToggle"'), 'light/dark controls render in app and auth layouts'],
@@ -29,7 +31,9 @@ $checks = [
     [str_contains($appJs, 'enhanceFieldHelp(document)') && str_contains($appJs, 'enhanceCheckHelp(document)') && str_contains($appJs, "button.className = 'field-help-button'") && str_contains($appJs, "required.className = 'required-mark'"), 'field and checkbox instructions become accessible info tooltips'],
     [str_contains($css, '.form-help-popover') && str_contains($css, '.field-label-row') && str_contains($css, '.required-mark'), 'instruction tooltip and required-field styles are available'],
     [str_contains($css, '.form-grid:has(> .field) > .check') && str_contains($css, '> :not(.field) > .check'), 'checkbox cards align with adjacent form controls'],
-    [str_contains($phoneLayout, 'phone-topbar') && str_contains($phoneLayout, 'Back to panel') && !str_contains($phoneLayout, 'sidebar-nav'), 'web phone uses a standalone shell'],
+    [str_contains($phoneLayout, 'phone-content') && !str_contains($phoneLayout, 'sidebar-nav'), 'web phone uses a standalone shell'],
+    [str_contains($loginView, 'Open Web Phone') && str_contains($loginView, 'href="/web-phone"')
+        && str_contains($routes, "get('/web-phone', [WebPhoneController::class, 'index'])"), 'main login links to the public Web Phone login'],
     [str_contains($updateView, '/system/update/progress') && str_contains($updateView, 'RECONNECTING') && str_contains($updateView, "setTimeout(poll, 1000)"), 'update page tracks background progress and reconnects automatically'],
 ];
 
