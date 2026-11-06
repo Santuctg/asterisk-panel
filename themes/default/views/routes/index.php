@@ -51,7 +51,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                 ]) ?>
             <?php else: ?>
                 <div class="table-wrap">
-                    <table>
+                    <table class="compact-table route-table">
                         <thead><tr><th>Name</th><th>DID pattern</th><th>Destination</th><th>Announcement</th><th class="num">Priority</th><th>Status</th><th class="actions">Actions</th></tr></thead>
                         <tbody>
                             <?php foreach ($inbound as $r): ?>
@@ -82,7 +82,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
         </div>
 
         <div class="modal-overlay" id="inboundModal" hidden>
-            <div class="modal">
+            <div class="modal route-modal inbound-route-modal">
                 <form method="post" action="/routes/inbound" id="inboundForm">
                     <?= csrf() ?>
                     <div class="modal-head">
@@ -91,7 +91,9 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                     </div>
                     <div class="modal-body">
                         <div class="form-grid">
-                            <?php echo field_text('name', 'Route name', '', ['required' => true, 'span' => true]); ?>
+                            <?php echo field_text('name', 'Route name', '', ['required' => true]); ?>
+                            <?php echo field_text('priority', 'Priority', 0, ['type' => 'number',
+                                'hint' => 'Lower numbers are evaluated first.']); ?>
                             <?php echo field_text('did_pattern', 'DID / number pattern', '', [
                                 'required' => true, 'placeholder' => 'e.g. +15551234567 or _+1555XXXX',
                                 'hint' => 'Prefix with _ for wildcards (X = digit). A bare number matches exactly.',
@@ -110,9 +112,6 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                             ]);
                             ?>
                             <div class="field"><label>Prompt audio</label><a class="btn" href="/moh?add=announcement">Add Audio</a><span class="hint">Upload a new prompt, then return to select it.</span></div>
-                            <?php echo field_text('priority', 'Priority', 0, ['type' => 'number',
-                                'hint' => 'Lower numbers are evaluated first.']); ?>
-                            <div class="span-2"><?php echo field_check('enabled', 'Route active', true); ?></div>
                             <?php echo field_select('record', 'Call recording', [
                                 '0' => 'Tenant default',
                                 '1' => 'Always record',
@@ -120,6 +119,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                             ], '0', [
                                 'hint' => 'Override the tenant-wide automatic recording setting for this inbound route.',
                             ]); ?>
+                            <div><?php echo field_check('enabled', 'Route active', true); ?></div>
                         </div>
                     </div>
                     <div class="modal-foot">
@@ -146,7 +146,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                 ]) ?>
             <?php else: ?>
                 <div class="table-wrap">
-                    <table>
+                    <table class="compact-table route-table">
                         <thead><tr><th>Name</th><th>Prefix</th><th>Match pattern</th><th>Trunk</th><th>Allowed calling times</th><th class="num">Priority</th><th class="actions">Actions</th></tr></thead>
                         <tbody>
                             <?php foreach ($outbound as $r): ?>
@@ -183,7 +183,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
         </div>
 
         <div class="modal-overlay" id="outboundModal" hidden>
-            <div class="modal xl outbound-route-modal">
+            <div class="modal xl route-modal outbound-route-modal">
                 <form method="post" action="/routes/outbound" id="outboundForm">
                     <?= csrf() ?>
                     <div class="modal-head">
@@ -191,14 +191,10 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                         <button type="button" class="icon-btn" data-modal-close><?= $this->fragment('icons/x') ?></button>
                     </div>
                     <div class="modal-body">
-                        <div class="hint mb-3">
-                            <strong>Examples:</strong><br>
-                            All numbers: prefix blank, pattern <code>_X.</code><br>
-                            Bangladesh mobile: prefix blank, pattern <code>_01XXXXXXXXX</code><br>
-                            Dial 9 for an outside line: prefix <code>9</code>, pattern <code>_X.</code> — the leading 9 is removed before sending to the trunk.
-                        </div>
+                        <details class="route-examples mb-3"><summary>Pattern examples</summary><div class="hint">All numbers: prefix blank, pattern <code>_X.</code> · Bangladesh mobile: <code>_01XXXXXXXXX</code> · Outside line: prefix <code>9</code>, pattern <code>_X.</code>.</div></details>
                         <div class="form-grid">
-                            <?php echo field_text('name', 'Route name', '', ['required' => true, 'span' => true]); ?>
+                            <?php echo field_text('name', 'Route name', '', ['required' => true]); ?>
+                            <?php echo field_text('priority', 'Priority', 0, ['type' => 'number']); ?>
                             <?php echo field_text('prefix', 'Dial prefix (optional)', '', [
                                 'hint' => 'Digits users dial before the number. This prefix is matched, then stripped before the trunk.',
                             ]); ?>
@@ -214,8 +210,6 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                             <?php echo field_text('cid_override', 'Caller ID override', '', [
                                 'hint' => 'Force outbound caller ID (leave blank to use the extension\'s).',
                             ]); ?>
-                            <?php echo field_text('priority', 'Priority', 0, ['type' => 'number']); ?>
-                            <div class="span-2"><?php echo field_check('enabled', 'Route active', true); ?></div>
                             <?php echo field_select('record', 'Call recording', [
                                 '0' => 'Tenant default',
                                 '1' => 'Always record',
@@ -223,6 +217,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                             ], '0', [
                                 'hint' => 'Override the tenant-wide automatic recording setting for this outbound route.',
                             ]); ?>
+                            <div><?php echo field_check('enabled', 'Route active', true); ?></div>
                         </div>
                         <div class="divider"></div>
                         <div class="outbound-schedule-head mb-3"><div><strong>Allowed calling times</strong><div class="hint">No schedule means outbound calls are always allowed. Times use <?= e(date_default_timezone_get()) ?>.</div></div><button type="button" class="btn btn-sm" id="addOutboundSchedule">＋ Add schedule</button></div>
@@ -253,7 +248,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                 ]) ?>
             <?php else: ?>
                 <div class="table-wrap">
-                    <table>
+                    <table class="compact-table route-table">
                          <thead><tr><th>Name</th><th>Host</th><th>Username</th><th>From domain</th><th>Registration</th><th>Uptime</th><th>Latency</th><th>Config</th><th class="actions">Actions</th></tr></thead>
                         <tbody>
                             <?php foreach ($trunks as $t): ?>
@@ -406,7 +401,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
         <?php endforeach; ?>
 
         <div class="modal-overlay" id="trunkModal" hidden>
-            <div class="modal">
+            <div class="modal route-modal trunk-route-modal">
                 <form method="post" action="/routes/trunks" id="trunkForm" autocomplete="off">
                     <?= csrf() ?>
                     <div class="modal-head">
@@ -415,7 +410,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                     </div>
                     <div class="modal-body">
                         <div class="form-grid">
-                            <?php echo field_text('name', 'Trunk name', '', ['required' => true, 'span' => true]); ?>
+                            <?php echo field_text('name', 'Trunk name', '', ['required' => true]); ?>
                             <?php echo field_text('host', 'SIP host / proxy', '', ['required' => true, 'placeholder' => 'sip.provider.com']); ?>
                             <?php echo field_text('sip_trunk_auth_id', 'Username / auth ID', '', ['autocomplete' => 'off']); ?>
                             <?php echo field_text('sip_trunk_auth_secret', 'SIP trunk password', '', [
@@ -424,7 +419,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                             <?php echo field_text('from_domain', 'From domain', '', ['hint' => 'Defaults to the host.']); ?>
                             <?php echo field_text('cid', 'Caller ID', '', ['placeholder' => 'Name <number>']); ?>
                             <?php echo field_text('register', 'Re-register every (seconds)', 300, ['type' => 'number']); ?>
-                            <div class="span-2"><?php echo field_check('enabled', 'Trunk active', true); ?></div>
+                            <div><?php echo field_check('enabled', 'Trunk active', true); ?></div>
                         </div>
                     </div>
                     <div class="modal-foot">
@@ -451,7 +446,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                 ]) ?>
             <?php else: ?>
                 <div class="table-wrap">
-                    <table>
+                    <table class="compact-table route-table">
                         <thead><tr><th>Name</th><th>Schedule</th><th>In hours</th><th>Out of hours</th><th class="actions">Actions</th></tr></thead>
                         <tbody>
                             <?php foreach ($times as $t): ?>
@@ -482,7 +477,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
         </div>
 
         <div class="modal-overlay" id="timeModal" hidden>
-            <div class="modal lg">
+            <div class="modal lg route-modal time-route-modal">
                 <form method="post" action="/routes/time" id="timeForm">
                     <?= csrf() ?>
                     <div class="modal-head">
@@ -490,8 +485,8 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                         <button type="button" class="icon-btn" data-modal-close><?= $this->fragment('icons/x') ?></button>
                     </div>
                     <div class="modal-body">
-                        <div class="form-grid">
-                            <?php echo field_text('name', 'Condition name', '', ['required' => true, 'span' => true]); ?>
+                        <div class="form-grid route-time-grid">
+                            <?php echo field_text('name', 'Condition name', '', ['required' => true]); ?>
                             <?php echo field_text('extension', 'Condition number (optional)', '', [
                                 'hint' => 'If set, this number routes through the condition.',
                             ]); ?>

@@ -89,7 +89,7 @@ if (($selectedResult[0]['days_of_week'] ?? '') !== 'sun&mon&wed&sat'
 }
 echo "PASS: outbound weekday values serialize and validate correctly\n";
 $routeView = file_get_contents(BASE_PATH . '/themes/default/views/routes/index.php');
-if (!str_contains($routeView, 'Registration uptime history') || !str_contains($routeView, 'Dial 9 for an outside line')) {
+if (!str_contains($routeView, 'Registration uptime history') || !str_contains($routeView, 'Pattern examples')) {
     throw new RuntimeException('FAIL: trunk history and outbound route examples render');
 }
 echo "PASS: trunk history and outbound route examples render\n";

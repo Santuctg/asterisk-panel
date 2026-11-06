@@ -35,19 +35,16 @@ require dirname(__DIR__) . '/partials/fields.php';
             ]) ?>
         <?php else: ?>
             <div class="table-wrap">
-                <table id="extTable">
+                <table id="extTable" class="compact-table extensions-table">
                     <thead>
                         <tr>
-                            <th>Ext</th>
                             <th>SIP login</th>
-                            <th>Name</th>
+                            <th>Extension / name</th>
                             <th>Caller ID</th>
-                            <th>SIP password</th>
                             <th>Voicemail</th>
                             <th>Device</th>
                             <th>Registration</th>
                             <th>Latency</th>
-                            <th>Online for</th>
                             <th>Outbound</th>
                             <th>Config</th>
                             <th class="actions">Actions</th>
@@ -57,14 +54,12 @@ require dirname(__DIR__) . '/partials/fields.php';
                         <?php foreach ($rows as $r): ?>
                             <tr>
                                 <td>
-                                    <strong class="mono"><?= e($r['extension']) ?></strong>
-                                </td>
-                                <td>
                                     <span class="mono text-xs"><?= e($r['sip_username']) ?></span>
                                     <div class="text-xs muted mono">@<?= e($r['sip_realm']) ?></div>
                                 </td>
                                 <td>
-                                    <?= e($r['name']) ?>
+                                    <strong class="mono"><?= e($r['extension']) ?></strong>
+                                    <div class="text-xs"><?= e($r['name']) ?></div>
                                     <?php if (!empty($r['description'])): ?>
                                         <div class="text-xs muted"><?= e($r['description']) ?></div>
                                     <?php endif; ?>
@@ -76,9 +71,6 @@ require dirname(__DIR__) . '/partials/fields.php';
                                     <?php else: ?>
                                         <span class="muted">—</span>
                                     <?php endif; ?>
-                                </td>
-                                <td>
-                                    <span class="mono text-xs"><?= e(mask_secret($r['secret'])) ?></span>
                                 </td>
                                 <td>
                                     <?php if ($r['vm_id']): ?>
@@ -110,18 +102,13 @@ require dirname(__DIR__) . '/partials/fields.php';
                                     <?php else: ?>
                                         <span class="badge amber"><span class="dot"></span>Unregistered</span>
                                     <?php endif; ?>
+                                    <?php if (!empty($r['online_seconds'])): ?>
+                                        <div class="text-xs muted mono"><?= e(format_duration((int) $r['online_seconds'])) ?> · since <?= e(format_date($r['online_since'], 'M j, g:i A')) ?></div>
+                                    <?php endif; ?>
                                 </td>
                                 <td>
                                     <?php if (!empty($r['latency_ms'])): ?>
                                         <span class="mono"><strong><?= e((string) $r['latency_ms']) ?></strong> ms</span>
-                                    <?php else: ?>
-                                        <span class="muted">—</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td>
-                                    <?php if (!empty($r['online_seconds'])): ?>
-                                        <span class="mono"><?= e(format_duration((int) $r['online_seconds'])) ?></span>
-                                        <div class="text-xs muted">since <?= e(format_date($r['online_since'], 'M j, g:i A')) ?></div>
                                     <?php else: ?>
                                         <span class="muted">—</span>
                                     <?php endif; ?>
