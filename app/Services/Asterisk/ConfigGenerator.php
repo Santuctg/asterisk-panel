@@ -145,6 +145,28 @@ final class ConfigGenerator
         $out .= "disable_multi_domain = no\n";
         $out .= "endpoint_identifier_order = ip,username,auth_username\n\n";
 
+        // Each authorized panel operator gets an isolated, listen-only browser
+        // endpoint. It cannot originate calls through the tenant dialplan.
+        $monitorCredentials = new MonitorCredential();
+        $monitorTenants = $this->db->all('SELECT id, context FROM tenants WHERE enabled = 1 ORDER BY id');
+        $monitorUsers = $this->db->all('SELECT id, tenant_id, role FROM users WHERE active = 1 ORDER BY id');
+        foreach ($monitorTenants as $tenant) {
+            foreach ($monitorUsers as $user) {
+                if ((string) $user['role'] !== 'superadmin' && (int) ($user['tenant_id'] ?? 0) !== (int) $tenant['id']) continue;
+                $monitor = $monitorCredentials->forActor((int) $tenant['id'], (string) $tenant['context'], (int) $user['id']);
+                $name = $monitor['username'];
+                $out .= "; Active Calls monitor for panel user {$user['id']}\n";
+                $out .= "[{$name}]\ntype = endpoint\ntransport = panel-transport-ws\n";
+                $out .= "context = panel-listen-only\nauth = {$name}\naors = {$name}\n";
+                $out .= "webrtc = yes\ndtls_auto_generate_cert = yes\ndirect_media = no\n";
+                $out .= "force_rport = yes\nrewrite_contact = yes\nrtp_symmetric = yes\n";
+                $out .= "allow = !all,opus,ulaw,alaw\nidentify_by = username,auth_username\n\n";
+                $out .= "[{$name}]\ntype = auth\nauth_type = userpass\nusername = {$name}\n";
+                $out .= "password = {$this->esc($monitor['password'])}\n\n";
+                $out .= "[{$name}]\ntype = aor\nmax_contacts = 1\nremove_existing = yes\n\n";
+            }
+        }
+
         $extensions = $this->db->all(
             'SELECT e.*, t.context AS ctx, t.domain AS tenant_domain FROM extensions e
              JOIN tenants t ON t.id = e.tenant_id
@@ -189,31 +211,6 @@ final class ConfigGenerator
             // OPTIONS keepalive gives each phone a live latency (RTT) reading.
             $out .= "qualify_frequency = 60\n";
             $out .= "qualify_timeout = 3\n\n";
-
-            // Separate WebRTC identity. Never use the ordinary phone's endpoint
-            // for browser registration (different transport and media settings).
-            $web = $webBase . '-web';
-            $out .= "[{$web}]\n";
-            $out .= "type = endpoint\n";
-            $out .= "transport = panel-transport-ws\n";
-            $out .= "context = panel-listen-only\n";
-            $out .= "auth = {$web}\n";
-            $out .= "aors = {$web}\n";
-            $out .= "webrtc = yes\n";
-            $out .= "dtls_auto_generate_cert = yes\n";
-            $out .= "direct_media = no\n";
-            $out .= "force_rport = yes\nrewrite_contact = yes\nrtp_symmetric = yes\n";
-            $out .= "allow = !all,opus,ulaw,alaw\n";
-            $out .= "identify_by = username,auth_username\n\n";
-            $out .= "[{$web}]\n";
-            $out .= "type = auth\n";
-            $out .= "auth_type = userpass\n";
-            $out .= "username = {$web}\n";
-            $out .= "password = {$this->esc($ext['secret'])}\n\n";
-            $out .= "[{$web}]\n";
-            $out .= "type = aor\n";
-            $out .= "max_contacts = 1\n";
-            $out .= "remove_existing = yes\n\n";
 
             // A separate identity is used for normal browser calling. Keeping
             // it distinct preserves the listen-only endpoint's restrictions.

@@ -44,7 +44,9 @@ $router->get('/dashboard/live-calls', [DashboardController::class, 'liveCalls'],
 $router->post('/dashboard/switch-tenant', [DashboardController::class, 'switchTenant'], array_merge($auth, $csrf));
 $router->get('/active-calls', [LiveListenController::class, 'index'], [Auth::require('call.listen')]);
 $router->get('/active-calls/feed', [LiveListenController::class, 'calls'], [Auth::require('call.listen')]);
+$router->post('/active-calls/browser-session', [LiveListenController::class, 'browserSession'], [Auth::require('call.listen'), Csrf::middleware(...)]);
 $router->post('/active-calls/listen', [LiveListenController::class, 'start'], [Auth::require('call.listen'), Csrf::middleware(...)]);
+$router->post('/active-calls/hangup', [LiveListenController::class, 'hangup'], [Auth::require('call.listen'), Csrf::middleware(...)]);
 $router->get('/live-listen', [LiveListenController::class, 'legacy'], [Auth::require('call.listen')]);
 
 // Extensions

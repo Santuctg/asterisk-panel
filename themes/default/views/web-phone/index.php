@@ -43,6 +43,7 @@
                         <button type="button" id="web-phone-hold" title="Hold"><span>Ⅱ</span><small>Hold</small></button>
                         <button type="button" id="web-phone-transfer" title="Transfer"><span>↗</span><small>Transfer</small></button>
                         <button type="button" id="web-phone-dtmf" title="Keypad"><span>⌨</span><small>Keypad</small></button>
+                        <button type="button" id="web-phone-speaker" title="Play remote audio"><span>◖</span><small>Speaker</small></button>
                     </div>
                     <div class="webphone-transfer-box" id="web-phone-transfer-box" hidden><input id="web-phone-transfer-number" inputmode="tel" placeholder="Transfer to extension"><button type="button" class="btn btn-primary btn-sm" id="web-phone-transfer-send">Transfer</button></div>
                     <div class="webphone-call-actions"><button type="button" class="webphone-call-btn" id="web-phone-call" disabled title="Call">☎</button><button type="button" class="webphone-answer-btn" id="web-phone-answer" hidden title="Answer">☎</button><button type="button" class="webphone-hangup-btn" id="web-phone-hangup" hidden disabled title="Reject or hang up">☎</button></div>

@@ -68,8 +68,13 @@ $checks = [
         && str_contains($listenJs, "fetch('/active-calls/feed'") && str_contains($listenJs, "requestListen(target.channel, 'extension'")
         && str_contains($listenJs, 'setTimeout(() => refreshCalls(false), 3000)'),
         'Active Calls auto-refreshes and merges browser or tenant-extension listening'],
+    [!str_contains($listenView, 'listen-secret') && str_contains($listenView, 'active-call-hangup')
+        && str_contains($listenJs, "fetch('/active-calls/browser-session'")
+        && str_contains($listenJs, "fetch('/active-calls/hangup'"),
+        'Active Calls provides direct restricted browser listening and tenant-safe hangup controls'],
     [str_contains($phoneJs, 'getReceivers()') && str_contains($phoneJs, 'audio.hidden = false')
-        && str_contains($phoneView, 'playsinline controls hidden'), 'web phone exposes a manual playback fallback for remote audio'],
+        && str_contains($phoneJs, 'mediaSyncTimer') && str_contains($phoneView, 'web-phone-speaker')
+        && str_contains($phoneView, 'playsinline controls hidden'), 'web phone continuously attaches remote media and exposes a speaker fallback'],
     [str_contains($updateView, '/system/update/progress') && str_contains($updateView, 'RECONNECTING') && str_contains($updateView, "setTimeout(poll, 1000)"), 'update page tracks background progress and reconnects automatically'],
     [str_contains($updateService, 'Progress was recovered after the server restart')
         && str_contains($updateHelper, 'systemd-run --quiet --collect')

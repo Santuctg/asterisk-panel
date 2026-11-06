@@ -27,6 +27,7 @@ const muteButton = $('#web-phone-mute');
 const holdButton = $('#web-phone-hold');
 const transferButton = $('#web-phone-transfer');
 const dtmfButton = $('#web-phone-dtmf');
+const speakerButton = $('#web-phone-speaker');
 const transferBox = $('#web-phone-transfer-box');
 const transferNumber = $('#web-phone-transfer-number');
 const numberWrap = $('.webphone-number-wrap');
@@ -50,6 +51,7 @@ let muted = false;
 let held = false;
 let dtmfMode = false;
 let requestedEndResult = '';
+let mediaSyncTimer = null;
 const mediaConnections = new WeakSet();
 
 function setStatus(message) { status.textContent = message; }
@@ -153,20 +155,28 @@ function playRemoteMedia(peerconnection, stream = null) {
         .map(receiver => receiver.track).filter(track => track && track.kind === 'audio'));
     if (!remote.getAudioTracks().length) return;
     audio.srcObject = remote;
+    audio.muted = false; audio.volume = 1;
     audio.hidden = false;
     audio.play().catch(() => setStatus('Call connected. Press Play below to hear audio.'));
 }
 function bindMedia(peerconnection) {
-    if (!peerconnection || mediaConnections.has(peerconnection)) return;
-    mediaConnections.add(peerconnection);
-    peerconnection.addEventListener('track', event => {
-        playRemoteMedia(peerconnection, event.streams[0] || new MediaStream([event.track]));
-    });
+    if (!peerconnection) return;
+    if (!mediaConnections.has(peerconnection)) {
+        mediaConnections.add(peerconnection);
+        peerconnection.addEventListener('track', event => {
+            playRemoteMedia(peerconnection, event.streams[0] || new MediaStream([event.track]));
+        });
+    }
     playRemoteMedia(peerconnection);
 }
 function attachMedia(current) {
     bindMedia(current.connection);
     current.on('peerconnection', ({peerconnection}) => bindMedia(peerconnection));
+    window.clearInterval(mediaSyncTimer);
+    mediaSyncTimer = window.setInterval(() => {
+        if (session !== current) { window.clearInterval(mediaSyncTimer); mediaSyncTimer = null; return; }
+        bindMedia(current.connection);
+    }, 500);
 }
 function updateTimer() {
     if (!confirmedAt) return;
@@ -186,6 +196,7 @@ function showCallState(active) {
         answerButton.hidden = true;
         muted = false; held = false; dtmfMode = false;
         muteButton.classList.remove('is-active'); holdButton.classList.remove('is-active'); dtmfButton.classList.remove('is-active');
+        speakerButton.classList.remove('is-active'); speakerButton.querySelector('small').textContent = 'Speaker';
         muteButton.querySelector('small').textContent = 'Mute'; holdButton.querySelector('small').textContent = 'Hold';
         transferNumber.value = '';
         $('#web-phone-keypad').hidden = false;
@@ -201,6 +212,7 @@ function finalizeSession(current, result) {
     session = null; currentTarget = ''; currentDirection = ''; startedAt = null; confirmedAt = null; requestedEndResult = '';
     document.title = originalTitle;
     window.clearInterval(callTimer); callTimer = null;
+    window.clearInterval(mediaSyncTimer); mediaSyncTimer = null;
     audio.pause(); audio.srcObject = null; audio.hidden = true;
     showCallState(false);
     callButton.disabled = !ua;
@@ -354,6 +366,16 @@ holdButton.addEventListener('click', () => {
 dtmfButton.addEventListener('click', () => {
     dtmfMode = !dtmfMode; dtmfButton.classList.toggle('is-active', dtmfMode);
     $('#web-phone-keypad').hidden = !dtmfMode; transferBox.hidden = true;
+});
+speakerButton.addEventListener('click', () => {
+    if (!session) return;
+    audio.muted = false; audio.volume = 1;
+    bindMedia(session.connection);
+    audio.play().then(() => {
+        speakerButton.classList.add('is-active');
+        speakerButton.querySelector('small').textContent = 'Playing';
+        setStatus(`Playing audio from ${currentTarget}.`);
+    }).catch(() => setStatus('Remote audio is not available yet. Try Speaker again.'));
 });
 transferButton.addEventListener('click', () => { transferBox.hidden = !transferBox.hidden; transferNumber.focus(); });
 $('#web-phone-transfer-send').addEventListener('click', () => {

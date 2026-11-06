@@ -8,15 +8,9 @@
     <div class="active-calls-total"><strong id="active-calls-total"><?= count($channels) ?></strong><span>Active sessions</span></div>
 </div>
 
-<div class="active-calls-listen-bar mb-4"><div><strong>Listen-only monitoring</strong><small>Whisper and barge are disabled. Browser SIP passwords never leave this browser.</small></div><div><span id="listen-refresh-status" class="muted text-sm" role="status" aria-live="polite">Calls update automatically.</span><button id="listen-stop" type="button" class="btn btn-sm" hidden>Stop listening</button></div></div>
+<div class="active-calls-listen-bar mb-4"><div><strong>Listen-only monitoring</strong><small>Browser Listen connects directly with a restricted panel identity. Whisper and barge are disabled.</small></div><div><span id="listen-refresh-status" class="muted text-sm" role="status" aria-live="polite">Calls update automatically.</span><button id="listen-stop" type="button" class="btn btn-sm" hidden>Stop listening</button></div></div>
 <p id="listen-status" class="active-calls-message" role="status" aria-live="polite"></p>
 <audio id="listen-audio" class="mb-4" autoplay playsinline controls hidden></audio>
-<div id="listen-credentials" class="card mb-4" hidden><div class="card-body">
-    <h3>Connect browser listener</h3>
-    <p class="muted">Extension <strong id="listen-extension-label"></strong> — enter its SIP password.</p>
-    <div class="form-grid cols-2"><div class="field"><label for="listen-secret">SIP password</label><input id="listen-secret" type="password" autocomplete="off"></div>
-    <div class="form-actions"><button type="button" class="btn btn-primary" id="listen-connect">Start listening</button><button type="button" class="btn" id="listen-cancel">Cancel</button></div></div>
-</div></div>
 
 <div id="listen-extension-dialog" class="card mb-4" hidden><div class="card-body">
     <h3>Listen on an extension</h3>
@@ -32,12 +26,11 @@
             <div class="active-session-head"><span class="active-session-icon">☎</span><div><strong>Extension <?= e($channel['listen_extension']) ?></strong><small><?= e($channel['device']) ?> · <?= e($channel['direction']) ?></small></div><span class="active-session-state <?= $channel['status'] === 'Connected' ? 'is-connected' : '' ?>"><?= e($channel['status']) ?></span></div>
             <div class="active-session-route"><div><small><?= $channel['direction'] === 'Inbound' ? 'From' : 'Extension' ?></small><strong><?= e($channel['direction'] === 'Inbound' ? $channel['remote'] : $channel['listen_extension']) ?></strong></div><span>→</span><div><small><?= $channel['direction'] === 'Inbound' ? 'Extension' : 'To' ?></small><strong><?= e($channel['direction'] === 'Inbound' ? $channel['listen_extension'] : $channel['remote']) ?></strong></div></div>
             <div class="active-session-meta"><span>Duration <strong class="mono"><?= e($channel['duration']) ?></strong></span><span><?= e($channel['device']) ?></span></div>
-            <div class="active-session-actions"><?php if ($browserReady): ?><button type="button" class="btn btn-primary listen-browser" data-channel="<?= e($channel['name']) ?>" data-extension="<?= e($channel['listen_extension']) ?>"<?= $canListen ? '' : ' disabled' ?>>Listen in browser</button><?php endif; ?><button type="button" class="btn listen-extension" data-channel="<?= e($channel['name']) ?>" data-extension="<?= e($channel['listen_extension']) ?>"<?= $canListen ? '' : ' disabled' ?>>Listen on extension</button></div>
+            <div class="active-session-actions"><?php if ($browserReady): ?><button type="button" class="btn btn-primary listen-browser" data-channel="<?= e($channel['name']) ?>" data-extension="<?= e($channel['listen_extension']) ?>"<?= $canListen ? '' : ' disabled' ?>>Listen in browser</button><?php endif; ?><button type="button" class="btn listen-extension" data-channel="<?= e($channel['name']) ?>" data-extension="<?= e($channel['listen_extension']) ?>"<?= $canListen ? '' : ' disabled' ?>>Listen on extension</button><button type="button" class="btn btn-danger active-call-hangup" data-channel="<?= e($channel['name']) ?>" data-extension="<?= e($channel['listen_extension']) ?>">End call</button></div>
         </article>
     <?php endforeach; ?>
     <?php if (!$channels): ?><div class="empty dashboard-empty active-calls-empty"><span class="active-call-empty-icon">☎</span><strong>No active calls</strong><p>Tenant calls will appear here automatically.</p></div><?php endif; ?>
 </div>
 
-<input type="hidden" id="listen-context" value="<?= e($context) ?>">
 <input type="hidden" id="listen-browser-ready" value="<?= $browserReady ? '1' : '0' ?>">
 <script type="module" src="<?= e(asset('assets/js/live-listen.js')) ?>"></script>

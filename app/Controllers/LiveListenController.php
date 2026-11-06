@@ -7,6 +7,7 @@ namespace App\Controllers;
 use App\Core\Config;
 use App\Core\Request;
 use App\Core\Response;
+use App\Services\Asterisk\MonitorCredential;
 
 /** Tenant-scoped listen-only ChanSpy delivered to a browser or SIP extension. */
 final class LiveListenController extends BaseController
@@ -43,6 +44,22 @@ final class LiveListenController extends BaseController
             'SELECT extension, name FROM extensions WHERE tenant_id = ? AND enabled = 1 ORDER BY extension', [$tid]
         );
         return $this->json(['calls' => $this->connectedChannels((int) $tid, $realm, (string) $tenant['context'], $extensions)]);
+    }
+
+    /** Issue the current authorized operator's restricted monitor credential. */
+    public function browserSession(Request $request): Response
+    {
+        $tid = $this->scopedTenantId();
+        $tenant = $tid ? $this->db()->one('SELECT context, domain FROM tenants WHERE id = ? AND enabled = 1', [$tid]) : null;
+        $actorId = (int) ($this->user()['id'] ?? 0);
+        if (!$tenant || $actorId <= 0 || !str_starts_with((string) Config::get('app.url', ''), 'https://')) {
+            return $this->json(['error' => 'Secure browser listening is unavailable'], 400);
+        }
+        if ($this->uniqueEndpointContext((int) $tid, (string) $tenant['context']) === null) {
+            return $this->json(['error' => 'Tenant endpoint namespace is ambiguous'], 409);
+        }
+        $credential = (new MonitorCredential())->forActor((int) $tid, (string) $tenant['context'], $actorId);
+        return $this->json($credential)->withHeader('Cache-Control', 'no-store');
     }
 
     public function start(Request $request): Response
@@ -96,7 +113,10 @@ final class LiveListenController extends BaseController
             } else {
                 $listenerExt = $targetExt;
                 $listener = $extension;
-                $originateChannel = 'PJSIP/' . $ctx . '_' . $targetExt . '-web';
+                $actorId = (int) ($this->user()['id'] ?? 0);
+                if ($actorId <= 0) return Response::json(['error' => 'Monitor identity is unavailable'], 409);
+                $monitor = (new MonitorCredential())->forActor((int) $tid, (string) $tenant['context'], $actorId);
+                $originateChannel = 'PJSIP/' . $monitor['username'];
             }
             $reply = $mgr->ami()->action('Originate', [
                 'Channel' => $originateChannel,
@@ -118,6 +138,48 @@ final class LiveListenController extends BaseController
         } catch (\Throwable $e) {
             \App\Core\Logger::warning('Live listen failed', ['error' => $e->getMessage()]);
             return Response::json(['error' => 'Asterisk is unavailable'], 502);
+        }
+    }
+
+    /** End every Asterisk channel belonging to the validated tenant call. */
+    public function hangup(Request $request): Response
+    {
+        $tid = $this->scopedTenantId();
+        $tenant = $tid ? $this->db()->one('SELECT context, domain FROM tenants WHERE id = ? AND enabled = 1', [$tid]) : null;
+        $target = $request->str('channel');
+        if (!$tenant || !preg_match('/^PJSIP\/[A-Za-z0-9_.@-]+-[a-fA-F0-9]+$/', $target)) {
+            return $this->json(['error' => 'Invalid request'], 400);
+        }
+        $realm = strtolower(rtrim(trim((string) ($tenant['domain'] ?? '')), '.')) ?: (string) $tenant['context'];
+        $endpoint = substr($target, strlen('PJSIP/'));
+        $dash = strrpos($endpoint, '-');
+        $identity = $dash === false ? '' : substr($endpoint, 0, $dash);
+        $targetExt = $this->targetExtension($identity, $realm, (string) $tenant['context']);
+        $extension = $targetExt !== '' ? $this->db()->one(
+            'SELECT id FROM extensions WHERE tenant_id = ? AND extension = ? AND enabled = 1', [$tid, $targetExt]
+        ) : null;
+        if (!$extension) return $this->json(['error' => 'Call not in this tenant'], 403);
+        try {
+            $mgr = asterisk();
+            $snapshot = $mgr->channelSnapshot();
+            if (!isset($snapshot[$target])) return $this->json(['error' => 'Call has already ended'], 409);
+            $linkedid = (string) ($snapshot[$target]['linkedid'] ?? '');
+            $targets = $linkedid !== '' ? array_keys(array_filter(
+                $snapshot, static fn (array $channel): bool => (string) ($channel['linkedid'] ?? '') === $linkedid
+            )) : [$target];
+            $ended = 0;
+            foreach ($targets as $channel) {
+                $reply = $mgr->ami()->action('Hangup', ['Channel' => $channel, 'Cause' => '16']);
+                if (($reply['Response'] ?? '') === 'Success') $ended++;
+            }
+            if ($ended === 0) return $this->json(['error' => 'Asterisk rejected the hangup request'], 502);
+            $this->audit('call.hangup', 'extension', (int) $extension['id'], [
+                'tenant_id' => $tid, 'channel' => $target, 'linkedid' => $linkedid, 'channels' => $ended,
+            ]);
+            return $this->json(['message' => 'Call ended.']);
+        } catch (\Throwable $e) {
+            \App\Core\Logger::warning('Active call hangup failed', ['error' => $e->getMessage()]);
+            return $this->json(['error' => 'Asterisk is unavailable'], 502);
         }
     }
 

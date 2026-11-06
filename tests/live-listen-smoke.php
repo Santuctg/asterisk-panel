@@ -43,7 +43,9 @@ $pjsip = $gen->renderPjsipEndpoints();
 $check(str_contains($pjsip, "[1001@tenant-a.example.test](endpoint_basic)\ncontext = tenant_a\nauth = 1001@tenant-a.example.test\naors = 1001@tenant-a.example.test\nidentify_by = username,auth_username")
     && str_contains($pjsip, "[1001@tenant-a.example.test]\ntype = auth\nauth_type = userpass\nusername = 1001\npassword = test-secret\nrealm = tenant-a.example.test")
     && str_contains($pjsip, '[1001@tenant-b.example.test](endpoint_basic)'), 'physical SIP usernames are isolated by tenant domain');
-$check(str_contains($pjsip, '[tenant_a_2002-web]') && str_contains($pjsip, 'context = panel-listen-only'), 'separate browser endpoints are restricted');
+$monitorName = 'tenant_a_monitor_' . $user . '-web';
+$check(str_contains($pjsip, '[' . $monitorName . ']') && str_contains($pjsip, 'context = panel-listen-only')
+    && !str_contains($pjsip, '[tenant_a_2002-web]'), 'per-operator browser monitor endpoint is restricted and independent of extension passwords');
 $check(str_contains($pjsip, "[tenant_a_1001-phone-web]\ntype = endpoint")
     && str_contains($pjsip, "callerid = \"Target\" <1001>\nwebrtc = yes")
     && substr_count($pjsip, "force_rport = yes\nrewrite_contact = yes\nrtp_symmetric = yes") >= 4,
@@ -285,6 +287,11 @@ $app->auth()->login($user);
 unset($_SERVER['HTTP_HOST']);
 
 $controller = new App\Controllers\LiveListenController();
+$monitorSession = json_decode($controller->browserSession(new App\Core\Request('POST', '/active-calls/browser-session'))->body(), true);
+$check(($monitorSession['username'] ?? '') === $monitorName
+    && strlen((string) ($monitorSession['password'] ?? '')) >= 32
+    && ($monitorSession['password'] ?? '') !== 'test-secret',
+    'authorized Active Calls browser listening uses a dedicated credential without asking for an extension password');
 $targetIdentity = new ReflectionMethod(App\Controllers\LiveListenController::class, 'targetExtension');
 $check($targetIdentity->invoke($controller, '1001@tenant-a.example.test', 'tenant-a.example.test', 'tenant_a') === '1001'
     && $targetIdentity->invoke($controller, 'tenant_a_1001-phone-web', 'tenant-a.example.test', 'tenant_a') === '1001'
@@ -304,6 +311,8 @@ $request = static fn (string $channel): App\Core\Request => new App\Core\Request
     'POST', '/active-calls/listen', [], ['channel' => $channel]
 );
 $check($controller->start($request('PJSIP/1001@tenant-b.example.test-00000001'))->status() === 403, 'cannot listen to another tenant');
+$foreignHangup = new App\Core\Request('POST', '/active-calls/hangup', [], ['channel' => 'PJSIP/1001@tenant-b.example.test-00000001']);
+$check($controller->hangup($foreignHangup)->status() === 403, 'cannot hang up another tenant call');
 $check($controller->start($request('PJSIP/1001@tenant-a.example.test-00000001'))->status() === 409, 'stale/offline target cannot be originated');
 $db->insert('tenants', ['name' => 'Ambiguous', 'context' => 'tenant-a', 'enabled' => 1]);
 $check($controller->start($request('PJSIP/1001@tenant-a.example.test-00000001'))->status() === 409, 'ambiguous flattened contexts fail closed');
