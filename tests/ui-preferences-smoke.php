@@ -54,6 +54,11 @@ $checks = [
     [str_contains($phoneView, 'data-phone-view="dialpad"') && str_contains($phoneView, 'web-phone-backspace')
         && str_contains($phoneView, 'web-phone-password-toggle')
         && str_contains($css, '.webphone-app[data-view="calls"] .webphone-side'), 'web phone provides complete desktop and mobile dialer navigation'],
+    [str_contains($css, 'background:linear-gradient(180deg,#111a31,#0b1224)')
+        && str_contains($css, '.webphone-keypad button { width:62px; height:62px')
+        && str_contains($css, '--phone-accent:#527ff0')
+        && str_contains($css, '.webphone-dialer { width:min(400px,100%); grid-template-columns:minmax(0,1fr)'),
+        'web phone uses the polished responsive Wave-style visual system'],
     [str_contains($phoneJs, 'ua.call(`sip:${destination}@${realm}`')
         && str_contains($phoneView, 'name="extension"') && !str_contains($phoneView, 'name="tenant_domain"'), 'web phone calls from URL-scoped extension login without a tenant field'],
     [str_contains($phoneView, 'webphone-app is-locked') && str_contains($css, '.webphone-app.is-locked .webphone-rail')

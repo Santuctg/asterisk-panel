@@ -182,12 +182,20 @@ $tile = function (string $icon, string $tone, int|string $value, string $label, 
         Object.keys(groups).forEach(function (key) {
             var linked = groups[key];
             var local = linked.find(function (leg) { return String(leg.name || '').includes('@'); }) || null;
-            var inbound = linked.find(function (leg) { return String(leg.context || '').endsWith('-inbound'); }) || null;
+            var trunk = linked.find(function (leg) {
+                return leg.trunk_name || /^PJSIP\/trunk-\d+-/i.test(String(leg.name || ''));
+            }) || null;
+            var inbound = linked.find(function (leg) { return String(leg.context || '').includes('-inbound'); }) || null;
+            // Dialplan Gosubs can replace the original *-inbound context while
+            // a call is ringing. Linkedid remains the oldest channel Uniqueid:
+            // if that oldest channel is the trunk, this is definitively inbound.
+            if (!inbound && trunk && trunk.uniqueid && trunk.uniqueid === trunk.linkedid) inbound = trunk;
             var channel = local || linked[0];
             var peer = channel.bridged && byName[channel.bridged] ? byName[channel.bridged]
                 : linked.find(function (leg) { return leg !== channel; }) || null;
             if (inbound) {
                 var incomingNumber = validNumber(inbound.caller)
+                    || validNumber(trunk && trunk.caller)
                     || validNumber(local && local.caller)
                     || validNumber(inbound.connected)
                     || 'Unknown';

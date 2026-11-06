@@ -77,7 +77,9 @@ $check($liveFeed->status() === 200 && isset($liveData['online'], $liveData['coun
 $dashboard = (new App\Controllers\DashboardController())->index(new App\Core\Request('GET', '/dashboard'));
 $check(str_contains($dashboard->body(), '/dashboard/live-calls') && str_contains($dashboard->body(), 'setTimeout(poll')
     && str_contains($dashboard->body(), 'active-call-grid') && str_contains($dashboard->body(), 'renderRecent')
-    && str_contains($dashboard->body(), 'inbound.caller'), 'dashboard polls and renders the inbound trunk caller number');
+    && str_contains($dashboard->body(), 'inbound.caller')
+    && str_contains($dashboard->body(), 'trunk.uniqueid === trunk.linkedid'),
+    'dashboard detects inbound direction from the oldest trunk leg and renders its caller number');
 $check(str_contains($dashboard->body(), 'method="post" action="/system/apply"')
     && !str_contains($dashboard->body(), 'href="/system/apply"'), 'dashboard applies Asterisk config with a protected POST form');
 $check(App\Controllers\DashboardController::activeCallCount([
