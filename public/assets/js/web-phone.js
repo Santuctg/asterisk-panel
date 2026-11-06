@@ -214,7 +214,7 @@ function startPhone(config, password) {
         setPresence('Offline'); callButton.disabled = true;
     });
     identity.textContent = `${config.extension} · ${config.name}`;
-    login.hidden = true; dialer.hidden = false;
+    login.hidden = true; dialer.hidden = false; $('.webphone-app').classList.remove('is-locked');
     setStatus('Connecting browser phone…'); ua.start();
 }
 
@@ -233,7 +233,7 @@ login.addEventListener('submit', async event => {
     } catch (error) {
         loginStatus.textContent = error.message;
     } finally {
-        submit.disabled = false; submit.textContent = 'Connect';
+        submit.disabled = false; submit.textContent = 'Log in';
     }
 });
 
@@ -292,6 +292,7 @@ disconnectButton.addEventListener('click', () => {
     if (session) { try { session.terminate(); } catch (_) {} }
     if (ua) { ua.stop(); ua = null; }
     setPresence('Offline'); dialer.hidden = true; login.hidden = false; number.value = ''; contacts = [];
+    $('.webphone-app').classList.add('is-locked');
     callButton.disabled = true; finalizeSession('Ended'); setStatus('Disconnected.'); renderList();
 });
 window.addEventListener('pagehide', () => { if (session) session.terminate(); if (ua) ua.stop(); });

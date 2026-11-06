@@ -1,4 +1,4 @@
-<div class="webphone-app">
+<div class="webphone-app is-locked">
     <aside class="webphone-rail">
         <a href="/login" class="webphone-avatar" title="Back to login">P</a>
         <button type="button" class="webphone-rail-item is-active" data-phone-view="calls" title="Calls"><span>☎</span><small>Calls</small></button>
@@ -21,13 +21,13 @@
         <?php else: ?>
             <form class="webphone-login-card" id="web-phone-login" autocomplete="off">
                 <?= csrf() ?>
-                <div class="webphone-logo">☎</div>
-                <h1>Sign in to Web Phone</h1>
-                <p>Use your extension SIP credentials.</p>
+                <span class="webphone-qr-corner" aria-hidden="true">▦</span>
+                <h1>Welcome to Web Phone</h1>
+                <p>Log in with your extension SIP credentials.</p>
                 <?php if (!$tenantDetected): ?><div class="field"><label for="web-phone-domain">PBX tenant domain</label><input id="web-phone-domain" name="tenant_domain" placeholder="pbx.example.com" required></div><?php else: ?><input type="hidden" name="tenant_domain" value=""><?php endif; ?>
-                <div class="field"><label for="web-phone-extension">Extension</label><input id="web-phone-extension" name="extension" inputmode="numeric" autocomplete="username" placeholder="e.g. 201" required></div>
-                <div class="field"><label for="web-phone-secret">SIP password</label><input id="web-phone-secret" name="secret" type="password" autocomplete="current-password" required></div>
-                <button type="submit" class="btn btn-primary btn-block" id="web-phone-start">Connect</button>
+                <div class="field"><label for="web-phone-extension">Extension</label><input id="web-phone-extension" name="extension" inputmode="numeric" autocomplete="username" placeholder="Extension" required></div>
+                <div class="field"><label for="web-phone-secret">SIP password</label><input id="web-phone-secret" name="secret" type="password" autocomplete="current-password" placeholder="User Password" required></div>
+                <button type="submit" class="btn btn-primary btn-block" id="web-phone-start">Log in</button>
                 <p id="web-phone-login-status" class="webphone-error" role="alert"></p>
                 <a href="/login" class="text-sm">Back to panel login</a>
             </form>

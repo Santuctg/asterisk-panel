@@ -9,6 +9,7 @@ putenv('DB_DRIVER=sqlite');
 putenv('DB_NAME=:memory:');
 putenv('AMI_HOST=127.0.0.1');
 putenv('AMI_PORT=1');
+putenv('APP_URL=https://pbx.example.test');
 require BASE_PATH . '/app/bootstrap.php';
 
 $app = App\Core\App::getInstance();
@@ -102,6 +103,11 @@ $trackedTrunk = $db->insert('trunks', [
 ]);
 $trunkConfig = $gen->renderPjsipTrunks();
 $check(str_contains($trunkConfig, "[trunk-{$trackedTrunk}-identify]\ntype = identify\nendpoint = trunk-{$trackedTrunk}\nmatch = sip.example.test"), 'provider host identifies inbound trunk calls');
+$trunkLabelMethod = new ReflectionMethod(App\Controllers\DashboardController::class, 'labelTrunkChannels');
+$labeledChannels = $trunkLabelMethod->invoke(new App\Controllers\DashboardController(), [
+    ['name' => 'PJSIP/trunk-' . $trackedTrunk . '-00000001'],
+], $tid);
+$check(($labeledChannels[0]['trunk_name'] ?? '') === 'Tracked', 'active calls show the configured tenant trunk name');
 $settingsFiles = $gen->generateFor('settings');
 $check(in_array('pjsip_port.conf', $settingsFiles, true) && in_array('dialplan.conf', $settingsFiles, true), 'system settings regenerate SIP and tenant dialplan configuration');
 $tracker = new App\Services\Asterisk\TrunkStatusTracker();
@@ -243,15 +249,15 @@ $check($phoneLogin->status() === 200 && ($phoneConfig['username'] ?? '') === 'te
 $controller = new App\Controllers\LiveListenController();
 $page = $controller->index(new App\Core\Request('GET', '/live-listen'));
 $check($page->status() === 200 && str_contains($page->body(), 'Live Listen')
-    && str_contains($page->body(), 'Supervisor') && !str_contains($page->body(), 'Other'), 'console renders scoped extensions');
-$request = static fn (string $channel, string $supervisor): App\Core\Request => new App\Core\Request(
-    'POST', '/live-listen/start', [], ['channel' => $channel, 'supervisor' => $supervisor, 'mode' => 'phone']
+    && !str_contains($page->body(), 'Supervisor extension') && !str_contains($page->body(), '>Phone<'),
+    'live listen uses a direct browser listener without a supervisor selector');
+$request = static fn (string $channel): App\Core\Request => new App\Core\Request(
+    'POST', '/live-listen/start', [], ['channel' => $channel]
 );
-$check($controller->start($request('PJSIP/1001@tenant-b.example.test-00000001', '2002'))->status() === 403, 'cannot listen to another tenant');
-$check($controller->start($request('PJSIP/1001@tenant-a.example.test-00000001', '1001'))->status() === 403, 'cannot listen on the target extension itself');
-$check($controller->start($request('PJSIP/1001@tenant-a.example.test-00000001', '2002'))->status() === 409, 'stale/offline target cannot be originated');
+$check($controller->start($request('PJSIP/1001@tenant-b.example.test-00000001'))->status() === 403, 'cannot listen to another tenant');
+$check($controller->start($request('PJSIP/1001@tenant-a.example.test-00000001'))->status() === 409, 'stale/offline target cannot be originated');
 $db->insert('tenants', ['name' => 'Ambiguous', 'context' => 'tenant-a', 'enabled' => 1]);
-$check($controller->start($request('PJSIP/1001@tenant-a.example.test-00000001', '2002'))->status() === 409, 'ambiguous flattened contexts fail closed');
+$check($controller->start($request('PJSIP/1001@tenant-a.example.test-00000001'))->status() === 409, 'ambiguous flattened contexts fail closed');
 $db->update('users', $user, ['role' => 'user']);
 $app->auth()->login($user);
 $check(!$app->auth()->can('call.listen'), 'ordinary panel user cannot listen');

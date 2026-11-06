@@ -44,7 +44,7 @@ final class DashboardController extends BaseController
             $online = $mgr->isOnline();
             if ($online) {
                 $astVersion    = $mgr->version()['version'] ?? 'unknown';
-                $channels      = $tid ? $mgr->tenantChannels($tid, 12) : [];
+                $channels      = $tid ? $this->labelTrunkChannels($mgr->tenantChannels($tid, 12), $tid) : [];
                 $activeChannels = self::activeCallCount($channels);
                 if ($tid) {
                     $tenant = $db->one('SELECT context, domain FROM tenants WHERE id = ?', [$tid]) ?? [];
@@ -122,7 +122,7 @@ final class DashboardController extends BaseController
             $mgr = asterisk();
             $online = $mgr->isOnline();
             if ($online && $tid) {
-                $channels = $mgr->tenantChannels($tid, 30);
+                $channels = $this->labelTrunkChannels($mgr->tenantChannels($tid, 30), $tid);
             }
         } catch (\Throwable $e) {
             \App\Core\Logger::info('Live calls feed: Asterisk unavailable', ['error' => $e->getMessage()]);
@@ -189,6 +189,22 @@ final class DashboardController extends BaseController
             'SELECT calldate, src, dst, disposition, billsec FROM cdr WHERE tenant_id = ? ORDER BY calldate DESC LIMIT 10',
             [$tenantId]
         ));
+    }
+
+    /** Add the configured tenant trunk name without exposing another tenant's trunk metadata. */
+    private function labelTrunkChannels(array $channels, int $tenantId): array
+    {
+        $trunks = [];
+        foreach ($this->db()->all('SELECT id, name FROM trunks WHERE tenant_id = ?', [$tenantId]) as $trunk) {
+            $trunks[(int) $trunk['id']] = (string) $trunk['name'];
+        }
+        foreach ($channels as &$channel) {
+            if (preg_match('#^PJSIP/trunk-(\d+)-#', (string) ($channel['name'] ?? ''), $match)) {
+                $channel['trunk_name'] = $trunks[(int) $match[1]] ?? '';
+            }
+        }
+        unset($channel);
+        return $channels;
     }
 
     /** POST /dashboard/switch-tenant */

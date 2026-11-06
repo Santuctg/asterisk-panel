@@ -144,6 +144,16 @@ $tile = function (string $icon, string $tone, int|string $value, string $label, 
         return name.split('@')[0] || 'Unknown';
     }
 
+    function endpointLabel(channel) {
+        return String((channel && channel.trunk_name) || endpoint(channel));
+    }
+    function callNumber(channel, peer, fallback) {
+        var values = [channel && channel.extension, peer && peer.connected, peer && peer.caller, fallback];
+        return String(values.find(function (value) {
+            return value && value !== 's' && value !== '<unknown>';
+        }) || '—');
+    }
+
     function callCards(channels) {
         var byName = {};
         var parents = channels.map(function (_, index) { return index; });
@@ -170,12 +180,12 @@ $tile = function (string $icon, string $tone, int|string $value, string $label, 
             var channel = linked.find(function (leg) { return String(leg.name || '').includes('@'); }) || linked[0];
             var peer = channel.bridged && byName[channel.bridged] ? byName[channel.bridged]
                 : linked.find(function (leg) { return leg !== channel; }) || null;
-            var destination = peer ? endpoint(peer) : String(channel.extension || channel.data || '—').split(',')[0];
+            var destination = peer ? endpointLabel(peer) : String(channel.extension || channel.data || '—').split(',')[0];
             calls.push({
                 from: String(channel.caller || endpoint(channel) || '—'),
-                fromEndpoint: endpoint(channel),
+                fromEndpoint: endpointLabel(channel),
                 to: destination || '—',
-                toEndpoint: peer ? String(peer.caller || endpoint(peer)) : destination,
+                toEndpoint: peer ? callNumber(channel, peer, endpoint(peer)) : destination,
                 status: String(channel.state || '').toLowerCase() === 'up' ? 'Connected' : 'Ringing',
                 duration: String(channel.duration || '00:00:00'),
                 route: String(channel.app || 'Call')

@@ -20,6 +20,8 @@ $updateService = file_get_contents(BASE_PATH . '/app/Services/UpdateService.php'
 $updateHelper = file_get_contents(BASE_PATH . '/scripts/update-helper.sh');
 $phoneView = file_get_contents(BASE_PATH . '/themes/default/views/web-phone/index.php');
 $phoneJs = file_get_contents(BASE_PATH . '/public/assets/js/web-phone.js');
+$listenView = file_get_contents(BASE_PATH . '/themes/default/views/live-listen/index.php');
+$listenJs = file_get_contents(BASE_PATH . '/public/assets/js/live-listen.js');
 
 $checks = [
     [str_contains($appLayout, 'id="themeToggle"') && str_contains($authLayout, 'id="themeToggle"'), 'light/dark controls render in app and auth layouts'],
@@ -43,6 +45,10 @@ $checks = [
         && str_contains($phoneView, 'data-phone-view="contacts"'), 'web phone exposes Wave-style contacts and in-call controls'],
     [str_contains($phoneJs, 'session.sendDTMF') && str_contains($phoneJs, 'session.refer')
         && str_contains($phoneJs, 'session.hold') && str_contains($phoneJs, 'localStorage.setItem(historyStorageKey()'), 'web phone implements DTMF, transfer, hold, and persistent history'],
+    [str_contains($phoneView, 'webphone-app is-locked') && str_contains($css, '.webphone-app.is-locked .webphone-rail')
+        && str_contains($phoneJs, "classList.remove('is-locked')"), 'web phone hides workspace navigation until SIP login succeeds'],
+    [!str_contains($listenView, 'listen-supervisor') && str_contains($listenView, 'Listen in browser')
+        && str_contains($listenJs, 'dataset.extension') && !str_contains($listenJs, 'supervisor:'), 'live listen derives a restricted browser identity without a supervisor selector'],
     [str_contains($updateView, '/system/update/progress') && str_contains($updateView, 'RECONNECTING') && str_contains($updateView, "setTimeout(poll, 1000)"), 'update page tracks background progress and reconnects automatically'],
     [str_contains($updateService, 'Progress was recovered after the server restart')
         && str_contains($updateHelper, 'systemd-run --quiet --collect')

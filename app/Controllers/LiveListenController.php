@@ -8,31 +8,29 @@ use App\Core\Config;
 use App\Core\Request;
 use App\Core\Response;
 
-/** Listen-only ChanSpy: the browser or a supervisor's phone is called by AMI. */
+/** Listen-only ChanSpy delivered to a dedicated browser identity. */
 final class LiveListenController extends BaseController
 {
     public function index(Request $request): Response
     {
         $tid = $this->scopedTenantId();
-        $extensions = $tid ? $this->db()->all(
-            'SELECT extension, name FROM extensions WHERE tenant_id = ? AND enabled = 1 ORDER BY extension', [$tid]
-        ) : [];
         $tenant = $tid ? $this->db()->one('SELECT context, domain FROM tenants WHERE id = ? AND enabled = 1', [$tid]) : null;
         $context = $tenant ? ($this->uniqueEndpointContext((int) $tid, $tenant['context']) ?? '') : '';
         $realm = $tenant ? (strtolower(rtrim(trim((string) ($tenant['domain'] ?? '')), '.')) ?: (string) $tenant['context']) : '';
         $allowed = [];
-        foreach ($extensions as $ext) {
+        foreach ($tid ? $this->db()->all('SELECT extension FROM extensions WHERE tenant_id = ? AND enabled = 1', [$tid]) : [] as $ext) {
             $allowed[$ext['extension'] . '@' . $realm] = true;
         }
         $channels = [];
         try {
             foreach (asterisk()->channelSnapshot() as $name => $channel) {
-                if ($channel['bridged'] === '') {
+                if (($channel['bridgeid'] ?? '') === '' && ($channel['bridged'] ?? '') === '') {
                     continue;
                 }
                 $endpoint = substr($name, strlen('PJSIP/'));
                 $identity = substr($endpoint, 0, strrpos($endpoint, '-'));
                 if (isset($allowed[$identity])) {
+                    $channel['listen_extension'] = substr($identity, 0, -strlen('@' . $realm));
                     $channels[] = $channel;
                 }
             }
@@ -42,7 +40,7 @@ final class LiveListenController extends BaseController
 
         $url = (string) Config::get('app.url', '');
         $browserReady = str_starts_with($url, 'https://') && $context !== '';
-        return $this->view('live-listen/index', compact('channels', 'extensions', 'context', 'browserReady'));
+        return $this->view('live-listen/index', compact('channels', 'context', 'browserReady'));
     }
 
     public function start(Request $request): Response
@@ -50,21 +48,12 @@ final class LiveListenController extends BaseController
         $tid = $this->scopedTenantId();
         $tenant = $tid ? $this->db()->one('SELECT context, domain FROM tenants WHERE id = ? AND enabled = 1', [$tid]) : null;
         $target = $request->str('channel');
-        $extension = $request->str('supervisor');
-        $mode = $request->str('mode');
-        if (!$tenant || !in_array($mode, ['phone', 'browser'], true)
-            || !preg_match('/^[A-Za-z0-9_-]{1,90}$/', $extension)
+        if (!$tenant
             || !preg_match('/^PJSIP\/[A-Za-z0-9_.@-]+-[a-fA-F0-9]+$/', $target)) {
             return Response::json(['error' => 'Invalid request'], 400);
         }
-        if ($mode === 'browser' && !str_starts_with((string) Config::get('app.url', ''), 'https://')) {
+        if (!str_starts_with((string) Config::get('app.url', ''), 'https://')) {
             return Response::json(['error' => 'Browser listening requires HTTPS'], 400);
-        }
-        $supervisor = $this->db()->one(
-            'SELECT id FROM extensions WHERE tenant_id = ? AND extension = ? AND enabled = 1', [$tid, $extension]
-        );
-        if (!$supervisor) {
-            return Response::json(['error' => 'Supervisor extension not found in this tenant'], 403);
         }
 
         $ctx = $this->uniqueEndpointContext((int) $tid, $tenant['context']);
@@ -84,20 +73,21 @@ final class LiveListenController extends BaseController
             return Response::json(['error' => 'Call not in this tenant'], 403);
         }
         $targetExt = substr($identity, 0, -strlen($suffix));
-        if ($targetExt === $extension || $targetExt === '' || str_ends_with($targetExt, '-web')
-            || !$this->db()->one(
-                'SELECT id FROM extensions WHERE tenant_id = ? AND extension = ? AND enabled = 1', [$tid, $targetExt]
-            )) {
+        $extension = $targetExt !== '' ? $this->db()->one(
+            'SELECT id FROM extensions WHERE tenant_id = ? AND extension = ? AND enabled = 1', [$tid, $targetExt]
+        ) : null;
+        if (!$extension || str_ends_with($targetExt, '-web')) {
             return Response::json(['error' => 'Call cannot be monitored'], 403);
         }
 
         try {
             $mgr = asterisk();
             $snapshot = $mgr->channelSnapshot(); // revalidate against a fresh AMI snapshot
-            if (!isset($snapshot[$target]) || $snapshot[$target]['bridged'] === '') {
+            if (!isset($snapshot[$target])
+                || (($snapshot[$target]['bridgeid'] ?? '') === '' && ($snapshot[$target]['bridged'] ?? '') === '')) {
                 return Response::json(['error' => 'Call has ended or is not connected'], 409);
             }
-            $device = $mode === 'browser' ? $ctx . '_' . $extension . '-web' : $extension . '@' . $realm;
+            $device = $ctx . '_' . $targetExt . '-web';
             $reply = $mgr->ami()->action('Originate', [
                 'Channel' => 'PJSIP/' . $device,
                 'Application' => 'ChanSpy',
@@ -109,10 +99,10 @@ final class LiveListenController extends BaseController
             if (($reply['Response'] ?? '') !== 'Success') {
                 return Response::json(['error' => 'Asterisk rejected the listen request'], 502);
             }
-            $this->audit('call.listen', 'extension', (int) $supervisor['id'], [
-                'tenant_id' => $tid, 'mode' => $mode, 'channel' => $target,
+            $this->audit('call.listen', 'extension', (int) $extension['id'], [
+                'tenant_id' => $tid, 'mode' => 'browser', 'channel' => $target,
             ]);
-            return Response::json(['message' => 'Calling supervisor extension now. Answer to listen.']);
+            return Response::json(['message' => 'Browser listening started.']);
         } catch (\Throwable $e) {
             \App\Core\Logger::warning('Live listen failed', ['error' => $e->getMessage()]);
             return Response::json(['error' => 'Asterisk is unavailable'], 502);
