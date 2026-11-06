@@ -45,29 +45,50 @@ if (!function_exists('field_select')) {
             $html .= '<option value="">' . e($opts['placeholder']) . '</option>';
         }
 
-        // Options may be flat [value => label] or grouped optgroups.
-        $isGrouped = false;
-        foreach ($options as $k => $v) {
-            if (is_array($v)) { $isGrouped = true; break; }
-        }
+        // Options may be flat [value => label], a list of option records, or
+        // grouped optgroups containing either representation.
+        $isRecord = static fn (mixed $value): bool => is_array($value)
+            && (array_key_exists('id', $value) || array_key_exists('value', $value))
+            && (array_key_exists('label', $value) || array_key_exists('name', $value));
+        $isRecordList = $options !== [] && array_is_list($options)
+            && array_reduce($options, static fn (bool $ok, mixed $value): bool => $ok && $isRecord($value), true);
+        $isGrouped = !$isRecordList && array_reduce(
+            $options,
+            static fn (bool $found, mixed $value): bool => $found || is_array($value),
+            false
+        );
+
+        $renderOption = static function (mixed $value, mixed $label) use ($selected): string {
+            $sel = (string) $selected === (string) $value ? ' selected' : '';
+            return '<option value="' . e((string) $value) . '"' . $sel . '>' . e((string) $label) . '</option>';
+        };
 
         if ($isGrouped) {
             foreach ($options as $groupLabel => $group) {
                 if (!is_array($group)) continue;
-                 $groupText = ucwords(str_replace(['_', '-'], ' ', (string) $groupLabel));
-                 $html .= '<optgroup label="' . e($groupText) . '" data-type="' . e((string) $groupLabel) . '">';
-                foreach ($group as $opt) {
-                    $val   = $opt['id'] ?? ($opt['value'] ?? $k);
-                    $lab   = $opt['label'] ?? ($opt['name'] ?? $val);
-                    $sel   = (string) $selected === (string) $val ? ' selected' : '';
-                    $html .= '<option value="' . e((string) $val) . '"' . $sel . '>' . e((string) $lab) . '</option>';
+                $groupText = ucwords(str_replace(['_', '-'], ' ', (string) $groupLabel));
+                $html .= '<optgroup label="' . e($groupText) . '" data-type="' . e((string) $groupLabel) . '">';
+                foreach ($group as $key => $opt) {
+                    if ($isRecord($opt)) {
+                        $value = $opt['id'] ?? $opt['value'];
+                        $label = $opt['label'] ?? $opt['name'];
+                    } else {
+                        $value = $key;
+                        $label = $opt;
+                    }
+                    $html .= $renderOption($value, $label);
                 }
                 $html .= '</optgroup>';
             }
+        } elseif ($isRecordList) {
+            foreach ($options as $opt) {
+                $value = $opt['id'] ?? $opt['value'];
+                $label = $opt['label'] ?? $opt['name'];
+                $html .= $renderOption($value, $label);
+            }
         } else {
-            foreach ($options as $val => $lab) {
-                $sel   = (string) $selected === (string) $val ? ' selected' : '';
-                $html .= '<option value="' . e((string) $val) . '"' . $sel . '>' . e((string) $lab) . '</option>';
+            foreach ($options as $value => $label) {
+                $html .= $renderOption($value, $label);
             }
         }
 
