@@ -76,7 +76,8 @@ $liveData = json_decode($liveFeed->body(), true);
 $check($liveFeed->status() === 200 && isset($liveData['online'], $liveData['count'], $liveData['channels'], $liveData['recent_calls']), 'live calls and recent CDR polling feed responds');
 $dashboard = (new App\Controllers\DashboardController())->index(new App\Core\Request('GET', '/dashboard'));
 $check(str_contains($dashboard->body(), '/dashboard/live-calls') && str_contains($dashboard->body(), 'setTimeout(poll')
-    && str_contains($dashboard->body(), 'active-call-grid') && str_contains($dashboard->body(), 'renderRecent'), 'dashboard polls and consistently renders active and recent calls');
+    && str_contains($dashboard->body(), 'active-call-grid') && str_contains($dashboard->body(), 'renderRecent')
+    && str_contains($dashboard->body(), 'inbound.caller'), 'dashboard polls and renders the inbound trunk caller number');
 $check(str_contains($dashboard->body(), 'method="post" action="/system/apply"')
     && !str_contains($dashboard->body(), 'href="/system/apply"'), 'dashboard applies Asterisk config with a protected POST form');
 $check(App\Controllers\DashboardController::activeCallCount([
@@ -102,7 +103,9 @@ $trackedTrunk = $db->insert('trunks', [
     'username' => 'provider-user', 'secret' => 'provider-secret', 'enabled' => 1,
 ]);
 $trunkConfig = $gen->renderPjsipTrunks();
-$check(str_contains($trunkConfig, "[trunk-{$trackedTrunk}-identify]\ntype = identify\nendpoint = trunk-{$trackedTrunk}\nmatch = sip.example.test"), 'provider host identifies inbound trunk calls');
+$check(str_contains($trunkConfig, "context = tenant_a-inbound\ntrust_id_inbound = yes")
+    && str_contains($trunkConfig, "[trunk-{$trackedTrunk}-identify]\ntype = identify\nendpoint = trunk-{$trackedTrunk}\nmatch = sip.example.test"),
+    'provider host identifies inbound traffic and trusts its asserted caller ID');
 $trunkLabelMethod = new ReflectionMethod(App\Controllers\DashboardController::class, 'labelTrunkChannels');
 $labeledChannels = $trunkLabelMethod->invoke(new App\Controllers\DashboardController(), [
     ['name' => 'PJSIP/trunk-' . $trackedTrunk . '-00000001'],
@@ -257,12 +260,21 @@ $tenantUrlPhone = (new App\Controllers\WebPhoneController())->connect(new App\Co
 ));
 $check((json_decode($tenantUrlPhone->body(), true)['username'] ?? '') === 'tenant_b_1001-phone-web',
     'tenant Web Phone URL accepts only that panel tenant extension');
+$primaryTenant = $db->insert('tenants', [
+    'name' => 'Primary URL tenant', 'context' => 'primary_url', 'domain' => 'pbx.example.test', 'enabled' => 1,
+]);
+$db->insert('extensions', [
+    'tenant_id' => $primaryTenant, 'extension' => '3001', 'name' => 'Primary phone',
+    'secret' => 'primary-secret', 'enabled' => 1,
+]);
 $app->auth()->logout();
 $_SERVER['HTTP_HOST'] = 'pbx.example.test';
 $primaryUrlPhone = (new App\Controllers\WebPhoneController())->connect(new App\Core\Request(
-    'POST', '/web-phone/connect', [], ['extension' => '1001', 'secret' => 'test-secret'], ['REMOTE_ADDR' => '192.0.2.46']
+    'POST', '/web-phone/connect', [], ['extension' => '3001', 'secret' => 'primary-secret'], ['REMOTE_ADDR' => '192.0.2.46']
 ));
-$check($primaryUrlPhone->status() === 200, 'primary panel URL resolves one exact extension and SIP-password match');
+$check($primaryUrlPhone->status() === 200
+    && (json_decode($primaryUrlPhone->body(), true)['username'] ?? '') === 'primary_url_3001-phone-web',
+    'Web Phone honors a tenant domain even when it is also the primary panel URL');
 $app->auth()->login($user);
 unset($_SERVER['HTTP_HOST']);
 

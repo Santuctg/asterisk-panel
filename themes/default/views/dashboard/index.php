@@ -147,10 +147,14 @@ $tile = function (string $icon, string $tone, int|string $value, string $label, 
     function endpointLabel(channel) {
         return String((channel && channel.trunk_name) || endpoint(channel));
     }
+    function validNumber(value) {
+        value = String(value || '');
+        return value && value !== 's' && value !== '<unknown>' ? value : '';
+    }
     function callNumber(channel, peer, fallback) {
         var values = [channel && channel.extension, peer && peer.connected, peer && peer.caller, fallback];
         return String(values.find(function (value) {
-            return value && value !== 's' && value !== '<unknown>';
+            return validNumber(value);
         }) || '—');
     }
 
@@ -177,9 +181,28 @@ $tile = function (string $icon, string $tone, int|string $value, string $label, 
         var calls = [];
         Object.keys(groups).forEach(function (key) {
             var linked = groups[key];
-            var channel = linked.find(function (leg) { return String(leg.name || '').includes('@'); }) || linked[0];
+            var local = linked.find(function (leg) { return String(leg.name || '').includes('@'); }) || null;
+            var inbound = linked.find(function (leg) { return String(leg.context || '').endsWith('-inbound'); }) || null;
+            var channel = local || linked[0];
             var peer = channel.bridged && byName[channel.bridged] ? byName[channel.bridged]
                 : linked.find(function (leg) { return leg !== channel; }) || null;
+            if (inbound) {
+                var incomingNumber = validNumber(inbound.caller)
+                    || validNumber(local && local.caller)
+                    || validNumber(inbound.connected)
+                    || 'Unknown';
+                var targetNumber = endpoint(local || channel);
+                calls.push({
+                    from: incomingNumber,
+                    fromEndpoint: endpointLabel(inbound),
+                    to: 'Extension',
+                    toEndpoint: targetNumber,
+                    status: linked.some(function (leg) { return String(leg.state || '').toLowerCase() === 'up'; }) ? 'Connected' : 'Ringing',
+                    duration: String(inbound.duration || channel.duration || '00:00:00'),
+                    route: 'Inbound'
+                });
+                return;
+            }
             var destination = peer ? endpointLabel(peer) : String(channel.extension || channel.data || '—').split(',')[0];
             calls.push({
                 from: String(channel.caller || endpoint(channel) || '—'),

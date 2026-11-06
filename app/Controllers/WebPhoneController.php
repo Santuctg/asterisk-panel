@@ -26,7 +26,7 @@ final class WebPhoneController extends BaseController
     {
         $extension = trim($request->str('extension'));
         $secret = (string) $request->input('secret', '');
-        $throttleKey = 'web-phone:' . md5($request->ip());
+        $throttleKey = 'web-phone-login-v2:' . md5($request->ip());
         $throttle = Session::throttle($throttleKey);
         if ($throttle['attempts'] >= 5 && time() - $throttle['last'] < 300) {
             return $this->json(['error' => 'Too many attempts. Wait a few minutes and try again.'], 429);
@@ -35,7 +35,10 @@ final class WebPhoneController extends BaseController
             return $this->json(['error' => 'Enter a valid extension and SIP password.'], 422);
         }
 
-        $tenantId = TenantHost::tenantIdForRequest();
+        // A hostname may intentionally be both APP_PRIMARY_HOST and a tenant
+        // domain. Web Phone must honor that URL's tenant before the generic
+        // primary-host behavior, otherwise repeated credentials are ambiguous.
+        $tenantId = $this->tenantIdForWebPhoneHost() ?? TenantHost::tenantIdForRequest();
         if (!$tenantId && auth()->check()) $tenantId = $this->tenantId();
         $select = 'SELECT e.extension, e.name, e.secret, e.tenant_id, t.context, t.domain
              FROM extensions e JOIN tenants t ON t.id = e.tenant_id
@@ -47,7 +50,6 @@ final class WebPhoneController extends BaseController
             hash_equals((string) $candidate['secret'], $secret)
         ));
         if (count($matches) > 1) {
-            Session::throttleHit($throttleKey);
             return $this->json(['error' => 'This extension exists in multiple tenants. Open the tenant-specific PBX URL.'], 409);
         }
         $row = $matches[0] ?? null;
@@ -92,5 +94,16 @@ final class WebPhoneController extends BaseController
             'contacts' => $contacts,
             'history' => $history,
         ]);
+    }
+
+    private function tenantIdForWebPhoneHost(): ?int
+    {
+        $host = TenantHost::requestHost();
+        if ($host === '') return null;
+        foreach ($this->db()->all('SELECT id, domain FROM tenants WHERE enabled = 1 AND domain IS NOT NULL') as $tenant) {
+            $domain = strtolower(rtrim(trim((string) $tenant['domain']), '.'));
+            if ($domain !== '' && hash_equals($domain, $host)) return (int) $tenant['id'];
+        }
+        return null;
     }
 }

@@ -275,6 +275,7 @@ final class ConfigGenerator
             $fromDomain = $t['from_domain'] ?: $t['host'];
             $out .= "from_domain = {$fromDomain}\n";
             $out .= "context = {$t['ctx']}-inbound\n";
+            $out .= "trust_id_inbound = yes\n";
             $out .= "aors = trunk-{$t['id']}-aor\n";
             $out .= "outbound_auth = trunk-{$t['id']}-auth\n";
             if (!empty($t['cid'])) {
