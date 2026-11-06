@@ -452,9 +452,34 @@ code, .mono { font-family: var(--mono); font-size: 12.5px; }
 .role-editor .permission-group { margin-bottom: 10px; }
 .role-locked { padding: 5px 8px; border: 1px solid var(--border-strong); border-radius: 5px; color: var(--text-muted); font-size: 12px; }
 .field { display: flex; flex-direction: column; gap: 6px; }
-.field > label { font-size: 12.5px; font-weight: 600; color: var(--gray-700); }
-[data-theme="dark"] .field > label { color: var(--text-muted); }
+.field > label, .field-label-row > label { font-size: 12.5px; font-weight: 600; color: var(--gray-700); }
+[data-theme="dark"] .field > label, [data-theme="dark"] .field-label-row > label { color: var(--text-muted); }
 .field .hint { font-size: 11.5px; color: var(--text-faint); }
+.field-label-row { min-height:18px; display:flex; align-items:center; gap:5px; }
+.required-mark { color:var(--danger-500); font-size:14px; font-weight:700; line-height:1; }
+.field-help-button {
+    width:16px; height:16px; flex:0 0 16px; display:inline-grid; place-items:center;
+    padding:0; border:1.5px solid var(--brand-500); border-radius:50%;
+    background:transparent; color:var(--brand-600); font:700 10px/1 var(--font);
+    cursor:help;
+}
+.field-help-button:hover, .field-help-button:focus-visible, .field-help-button[aria-expanded="true"] {
+    outline:none; background:var(--brand-500); color:#fff; box-shadow:var(--shadow-focus);
+}
+.form-help-popover {
+    position:fixed; z-index:120; width:max-content; max-width:min(300px,calc(100vw - 24px));
+    padding:12px 14px; border:1px solid var(--border); border-radius:4px;
+    background:var(--surface); color:var(--text); box-shadow:var(--shadow-lg);
+    font-size:12.5px; line-height:1.55; pointer-events:auto;
+}
+.form-help-popover::after {
+    content:''; position:absolute; left:50%; bottom:-6px; width:10px; height:10px;
+    border-right:1px solid var(--border); border-bottom:1px solid var(--border);
+    background:var(--surface); transform:translateX(-50%) rotate(45deg);
+}
+.form-help-popover.is-below::after { top:-6px; bottom:auto; border:0; border-left:1px solid var(--border); border-top:1px solid var(--border); }
+[data-theme="dark"] .form-help-popover { background:var(--surface-alt); }
+[data-theme="dark"] .form-help-popover::after { background:var(--surface-alt); }
 
 input[type=text], input[type=password], input[type=email], input[type=number],
 input[type=search], input[type=url], input[type=tel], input[type=time], select, textarea {

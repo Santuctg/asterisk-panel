@@ -187,6 +187,119 @@
         });
     });
 
+    // ---- Form instructions as accessible info tooltips ---------------------
+    // Existing field hints remain in the DOM for translation and no-JS
+    // fallback, but are presented beside their labels when JavaScript runs.
+    var helpPopover = document.createElement('div');
+    helpPopover.className = 'form-help-popover';
+    helpPopover.id = 'formHelpPopover';
+    helpPopover.setAttribute('role', 'tooltip');
+    helpPopover.hidden = true;
+    document.body.appendChild(helpPopover);
+    var activeHelp = null;
+    var helpPinned = false;
+
+    function hideFieldHelp() {
+        helpPopover.hidden = true;
+        helpPopover.replaceChildren();
+        if (activeHelp) activeHelp.setAttribute('aria-expanded', 'false');
+        activeHelp = null;
+        helpPinned = false;
+    }
+
+    function showFieldHelp(button, pinned) {
+        var source = button._helpSource;
+        if (!source) return;
+        if (activeHelp && activeHelp !== button) activeHelp.setAttribute('aria-expanded', 'false');
+        activeHelp = button;
+        helpPinned = Boolean(pinned);
+        helpPopover.replaceChildren();
+        var copy = source.cloneNode(true);
+        copy.hidden = false;
+        copy.removeAttribute('id');
+        while (copy.firstChild) helpPopover.appendChild(copy.firstChild);
+        helpPopover.hidden = false;
+        button.setAttribute('aria-expanded', 'true');
+
+        var anchor = button.getBoundingClientRect();
+        var box = helpPopover.getBoundingClientRect();
+        var left = Math.max(12, Math.min(anchor.left + anchor.width / 2 - box.width / 2, window.innerWidth - box.width - 12));
+        var top = anchor.top - box.height - 10;
+        var below = top < 10;
+        if (below) top = anchor.bottom + 10;
+        helpPopover.classList.toggle('is-below', below);
+        helpPopover.style.left = Math.round(left) + 'px';
+        helpPopover.style.top = Math.round(top) + 'px';
+    }
+
+    function enhanceFieldHelp(root) {
+        var fields = [];
+        if (root instanceof Element && root.matches('.field')) fields.push(root);
+        if (root.querySelectorAll) fields = fields.concat(Array.from(root.querySelectorAll('.field')));
+        fields.forEach(function (field) {
+            if (field.dataset.helpEnhanced) return;
+            var label = Array.from(field.children).find(function (child) { return child.tagName === 'LABEL'; });
+            if (!label) return;
+            var control = field.querySelector('input:not([type="hidden"]), select, textarea');
+            var hint = Array.from(field.children).find(function (child) { return child.classList && child.classList.contains('hint'); });
+            if (hint && (hint.id === 'announcementAudioStatus' || hint.matches('[role="status"], [aria-live]'))) hint = null;
+            if (!hint && !(control && control.required)) return;
+
+            var row = document.createElement('div');
+            row.className = 'field-label-row';
+            field.insertBefore(row, label);
+            if (control && control.required) {
+                var required = document.createElement('span');
+                required.className = 'required-mark';
+                required.textContent = '*';
+                required.setAttribute('aria-hidden', 'true');
+                row.appendChild(required);
+            }
+            row.appendChild(label);
+
+            if (hint) {
+                hint.dataset.helpReady = '1';
+                hint.hidden = true;
+                var button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'field-help-button';
+                button.textContent = 'i';
+                button.setAttribute('aria-label', 'Show field instructions');
+                button.setAttribute('aria-describedby', helpPopover.id);
+                button.setAttribute('aria-expanded', 'false');
+                button._helpSource = hint;
+                button.addEventListener('mouseenter', function () { showFieldHelp(button, false); });
+                button.addEventListener('mouseleave', function () { if (!helpPinned && document.activeElement !== button) hideFieldHelp(); });
+                button.addEventListener('focus', function () { showFieldHelp(button, false); });
+                button.addEventListener('blur', function () { if (!helpPinned) hideFieldHelp(); });
+                button.addEventListener('click', function (event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (activeHelp === button && helpPinned) hideFieldHelp();
+                    else showFieldHelp(button, true);
+                });
+                row.appendChild(button);
+            }
+            field.dataset.helpEnhanced = '1';
+        });
+    }
+
+    enhanceFieldHelp(document);
+    new MutationObserver(function (mutations) {
+        mutations.forEach(function (mutation) {
+            mutation.addedNodes.forEach(function (node) {
+                if (node.nodeType === Node.ELEMENT_NODE) enhanceFieldHelp(node);
+            });
+        });
+    }).observe(document.body, { childList: true, subtree: true });
+    document.addEventListener('click', function (event) {
+        if (helpPinned && !event.target.closest('.field-help-button') && !event.target.closest('.form-help-popover')) hideFieldHelp();
+    });
+    document.addEventListener('keydown', function (event) { if (event.key === 'Escape') hideFieldHelp(); });
+    window.addEventListener('resize', hideFieldHelp);
+    window.addEventListener('scroll', hideFieldHelp, true);
+    document.addEventListener('panel:language', function () { if (activeHelp) showFieldHelp(activeHelp, helpPinned); });
+
     // ---- Modal open/close --------------------------------------------------
     document.addEventListener('click', function (e) {
         var opener = e.target.closest('[data-modal-open]');
