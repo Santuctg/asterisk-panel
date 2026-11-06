@@ -70,6 +70,7 @@ final class SystemController extends BaseController
             'conferences'=> $confs,
             'queues'     => $queues,
             'configDir'  => $gen->dir(),
+            'extIps'     => $extIps,
         ]);
     }
 
