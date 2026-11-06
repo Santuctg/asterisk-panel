@@ -42,9 +42,10 @@ $router->get('/', [DashboardController::class, 'index'], $auth);
 $router->get('/dashboard', [DashboardController::class, 'index'], $auth);
 $router->get('/dashboard/live-calls', [DashboardController::class, 'liveCalls'], $auth);
 $router->post('/dashboard/switch-tenant', [DashboardController::class, 'switchTenant'], array_merge($auth, $csrf));
-$router->get('/live-listen', [LiveListenController::class, 'index'], [Auth::require('call.listen')]);
-$router->get('/live-listen/calls', [LiveListenController::class, 'calls'], [Auth::require('call.listen')]);
-$router->post('/live-listen/start', [LiveListenController::class, 'start'], [Auth::require('call.listen'), Csrf::middleware(...)]);
+$router->get('/active-calls', [LiveListenController::class, 'index'], [Auth::require('call.listen')]);
+$router->get('/active-calls/feed', [LiveListenController::class, 'calls'], [Auth::require('call.listen')]);
+$router->post('/active-calls/listen', [LiveListenController::class, 'start'], [Auth::require('call.listen'), Csrf::middleware(...)]);
+$router->get('/live-listen', [LiveListenController::class, 'legacy'], [Auth::require('call.listen')]);
 
 // Extensions
 $router->get('/extensions', [ExtensionController::class, 'index'], [Auth::require('extension.view')]);

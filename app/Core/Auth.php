@@ -167,7 +167,7 @@ final class Auth
             'conference.view' => 'Conferences — view', 'conference.manage' => 'Conferences — create/edit/delete',
             'cdr.view' => 'Call history — view',
             'cdr.delete' => 'Delete call history',
-            'call.listen' => 'Use live listen',
+            'call.listen' => 'Active calls — view/listen',
             'user.view' => 'Users — view', 'user.manage' => 'Users — create/edit/delete',
             'role.view' => 'Roles — view', 'role.manage' => 'Roles — create/edit/delete',
             'tenant_security.view' => 'Tenant login security — view',

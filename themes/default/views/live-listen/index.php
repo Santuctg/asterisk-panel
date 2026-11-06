@@ -1,16 +1,16 @@
 <div class="page-head"><div>
-    <h1>Live Listen</h1>
-    <div class="subtitle">Listen-only monitoring of connected calls in the selected tenant.</div>
+    <h1>Active Calls</h1>
+    <div class="subtitle">Grandstream-style real-time call monitoring for the selected tenant.</div>
 </div><div class="page-actions"><button type="button" class="btn" id="listen-refresh">Refresh calls</button></div></div>
 
-<div class="notice info mb-4">
-    Listen directly in this browser, or ring another tenant extension and listen after answering it.
-    Browser SIP passwords stay in browser memory and are never sent to the panel. Whisper and barge are disabled.
+<div class="active-calls-hero mb-4">
+    <div><span class="active-calls-live"><i></i> Live monitoring</span><h2>Calls in progress</h2><p>Calls update automatically. Listen in this browser or through another tenant extension.</p></div>
+    <div class="active-calls-total"><strong id="active-calls-total"><?= count($channels) ?></strong><span>Active sessions</span></div>
 </div>
-<p id="listen-status" role="status" aria-live="polite"></p>
-<p id="listen-refresh-status" class="muted text-sm" role="status" aria-live="polite">Calls update automatically.</p>
-<button id="listen-stop" type="button" class="btn" hidden>Stop listening</button>
-<audio id="listen-audio" autoplay playsinline controls hidden></audio>
+
+<div class="active-calls-listen-bar mb-4"><div><strong>Listen-only monitoring</strong><small>Whisper and barge are disabled. Browser SIP passwords never leave this browser.</small></div><div><span id="listen-refresh-status" class="muted text-sm" role="status" aria-live="polite">Calls update automatically.</span><button id="listen-stop" type="button" class="btn btn-sm" hidden>Stop listening</button></div></div>
+<p id="listen-status" class="active-calls-message" role="status" aria-live="polite"></p>
+<audio id="listen-audio" class="mb-4" autoplay playsinline controls hidden></audio>
 <div id="listen-credentials" class="card mb-4" hidden><div class="card-body">
     <h3>Connect browser listener</h3>
     <p class="muted">Extension <strong id="listen-extension-label"></strong> — enter its SIP password.</p>
@@ -26,16 +26,17 @@
     </select></div><div class="form-actions"><button type="button" class="btn btn-primary" id="listen-extension-start">Ring extension</button><button type="button" class="btn" id="listen-extension-cancel">Cancel</button></div></div>
 </div></div>
 
-<div class="card"><div class="card-head"><h2>Connected calls</h2></div><div class="card-body tight">
-        <div class="table-wrap"><table><thead><tr><th>Extension</th><th>Caller</th><th>Duration</th><th>Listen</th></tr></thead><tbody id="listen-calls-body">
-        <?php foreach ($channels as $channel): ?>
-            <tr><td><strong><?= e($channel['listen_extension']) ?></strong></td>
-                <td><?= e($channel['connected'] ?: $channel['caller']) ?></td><td class="mono"><?= e($channel['duration']) ?></td>
-                <td><div class="form-actions"><?php if ($browserReady): ?><button type="button" class="btn btn-primary listen-browser" data-channel="<?= e($channel['name']) ?>" data-extension="<?= e($channel['listen_extension']) ?>">Browser</button><?php else: ?><span class="muted">Browser requires HTTPS</span><?php endif; ?><button type="button" class="btn listen-extension" data-channel="<?= e($channel['name']) ?>" data-extension="<?= e($channel['listen_extension']) ?>">Extension</button></div></td></tr>
-        <?php endforeach; ?>
-        <?php if (!$channels): ?><tr id="listen-calls-empty"><td colspan="4">No connected tenant extension calls found.</td></tr><?php endif; ?>
-        </tbody></table></div>
-</div></div>
+<div class="active-calls-grid" id="listen-calls-body" aria-live="polite">
+    <?php foreach ($channels as $channel): $canListen = !empty($channel['monitorable']); ?>
+        <article class="active-session-card">
+            <div class="active-session-head"><span class="active-session-icon">☎</span><div><strong>Extension <?= e($channel['listen_extension']) ?></strong><small><?= e($channel['device']) ?> · <?= e($channel['direction']) ?></small></div><span class="active-session-state <?= $channel['status'] === 'Connected' ? 'is-connected' : '' ?>"><?= e($channel['status']) ?></span></div>
+            <div class="active-session-route"><div><small><?= $channel['direction'] === 'Inbound' ? 'From' : 'Extension' ?></small><strong><?= e($channel['direction'] === 'Inbound' ? $channel['remote'] : $channel['listen_extension']) ?></strong></div><span>→</span><div><small><?= $channel['direction'] === 'Inbound' ? 'Extension' : 'To' ?></small><strong><?= e($channel['direction'] === 'Inbound' ? $channel['listen_extension'] : $channel['remote']) ?></strong></div></div>
+            <div class="active-session-meta"><span>Duration <strong class="mono"><?= e($channel['duration']) ?></strong></span><span><?= e($channel['device']) ?></span></div>
+            <div class="active-session-actions"><?php if ($browserReady): ?><button type="button" class="btn btn-primary listen-browser" data-channel="<?= e($channel['name']) ?>" data-extension="<?= e($channel['listen_extension']) ?>"<?= $canListen ? '' : ' disabled' ?>>Listen in browser</button><?php endif; ?><button type="button" class="btn listen-extension" data-channel="<?= e($channel['name']) ?>" data-extension="<?= e($channel['listen_extension']) ?>"<?= $canListen ? '' : ' disabled' ?>>Listen on extension</button></div>
+        </article>
+    <?php endforeach; ?>
+    <?php if (!$channels): ?><div class="empty dashboard-empty active-calls-empty"><span class="active-call-empty-icon">☎</span><strong>No active calls</strong><p>Tenant calls will appear here automatically.</p></div><?php endif; ?>
+</div>
 
 <input type="hidden" id="listen-context" value="<?= e($context) ?>">
 <input type="hidden" id="listen-browser-ready" value="<?= $browserReady ? '1' : '0' ?>">

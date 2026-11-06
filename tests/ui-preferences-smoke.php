@@ -63,10 +63,11 @@ $checks = [
         && str_contains($phoneView, 'name="extension"') && !str_contains($phoneView, 'name="tenant_domain"'), 'web phone calls from URL-scoped extension login without a tenant field'],
     [str_contains($phoneView, 'webphone-app is-locked') && str_contains($css, '.webphone-app.is-locked .webphone-rail')
         && str_contains($phoneJs, "classList.remove('is-locked')"), 'web phone hides workspace navigation until SIP login succeeds'],
-    [str_contains($listenView, 'listen-calls-body') && str_contains($listenView, 'Listen on an extension')
-        && str_contains($listenJs, "fetch('/live-listen/calls'") && str_contains($listenJs, "requestListen(target.channel, 'extension'")
+    [str_contains($listenView, 'active-calls-grid') && str_contains($listenView, 'Listen on an extension')
+        && str_contains($listenView, 'Grandstream-style')
+        && str_contains($listenJs, "fetch('/active-calls/feed'") && str_contains($listenJs, "requestListen(target.channel, 'extension'")
         && str_contains($listenJs, 'setTimeout(() => refreshCalls(false), 3000)'),
-        'live listen auto-refreshes and supports browser or tenant-extension listening'],
+        'Active Calls auto-refreshes and merges browser or tenant-extension listening'],
     [str_contains($phoneJs, 'getReceivers()') && str_contains($phoneJs, 'audio.hidden = false')
         && str_contains($phoneView, 'playsinline controls hidden'), 'web phone exposes a manual playback fallback for remote audio'],
     [str_contains($updateView, '/system/update/progress') && str_contains($updateView, 'RECONNECTING') && str_contains($updateView, "setTimeout(poll, 1000)"), 'update page tracks background progress and reconnects automatically'],

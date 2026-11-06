@@ -11,6 +11,11 @@ use App\Core\Response;
 /** Tenant-scoped listen-only ChanSpy delivered to a browser or SIP extension. */
 final class LiveListenController extends BaseController
 {
+    public function legacy(Request $request): Response
+    {
+        return Response::redirect('/active-calls');
+    }
+
     public function index(Request $request): Response
     {
         $tid = $this->scopedTenantId();
@@ -147,19 +152,29 @@ final class LiveListenController extends BaseController
         $channels = [];
         try {
             foreach (asterisk()->channelSnapshot() as $name => $channel) {
-                if (!str_starts_with($name, 'PJSIP/')
-                    || (($channel['bridgeid'] ?? '') === '' && ($channel['bridged'] ?? '') === '')) continue;
+                if (!str_starts_with($name, 'PJSIP/')) continue;
                 $endpoint = substr($name, strlen('PJSIP/'));
                 $dash = strrpos($endpoint, '-');
                 if ($dash === false) continue;
                 $identity = substr($endpoint, 0, $dash);
                 if (!isset($allowed[$identity])) continue;
+                $extension = $allowed[$identity];
+                $caller = (string) ($channel['caller'] ?? '');
+                $connected = (string) ($channel['connected'] ?? '');
+                $remote = $connected !== '' && $connected !== $extension ? $connected : $caller;
+                if ($remote === '' || $remote === $extension || str_contains($remote, '-phone-web')) $remote = 'Unknown';
+                $monitorable = ($channel['bridgeid'] ?? '') !== '' || ($channel['bridged'] ?? '') !== '';
                 $channels[] = [
                     'name' => $name,
-                    'listen_extension' => $allowed[$identity],
-                    'caller' => (string) ($channel['caller'] ?? ''),
-                    'connected' => (string) ($channel['connected'] ?? ''),
+                    'listen_extension' => $extension,
+                    'caller' => $caller,
+                    'connected' => $connected,
+                    'remote' => $remote,
                     'duration' => (string) ($channel['duration'] ?? '00:00:00'),
+                    'status' => strtolower((string) ($channel['state'] ?? '')) === 'up' ? 'Connected' : 'Ringing',
+                    'direction' => ($caller === $extension || str_contains($caller, '-phone-web')) ? 'Outbound' : 'Inbound',
+                    'device' => str_ends_with($identity, '-phone-web') ? 'Web Phone' : 'Desk Phone',
+                    'monitorable' => $monitorable,
                 ];
             }
         } catch (\Throwable $e) {

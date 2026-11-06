@@ -45,8 +45,9 @@ $check(str_contains($pjsip, "[1001@tenant-a.example.test](endpoint_basic)\nconte
     && str_contains($pjsip, '[1001@tenant-b.example.test](endpoint_basic)'), 'physical SIP usernames are isolated by tenant domain');
 $check(str_contains($pjsip, '[tenant_a_2002-web]') && str_contains($pjsip, 'context = panel-listen-only'), 'separate browser endpoints are restricted');
 $check(str_contains($pjsip, "[tenant_a_1001-phone-web]\ntype = endpoint")
-    && str_contains($pjsip, "callerid = \"Target\" <1001>\nwebrtc = yes"),
-    'normal Web Phone endpoint keeps the extension caller identity');
+    && str_contains($pjsip, "callerid = \"Target\" <1001>\nwebrtc = yes")
+    && substr_count($pjsip, "force_rport = yes\nrewrite_contact = yes\nrtp_symmetric = yes") >= 4,
+    'WebRTC endpoints keep caller identity and symmetric NAT-safe audio');
 $device = ['mac' => '001565aabbcc', 'vendor' => 'generic', 'model' => '', 'extension_id' => $targetExtension, 'description' => 'Desk'];
 $provisioned = (new App\Services\ProvisioningService())->render($device)['body'];
 $check(str_contains($provisioned, 'sip_server=tenant-a.example.test')
@@ -289,16 +290,18 @@ $check($targetIdentity->invoke($controller, '1001@tenant-a.example.test', 'tenan
     && $targetIdentity->invoke($controller, 'tenant_a_1001-phone-web', 'tenant-a.example.test', 'tenant_a') === '1001'
     && $targetIdentity->invoke($controller, 'tenant_b_1001-phone-web', 'tenant-a.example.test', 'tenant_a') === '',
     'live listen maps desk-phone and Web Phone channels without crossing tenants');
-$page = $controller->index(new App\Core\Request('GET', '/live-listen'));
-$check($page->status() === 200 && str_contains($page->body(), 'Live Listen')
+$page = $controller->index(new App\Core\Request('GET', '/active-calls'));
+$check($page->status() === 200 && str_contains($page->body(), 'Active Calls')
     && str_contains($page->body(), 'Listen on an extension')
-    && str_contains($page->body(), 'listen-calls-body'),
-    'live listen offers browser and tenant-extension listening with a live call table');
-$calls = $controller->calls(new App\Core\Request('GET', '/live-listen/calls'));
+    && str_contains($page->body(), 'active-calls-grid'),
+    'Active Calls merges Grandstream-style monitoring with browser and extension listening');
+$calls = $controller->calls(new App\Core\Request('GET', '/active-calls/feed'));
 $check($calls->status() === 200 && isset(json_decode($calls->body(), true)['calls']),
-    'live listen polling feed responds');
+    'Active Calls polling feed responds');
+$check($controller->legacy(new App\Core\Request('GET', '/live-listen'))->headers()['Location'] === '/active-calls',
+    'legacy Live Listen URL redirects to Active Calls');
 $request = static fn (string $channel): App\Core\Request => new App\Core\Request(
-    'POST', '/live-listen/start', [], ['channel' => $channel]
+    'POST', '/active-calls/listen', [], ['channel' => $channel]
 );
 $check($controller->start($request('PJSIP/1001@tenant-b.example.test-00000001'))->status() === 403, 'cannot listen to another tenant');
 $check($controller->start($request('PJSIP/1001@tenant-a.example.test-00000001'))->status() === 409, 'stale/offline target cannot be originated');

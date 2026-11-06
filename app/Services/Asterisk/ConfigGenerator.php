@@ -202,6 +202,7 @@ final class ConfigGenerator
             $out .= "webrtc = yes\n";
             $out .= "dtls_auto_generate_cert = yes\n";
             $out .= "direct_media = no\n";
+            $out .= "force_rport = yes\nrewrite_contact = yes\nrtp_symmetric = yes\n";
             $out .= "allow = !all,opus,ulaw,alaw\n";
             $out .= "identify_by = username,auth_username\n\n";
             $out .= "[{$web}]\n";
@@ -225,6 +226,7 @@ final class ConfigGenerator
             }
             $out .= "callerid = \"{$cidName}\" <{$cidNum}>\n";
             $out .= "webrtc = yes\ndtls_auto_generate_cert = yes\ndirect_media = no\n";
+            $out .= "force_rport = yes\nrewrite_contact = yes\nrtp_symmetric = yes\n";
             $out .= "allow = !all,opus,ulaw,alaw\nidentify_by = username,auth_username\n\n";
             $out .= "[{$phone}]\ntype = auth\nauth_type = userpass\n";
             $out .= "username = {$phone}\npassword = {$this->esc($ext['secret'])}\n\n";

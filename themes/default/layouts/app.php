@@ -36,6 +36,7 @@ $user = $auth->user();
     $nav = [
         ['label' => 'Dashboard',    'href' => '/dashboard',      'icon' => 'grid',    'ability' => null],
         ['label' => 'Web Phone',    'href' => '/web-phone',       'icon' => 'phone',   'ability' => 'webphone.use', 'standalone' => true],
+        ['label' => 'Active Calls', 'href' => '/active-calls',     'icon' => 'pulse',   'ability' => 'call.listen'],
         ['label' => 'Extensions',   'href' => '/extensions',     'icon' => 'phone',   'ability' => 'extension.view'],
         ['label' => 'Voicemail',    'href' => '/voicemail',      'icon' => 'mail',    'ability' => 'voicemail.view'],
         ['label' => 'Devices',      'href' => '/devices',        'icon' => 'device',  'ability' => 'device.view'],

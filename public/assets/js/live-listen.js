@@ -12,6 +12,7 @@ const extensionLabel = $('#listen-extension-label');
 const targetLabel = $('#listen-target-label');
 const listenerExtension = $('#listen-extension');
 const callsBody = $('#listen-calls-body');
+const callsTotal = $('#active-calls-total');
 const csrf = document.querySelector('meta[name="csrf-token"]').content;
 const browserReady = $('#listen-browser-ready').value === '1';
 let selected = null;
@@ -57,37 +58,53 @@ function button(label, className, call) {
     const element = document.createElement('button');
     element.type = 'button'; element.className = className; element.textContent = label;
     element.dataset.channel = call.name; element.dataset.extension = call.listen_extension;
+    element.disabled = !call.monitorable;
+    return element;
+}
+function textElement(tag, className, text) {
+    const element = document.createElement(tag);
+    if (className) element.className = className;
+    element.textContent = text;
     return element;
 }
 function renderCalls(calls) {
     callsBody.replaceChildren();
+    callsTotal.textContent = String(calls.length);
     if (!calls.length) {
-        const row = document.createElement('tr');
-        const cell = document.createElement('td');
-        cell.colSpan = 4; cell.textContent = 'No connected tenant extension calls found.';
-        row.append(cell); callsBody.append(row); return;
+        const empty = document.createElement('div'); empty.className = 'empty dashboard-empty active-calls-empty';
+        empty.append(textElement('span', 'active-call-empty-icon', '☎'), textElement('strong', '', 'No active calls'), textElement('p', '', 'Tenant calls will appear here automatically.'));
+        callsBody.append(empty); return;
     }
     calls.forEach(call => {
-        const row = document.createElement('tr');
-        const extension = document.createElement('td');
-        const strong = document.createElement('strong'); strong.textContent = call.listen_extension;
-        extension.append(strong);
-        const caller = document.createElement('td'); caller.textContent = call.connected || call.caller || 'Unknown';
-        const duration = document.createElement('td'); duration.className = 'mono'; duration.textContent = call.duration || '00:00:00';
-        const actions = document.createElement('td');
-        const wrap = document.createElement('div'); wrap.className = 'form-actions';
-        if (browserReady) wrap.append(button('Browser', 'btn btn-primary listen-browser', call));
-        wrap.append(button('Extension', 'btn listen-extension', call));
-        actions.append(wrap); row.append(extension, caller, duration, actions); callsBody.append(row);
+        const card = document.createElement('article'); card.className = 'active-session-card';
+        const head = document.createElement('div'); head.className = 'active-session-head';
+        const identity = document.createElement('div');
+        identity.append(textElement('strong', '', `Extension ${call.listen_extension}`), textElement('small', '', `${call.device} · ${call.direction}`));
+        const state = textElement('span', `active-session-state${call.status === 'Connected' ? ' is-connected' : ''}`, call.status || 'Ringing');
+        head.append(textElement('span', 'active-session-icon', '☎'), identity, state);
+        const route = document.createElement('div'); route.className = 'active-session-route';
+        const from = document.createElement('div');
+        const to = document.createElement('div');
+        const inbound = call.direction === 'Inbound';
+        from.append(textElement('small', '', inbound ? 'From' : 'Extension'), textElement('strong', '', inbound ? call.remote : call.listen_extension));
+        to.append(textElement('small', '', inbound ? 'Extension' : 'To'), textElement('strong', '', inbound ? call.listen_extension : call.remote));
+        route.append(from, textElement('span', '', '→'), to);
+        const meta = document.createElement('div'); meta.className = 'active-session-meta';
+        const duration = document.createElement('span'); duration.append('Duration ', textElement('strong', 'mono', call.duration || '00:00:00'));
+        meta.append(duration, textElement('span', '', call.device || 'Phone'));
+        const actions = document.createElement('div'); actions.className = 'active-session-actions';
+        if (browserReady) actions.append(button('Listen in browser', 'btn btn-primary listen-browser', call));
+        actions.append(button('Listen on extension', 'btn listen-extension', call));
+        card.append(head, route, meta, actions); callsBody.append(card);
     });
 }
 async function refreshCalls(announce = false) {
     try {
-        const response = await fetch('/live-listen/calls', {headers: {'Accept': 'application/json'}, credentials: 'same-origin'});
+        const response = await fetch('/active-calls/feed', {headers: {'Accept': 'application/json'}, credentials: 'same-origin'});
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || 'Could not refresh calls');
         renderCalls(Array.isArray(result.calls) ? result.calls : []);
-        refreshStatus.textContent = announce ? 'Connected calls refreshed.' : 'Calls update automatically.';
+        refreshStatus.textContent = announce ? 'Active calls refreshed.' : 'Calls update automatically.';
     } catch (error) {
         refreshStatus.textContent = error.message || 'Live update failed. Retrying…';
     } finally {
@@ -96,7 +113,7 @@ async function refreshCalls(announce = false) {
     }
 }
 async function requestListen(channel, mode, listener = '') {
-    const response = await fetch('/live-listen/start', {
+    const response = await fetch('/active-calls/listen', {
         method: 'POST', credentials: 'same-origin',
         headers: {'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json'},
         body: new URLSearchParams({_token: csrf, channel, mode, listener_extension: listener})

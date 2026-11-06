@@ -30,7 +30,7 @@ $tile = function (string $icon, string $tone, int|string $value, string $label, 
     </div>
     <div class="page-actions">
         <?php if (auth()->can('call.listen')): ?>
-            <a href="/live-listen" class="btn">Live Listen</a>
+            <a href="/active-calls" class="btn">Active Calls</a>
         <?php endif; ?>
         <a href="/extensions/create" class="btn btn-primary">
             <?= $this->fragment('icons/plus') ?> New extension
@@ -60,7 +60,7 @@ $tile = function (string $icon, string $tone, int|string $value, string $label, 
     <?= $tile('pulse',    $online ? 'green' : 'red',
               $online ? $activeChannels : '—',
               $online ? 'Active calls' : 'Offline',
-              '/system/status', 'activeCallsCount') ?>
+              auth()->can('call.listen') ? '/active-calls' : '/system/status', 'activeCallsCount') ?>
     <?= $tile('users',    'green',  $registered, 'Registered phones', '/devices') ?>
 </div>
 
