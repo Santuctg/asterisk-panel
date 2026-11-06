@@ -183,7 +183,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
         </div>
 
         <div class="modal-overlay" id="outboundModal" hidden>
-            <div class="modal">
+            <div class="modal lg outbound-route-modal">
                 <form method="post" action="/routes/outbound" id="outboundForm">
                     <?= csrf() ?>
                     <div class="modal-head">
@@ -225,9 +225,9 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                             ]); ?>
                         </div>
                         <div class="divider"></div>
-                        <div class="flex justify-between items-center mb-3"><div><strong>Allowed calling times</strong><div class="hint">No schedule means outbound calls are always allowed. Times use <?= e(date_default_timezone_get()) ?>.</div></div><button type="button" class="btn btn-sm" id="addOutboundSchedule">＋ Add schedule</button></div>
+                        <div class="outbound-schedule-head mb-3"><div><strong>Allowed calling times</strong><div class="hint">No schedule means outbound calls are always allowed. Times use <?= e(date_default_timezone_get()) ?>.</div></div><button type="button" class="btn btn-sm" id="addOutboundSchedule">＋ Add schedule</button></div>
                         <input type="hidden" name="schedules" id="outboundSchedulesJson" value="[]">
-                        <div class="table-wrap"><table><thead><tr><th>Name</th><th>Time</th><th>Week</th><th class="actions">Options</th></tr></thead><tbody id="outboundScheduleRows"><tr data-empty><td colspan="4" class="muted">Always allowed — no schedule restrictions.</td></tr></tbody></table></div>
+                        <div class="table-wrap outbound-schedule-wrap"><table class="outbound-schedule-table"><colgroup><col class="schedule-name-col"><col class="schedule-time-col"><col class="schedule-week-col"><col class="schedule-action-col"></colgroup><thead><tr><th>Name</th><th>Time</th><th>Week</th><th class="actions">Options</th></tr></thead><tbody id="outboundScheduleRows"><tr data-empty><td colspan="4" class="muted">Always allowed — no schedule restrictions.</td></tr></tbody></table></div>
                     </div>
                     <div class="modal-foot">
                         <button type="button" class="btn" data-modal-close>Cancel</button>
@@ -588,10 +588,10 @@ $activeTab = $_GET['tab'] ?? 'inbound';
         }
         outboundSchedules.forEach(function (row, index) {
             var tr = document.createElement('tr');
-            var nameCell = document.createElement('td'); var name = document.createElement('input'); name.type = 'text'; name.value = row.name; name.maxLength = 120; name.dataset.scheduleField = 'name'; nameCell.appendChild(name);
-            var timeCell = document.createElement('td'); timeCell.className = 'nowrap'; var start = document.createElement('input'); start.type = 'time'; start.value = row.start_time; start.dataset.scheduleField = 'start_time'; var dash = document.createTextNode(' – '); var end = document.createElement('input'); end.type = 'time'; end.value = row.end_time; end.dataset.scheduleField = 'end_time'; timeCell.append(start, dash, end);
-            var daysCell = document.createElement('td'); var days = document.createElement('select'); days.dataset.scheduleField = 'days_of_week'; Object.keys(dayOptions).forEach(function (value) { var option = document.createElement('option'); option.value = value; option.textContent = dayOptions[value]; option.selected = value === row.days_of_week; days.appendChild(option); }); daysCell.appendChild(days);
-            var actionCell = document.createElement('td'); actionCell.className = 'actions'; var remove = document.createElement('button'); remove.type = 'button'; remove.className = 'btn btn-sm btn-ghost'; remove.textContent = 'Delete'; remove.addEventListener('click', function () { collectOutboundSchedules(); var rows = JSON.parse(outboundSchedulesJson.value || '[]'); rows.splice(index, 1); renderOutboundSchedules(rows); }); actionCell.appendChild(remove);
+            var nameCell = document.createElement('td'); nameCell.dataset.label = 'Name'; var name = document.createElement('input'); name.type = 'text'; name.value = row.name; name.maxLength = 120; name.dataset.scheduleField = 'name'; nameCell.appendChild(name);
+            var timeCell = document.createElement('td'); timeCell.dataset.label = 'Time'; var timeWrap = document.createElement('div'); timeWrap.className = 'outbound-schedule-time'; var start = document.createElement('input'); start.type = 'time'; start.value = row.start_time; start.dataset.scheduleField = 'start_time'; var dash = document.createElement('span'); dash.textContent = '–'; var end = document.createElement('input'); end.type = 'time'; end.value = row.end_time; end.dataset.scheduleField = 'end_time'; timeWrap.append(start, dash, end); timeCell.appendChild(timeWrap);
+            var daysCell = document.createElement('td'); daysCell.dataset.label = 'Week'; var days = document.createElement('select'); days.dataset.scheduleField = 'days_of_week'; Object.keys(dayOptions).forEach(function (value) { var option = document.createElement('option'); option.value = value; option.textContent = dayOptions[value]; option.selected = value === row.days_of_week; days.appendChild(option); }); daysCell.appendChild(days);
+            var actionCell = document.createElement('td'); actionCell.className = 'actions'; actionCell.dataset.label = 'Options'; var remove = document.createElement('button'); remove.type = 'button'; remove.className = 'btn btn-sm btn-ghost'; remove.textContent = 'Delete'; remove.addEventListener('click', function () { collectOutboundSchedules(); var rows = JSON.parse(outboundSchedulesJson.value || '[]'); rows.splice(index, 1); renderOutboundSchedules(rows); }); actionCell.appendChild(remove);
             tr.append(nameCell, timeCell, daysCell, actionCell); outboundScheduleRows.appendChild(tr);
         });
     }
