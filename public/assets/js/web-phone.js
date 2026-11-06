@@ -50,6 +50,7 @@ let muted = false;
 let held = false;
 let dtmfMode = false;
 let requestedEndResult = '';
+const mediaConnections = new WeakSet();
 
 function setStatus(message) { status.textContent = message; }
 function setPresence(message, online = false) {
@@ -146,13 +147,26 @@ function switchView(view) {
 document.querySelectorAll('[data-phone-view]').forEach(button => button.addEventListener('click', () => switchView(button.dataset.phoneView)));
 search.addEventListener('input', renderList);
 
-function attachMedia(current) {
-    current.on('peerconnection', ({peerconnection}) => {
-        peerconnection.addEventListener('track', event => {
-            audio.srcObject = event.streams[0] || new MediaStream([event.track]);
-            audio.play().catch(() => setStatus('Call connected. Press browser play to hear audio.'));
-        });
+function playRemoteMedia(peerconnection, stream = null) {
+    if (!peerconnection) return;
+    const remote = stream || new MediaStream(peerconnection.getReceivers()
+        .map(receiver => receiver.track).filter(track => track && track.kind === 'audio'));
+    if (!remote.getAudioTracks().length) return;
+    audio.srcObject = remote;
+    audio.hidden = false;
+    audio.play().catch(() => setStatus('Call connected. Press Play below to hear audio.'));
+}
+function bindMedia(peerconnection) {
+    if (!peerconnection || mediaConnections.has(peerconnection)) return;
+    mediaConnections.add(peerconnection);
+    peerconnection.addEventListener('track', event => {
+        playRemoteMedia(peerconnection, event.streams[0] || new MediaStream([event.track]));
     });
+    playRemoteMedia(peerconnection);
+}
+function attachMedia(current) {
+    bindMedia(current.connection);
+    current.on('peerconnection', ({peerconnection}) => bindMedia(peerconnection));
 }
 function updateTimer() {
     if (!confirmedAt) return;
@@ -187,6 +201,7 @@ function finalizeSession(current, result) {
     session = null; currentTarget = ''; currentDirection = ''; startedAt = null; confirmedAt = null; requestedEndResult = '';
     document.title = originalTitle;
     window.clearInterval(callTimer); callTimer = null;
+    audio.pause(); audio.srcObject = null; audio.hidden = true;
     showCallState(false);
     callButton.disabled = !ua;
     setStatus(ua ? 'Ready to call.' : 'Disconnected.');
@@ -209,6 +224,7 @@ function setupSession(current, originator) {
     callTime.textContent = originator === 'remote' ? 'Incoming call' : 'Calling…';
     attachMedia(current);
     current.on('confirmed', () => {
+        bindMedia(current.connection);
         confirmedAt = Date.now(); answerButton.hidden = true;
         tools.hidden = false;
         setStatus(`Connected with ${currentTarget}.`); updateTimer();

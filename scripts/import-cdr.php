@@ -36,6 +36,7 @@ $db = App::getInstance()->db();
 $csvPath = getenv('CDR_CSV_PATH') ?: '/var/log/asterisk/cdr-csv/Master.csv';
 $offsetDir = BASE_PATH . '/storage/cache';
 $offsetPath = $offsetDir . '/cdr-import-' . sha1($csvPath) . '.offset';
+$reconcilePath = $offsetDir . '/cdr-ringgroup-reconcile-v1-' . sha1($csvPath) . '.done';
 
 if (!is_readable($csvPath)) {
     fwrite(STDERR, "CDR CSV not readable: {$csvPath}\n");
@@ -101,7 +102,12 @@ if ($header && in_array('uniqueid', $header, true)) {
 // imports fast even when Master.csv has grown over months or years.
 $offset = is_file($offsetPath) ? (int) trim((string) file_get_contents($offsetPath)) : 0;
 $size = filesize($csvPath) ?: 0;
-if ($offset > 0 && $offset <= $size) {
+if (!is_file($reconcilePath)) {
+    // v1 reconciliation: revisit legacy rows once so Ring Group destinations
+    // previously skipped by Uniqueid-only deduplication can repair NO ANSWER.
+    rewind($handle);
+    if ($header && in_array('uniqueid', $header, true)) { fgetcsv($handle, 0, ',', '"', '\\'); }
+} elseif ($offset > 0 && $offset <= $size) {
     fseek($handle, $offset);
 } elseif ($offset > $size) {
     // Asterisk log rotation/truncation: begin at the start of the new file.
@@ -111,6 +117,16 @@ if ($offset > 0 && $offset <= $size) {
 
 $inserted = 0;
 $skipped  = 0;
+$updated  = 0;
+
+$dispositionRank = static fn (string $value): int => match (strtoupper($value)) {
+    'ANSWERED' => 5,
+    'BUSY' => 4,
+    'CONGESTION' => 3,
+    'NO ANSWER' => 2,
+    'FAILED' => 1,
+    default => 0,
+};
 
 while (($row = fgetcsv($handle, 0, ',', '"', '\\')) !== false) {
     if (count($row) < 5) {
@@ -128,10 +144,11 @@ while (($row = fgetcsv($handle, 0, ',', '"', '\\')) !== false) {
         continue;
     }
 
-    // Permanent idempotency: history may be deleted from `cdr`, but rows still
-    // present in Master.csv must never come back on the next timer run.
-    if ($db->scalar('SELECT COUNT(*) FROM cdr_import_log WHERE uniqueid = ?', [$uniqueid]) > 0
-        || $db->scalar('SELECT COUNT(*) FROM cdr WHERE uniqueid = ?', [$uniqueid]) > 0) {
+    // Asterisk emits one CSV row per Ring Group destination, and those rows can
+    // share a Uniqueid. Fingerprint the complete CSV row so the answered member
+    // is not discarded just because an earlier ringing member ended first.
+    $importKey = 'row:' . sha1(implode("\x1f", array_map('strval', $row)));
+    if ($db->scalar('SELECT COUNT(*) FROM cdr_import_log WHERE uniqueid = ?', [$importKey]) > 0) {
         $skipped++;
         continue;
     }
@@ -139,7 +156,7 @@ while (($row = fgetcsv($handle, 0, ',', '"', '\\')) !== false) {
     $dcontext = (string) $get('dcontext');
     $tenantId = $resolveTenant($dcontext);
 
-    $db->insert('cdr', [
+    $values = [
         'tenant_id'   => $tenantId,
         'calldate'    => (string) $get('calldate'),
         'src'         => (string) $get('src'),
@@ -156,20 +173,39 @@ while (($row = fgetcsv($handle, 0, ',', '"', '\\')) !== false) {
         'accountcode' => (string) $get('accountcode'),
         'uniqueid'    => $uniqueid,
         'userfield'   => (string) $get('userfield'),
-    ]);
+    ];
+
+    $existing = $db->one('SELECT * FROM cdr WHERE uniqueid = ? ORDER BY id LIMIT 1', [$uniqueid]);
+    if ($existing) {
+        $existingRank = $dispositionRank((string) ($existing['disposition'] ?? ''));
+        $newRank = $dispositionRank((string) $values['disposition']);
+        if ($newRank > $existingRank
+            || ($newRank === $existingRank && (int) $values['billsec'] > (int) ($existing['billsec'] ?? 0))) {
+            $db->update('cdr', (int) $existing['id'], $values);
+            $updated++;
+        } else {
+            $skipped++;
+        }
+    } elseif ($db->scalar('SELECT COUNT(*) FROM cdr_import_log WHERE uniqueid = ?', [$uniqueid]) > 0) {
+        // Legacy ledgers stored only Uniqueid. If the corresponding CDR was
+        // deliberately deleted, keep it deleted instead of resurrecting it.
+        $skipped++;
+    } else {
+        $db->insert('cdr', $values);
+        $inserted++;
+    }
     $db->insert('cdr_import_log', [
-        'uniqueid' => $uniqueid,
+        'uniqueid' => $importKey,
         'tenant_id' => $tenantId,
         'imported_at' => date('Y-m-d H:i:s'),
     ]);
-
-    $inserted++;
 }
 
 $nextOffset = ftell($handle);
 fclose($handle);
 if (!is_dir($offsetDir)) { @mkdir($offsetDir, 0775, true); }
 if ($nextOffset !== false) { @file_put_contents($offsetPath, (string) $nextOffset, LOCK_EX); }
+@file_put_contents($reconcilePath, date(DATE_ATOM), LOCK_EX);
 
-echo "CDR import complete: {$inserted} inserted, {$skipped} skipped (already present or blank).\n";
-Logger::info('CDR import', ['inserted' => $inserted, 'skipped' => $skipped]);
+echo "CDR import complete: {$inserted} inserted, {$updated} merged, {$skipped} skipped (already present or blank).\n";
+Logger::info('CDR import', ['inserted' => $inserted, 'updated' => $updated, 'skipped' => $skipped]);

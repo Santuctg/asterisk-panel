@@ -50,7 +50,7 @@
                     <button type="button" class="btn btn-sm" id="web-phone-disconnect">Sign out</button>
                 </div>
             </div>
-            <audio id="web-phone-audio" autoplay hidden></audio>
+            <audio id="web-phone-audio" autoplay playsinline controls hidden></audio>
             <script type="module" src="<?= e(asset('assets/js/web-phone.js')) ?>"></script>
         <?php endif; ?>
     </section>

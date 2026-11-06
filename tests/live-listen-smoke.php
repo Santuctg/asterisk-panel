@@ -44,6 +44,9 @@ $check(str_contains($pjsip, "[1001@tenant-a.example.test](endpoint_basic)\nconte
     && str_contains($pjsip, "[1001@tenant-a.example.test]\ntype = auth\nauth_type = userpass\nusername = 1001\npassword = test-secret\nrealm = tenant-a.example.test")
     && str_contains($pjsip, '[1001@tenant-b.example.test](endpoint_basic)'), 'physical SIP usernames are isolated by tenant domain');
 $check(str_contains($pjsip, '[tenant_a_2002-web]') && str_contains($pjsip, 'context = panel-listen-only'), 'separate browser endpoints are restricted');
+$check(str_contains($pjsip, "[tenant_a_1001-phone-web]\ntype = endpoint")
+    && str_contains($pjsip, "callerid = \"Target\" <1001>\nwebrtc = yes"),
+    'normal Web Phone endpoint keeps the extension caller identity');
 $device = ['mac' => '001565aabbcc', 'vendor' => 'generic', 'model' => '', 'extension_id' => $targetExtension, 'description' => 'Desk'];
 $provisioned = (new App\Services\ProvisioningService())->render($device)['body'];
 $check(str_contains($provisioned, 'sip_server=tenant-a.example.test')
@@ -281,10 +284,19 @@ $app->auth()->login($user);
 unset($_SERVER['HTTP_HOST']);
 
 $controller = new App\Controllers\LiveListenController();
+$targetIdentity = new ReflectionMethod(App\Controllers\LiveListenController::class, 'targetExtension');
+$check($targetIdentity->invoke($controller, '1001@tenant-a.example.test', 'tenant-a.example.test', 'tenant_a') === '1001'
+    && $targetIdentity->invoke($controller, 'tenant_a_1001-phone-web', 'tenant-a.example.test', 'tenant_a') === '1001'
+    && $targetIdentity->invoke($controller, 'tenant_b_1001-phone-web', 'tenant-a.example.test', 'tenant_a') === '',
+    'live listen maps desk-phone and Web Phone channels without crossing tenants');
 $page = $controller->index(new App\Core\Request('GET', '/live-listen'));
 $check($page->status() === 200 && str_contains($page->body(), 'Live Listen')
-    && !str_contains($page->body(), 'Supervisor extension') && !str_contains($page->body(), '>Phone<'),
-    'live listen uses a direct browser listener without a supervisor selector');
+    && str_contains($page->body(), 'Listen on an extension')
+    && str_contains($page->body(), 'listen-calls-body'),
+    'live listen offers browser and tenant-extension listening with a live call table');
+$calls = $controller->calls(new App\Core\Request('GET', '/live-listen/calls'));
+$check($calls->status() === 200 && isset(json_decode($calls->body(), true)['calls']),
+    'live listen polling feed responds');
 $request = static fn (string $channel): App\Core\Request => new App\Core\Request(
     'POST', '/live-listen/start', [], ['channel' => $channel]
 );

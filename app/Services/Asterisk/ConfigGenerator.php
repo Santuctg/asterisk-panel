@@ -223,6 +223,7 @@ final class ConfigGenerator
             if (!empty($ext['outbound_route_id'])) {
                 $out .= "set_var = PANEL_OUTBOUND_ROUTE_ID={$ext['outbound_route_id']}\n";
             }
+            $out .= "callerid = \"{$cidName}\" <{$cidNum}>\n";
             $out .= "webrtc = yes\ndtls_auto_generate_cert = yes\ndirect_media = no\n";
             $out .= "allow = !all,opus,ulaw,alaw\nidentify_by = username,auth_username\n\n";
             $out .= "[{$phone}]\ntype = auth\nauth_type = userpass\n";
