@@ -26,6 +26,7 @@ final class SystemController extends BaseController
         $contacts = [];
         $confs   = [];
         $queues  = [];
+        $extIps  = [];
 
         try {
             $mgr = asterisk();
@@ -40,7 +41,6 @@ final class SystemController extends BaseController
                 $queues   = $mgr->queueStatus();
 
                 // Collect per-extension connected IP from channel snapshot.
-                $extIps = [];
                 if ($this->tenantId()) {
                     $snapshot = $mgr->channelSnapshot();
                     foreach ($snapshot as $chan) {
@@ -56,7 +56,6 @@ final class SystemController extends BaseController
             }
         } catch (\Throwable $e) {
             \App\Core\Logger::info('Status page: Asterisk unavailable', ['error' => $e->getMessage()]);
-            $extIps = [];
         }
 
         // Show where generated config would be written.
