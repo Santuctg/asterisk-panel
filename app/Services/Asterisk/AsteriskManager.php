@@ -195,7 +195,7 @@ final class AsteriskManager
         int $limit = 25
     ): array {
         $prefixes = array_map(static fn ($row) => 'PJSIP/' . $row['extension'] . '@' . $realm . '-', $extensions);
-        $rows = [];
+        $identities = [];
         foreach ($snapshot as $channel) {
             $channelContext = (string) ($channel['context'] ?? '');
             $belongs = $channelContext === $context || str_starts_with($channelContext, $context . '-');
@@ -207,11 +207,32 @@ final class AsteriskManager
                 }
             }
             if ($belongs) {
-                $rows[] = $channel;
+                foreach (['linkedid', 'bridgeid'] as $field) {
+                    $value = (string) ($channel[$field] ?? '');
+                    if ($value !== '') $identities[$field . ':' . $value] = true;
+                }
             }
-            if (count($rows) >= $limit) {
-                break;
+        }
+
+        // Include every leg sharing a call/bridge identity with a tenant leg,
+        // even when the trunk channel itself is running in a generic context.
+        $rows = [];
+        foreach ($snapshot as $channel) {
+            $channelContext = (string) ($channel['context'] ?? '');
+            $belongs = $channelContext === $context || str_starts_with($channelContext, $context . '-');
+            foreach ($prefixes as $prefix) {
+                if (str_starts_with((string) ($channel['name'] ?? ''), $prefix)
+                    || str_starts_with((string) ($channel['bridged'] ?? ''), $prefix)) {
+                    $belongs = true;
+                    break;
+                }
             }
+            foreach (['linkedid', 'bridgeid'] as $field) {
+                $value = (string) ($channel[$field] ?? '');
+                if ($value !== '' && isset($identities[$field . ':' . $value])) $belongs = true;
+            }
+            if ($belongs) $rows[] = $channel;
+            if (count($rows) >= $limit) break;
         }
         return $rows;
     }
@@ -219,7 +240,40 @@ final class AsteriskManager
     /** Machine-readable Asterisk snapshot. Do not authorize from the dashboard's CLI table. */
     public function channelSnapshot(): array
     {
+        $events = $this->ami->actionEvents('CoreShowChannels');
+        $rows = self::parseCoreShowChannelEvents($events);
+        if ($rows) return $rows;
         return self::parseConciseChannels($this->ami->command('core show channels concise'));
+    }
+
+    /** Normalize named AMI channel events; unlike concise output, positions never drift. */
+    public static function parseCoreShowChannelEvents(array $events): array
+    {
+        $rows = [];
+        foreach ($events as $event) {
+            if (strcasecmp((string) ($event['Event'] ?? ''), 'CoreShowChannel') !== 0) continue;
+            $name = (string) ($event['Channel'] ?? '');
+            if ($name === '') continue;
+            $rows[$name] = [
+                'name' => $name,
+                'context' => (string) ($event['Context'] ?? ''),
+                'extension' => (string) ($event['Exten'] ?? ''),
+                'priority' => (string) ($event['Priority'] ?? ''),
+                'state' => (string) ($event['ChannelStateDesc'] ?? ''),
+                'app' => (string) ($event['Application'] ?? ''),
+                'data' => (string) ($event['ApplicationData'] ?? ''),
+                'caller' => (string) ($event['CallerIDNum'] ?? ''),
+                'caller_name' => (string) ($event['CallerIDName'] ?? ''),
+                'connected' => (string) ($event['ConnectedLineNum'] ?? ''),
+                'connected_name' => (string) ($event['ConnectedLineName'] ?? ''),
+                'duration' => (string) ($event['Duration'] ?? ''),
+                'bridged' => (string) ($event['BridgePeer'] ?? ''),
+                'bridgeid' => (string) ($event['BridgeId'] ?? ''),
+                'uniqueid' => (string) ($event['Uniqueid'] ?? ''),
+                'linkedid' => (string) ($event['Linkedid'] ?? ''),
+            ];
+        }
+        return $rows;
     }
 
     public static function parseConciseChannels(string $out): array
@@ -234,6 +288,7 @@ final class AsteriskManager
                     'state' => $fields[4], 'app' => $fields[5], 'data' => $fields[6],
                     'caller' => $fields[7], 'duration' => $fields[10],
                     'bridged' => $fields[11],
+                    'bridgeid' => '',
                     'uniqueid' => $fields[12] ?? '', 'linkedid' => $fields[13] ?? '',
                 ];
             }

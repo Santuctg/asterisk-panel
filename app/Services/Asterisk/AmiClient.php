@@ -162,6 +162,54 @@ final class AmiClient
     }
 
     /**
+     * Send an AMI action that responds with an EventList and collect every
+     * matching event through the final *Complete packet.
+     *
+     * @return array<int, array<string, string>>
+     */
+    public function actionEvents(string $name, array $headers = []): array
+    {
+        if (!$this->connect() || !$this->socket) {
+            return [];
+        }
+
+        $actionId = 'panel-' . bin2hex(random_bytes(8));
+        $payload = array_merge(['Action' => $name, 'ActionID' => $actionId], $headers);
+        $wire = '';
+        foreach ($payload as $key => $value) {
+            $wire .= $key . ': ' . str_replace(["\r", "\n"], '', (string) $value) . "\r\n";
+        }
+        if (@fwrite($this->socket, $wire . "\r\n") === false) {
+            $this->disconnect();
+            return [];
+        }
+
+        $events = [];
+        for ($packetCount = 0; $packetCount < 5000; $packetCount++) {
+            $packet = $this->readPacket();
+            if (!$packet) {
+                break;
+            }
+            if (($packet['ActionID'] ?? '') !== $actionId) {
+                continue;
+            }
+            $event = (string) ($packet['Event'] ?? '');
+            if ($event !== '') {
+                $events[] = $packet;
+            }
+            if (strcasecmp((string) ($packet['EventList'] ?? ''), 'Complete') === 0
+                || str_ends_with(strtolower($event), 'complete')) {
+                break;
+            }
+            if (($packet['Response'] ?? '') === 'Error') {
+                break;
+            }
+        }
+
+        return $events;
+    }
+
+    /**
      * Run a CLI command via AMI and return its stdout.
      * e.g. command('core show version') -> "Asterisk 22.0.0 built by ... "
      */

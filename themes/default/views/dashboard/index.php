@@ -146,21 +146,30 @@ $tile = function (string $icon, string $tone, int|string $value, string $label, 
 
     function callCards(channels) {
         var byName = {};
-        channels.forEach(function (channel) { byName[channel.name] = channel; });
-        var byLinked = {};
-        channels.forEach(function (channel) {
-            if (!channel.linkedid) return;
-            if (!byLinked[channel.linkedid]) byLinked[channel.linkedid] = [];
-            byLinked[channel.linkedid].push(channel);
+        var parents = channels.map(function (_, index) { return index; });
+        function find(index) { if (parents[index] !== index) parents[index] = find(parents[index]); return parents[index]; }
+        function union(left, right) { left = find(left); right = find(right); if (left !== right) parents[right] = left; }
+        var identities = {};
+        channels.forEach(function (channel, index) {
+            byName[channel.name] = channel;
+            ['linkedid', 'bridgeid'].forEach(function (field) {
+                if (!channel[field]) return;
+                var key = field + ':' + channel[field];
+                if (identities[key] !== undefined) union(index, identities[key]); else identities[key] = index;
+            });
         });
-        var seen = {};
+        channels.forEach(function (channel, index) {
+            var peerIndex = channels.findIndex(function (candidate) { return candidate.name === channel.bridged; });
+            if (peerIndex >= 0) union(index, peerIndex);
+        });
+        var groups = {};
+        channels.forEach(function (channel, index) { var key = find(index); (groups[key] || (groups[key] = [])).push(channel); });
         var calls = [];
-        channels.forEach(function (channel) {
-            if (seen[channel.name]) return;
-            var linked = channel.linkedid && byLinked[channel.linkedid] ? byLinked[channel.linkedid] : [channel];
-            linked.forEach(function (leg) { seen[leg.name] = true; });
-            var peer = channel.bridged && byName[channel.bridged] ? byName[channel.bridged] : (linked.length > 1 ? linked[linked.length - 1] : null);
-            if (peer === channel && linked.length > 1) peer = linked[0];
+        Object.keys(groups).forEach(function (key) {
+            var linked = groups[key];
+            var channel = linked.find(function (leg) { return String(leg.name || '').includes('@'); }) || linked[0];
+            var peer = channel.bridged && byName[channel.bridged] ? byName[channel.bridged]
+                : linked.find(function (leg) { return leg !== channel; }) || null;
             var destination = peer ? endpoint(peer) : String(channel.extension || channel.data || '—').split(',')[0];
             calls.push({
                 from: String(channel.caller || endpoint(channel) || '—'),

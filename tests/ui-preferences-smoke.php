@@ -18,6 +18,8 @@ $loginView = file_get_contents(BASE_PATH . '/themes/default/views/auth/login.php
 $routes = file_get_contents(BASE_PATH . '/resources/routes.php');
 $updateService = file_get_contents(BASE_PATH . '/app/Services/UpdateService.php');
 $updateHelper = file_get_contents(BASE_PATH . '/scripts/update-helper.sh');
+$phoneView = file_get_contents(BASE_PATH . '/themes/default/views/web-phone/index.php');
+$phoneJs = file_get_contents(BASE_PATH . '/public/assets/js/web-phone.js');
 
 $checks = [
     [str_contains($appLayout, 'id="themeToggle"') && str_contains($authLayout, 'id="themeToggle"'), 'light/dark controls render in app and auth layouts'],
@@ -36,6 +38,11 @@ $checks = [
     [str_contains($phoneLayout, 'phone-content') && !str_contains($phoneLayout, 'sidebar-nav'), 'web phone uses a standalone shell'],
     [str_contains($loginView, 'Open Web Phone') && str_contains($loginView, 'href="/web-phone"')
         && str_contains($routes, "get('/web-phone', [WebPhoneController::class, 'index'])"), 'main login links to the public Web Phone login'],
+    [str_contains($phoneView, 'web-phone-mute') && str_contains($phoneView, 'web-phone-hold')
+        && str_contains($phoneView, 'web-phone-transfer') && str_contains($phoneView, 'web-phone-dtmf')
+        && str_contains($phoneView, 'data-phone-view="contacts"'), 'web phone exposes Wave-style contacts and in-call controls'],
+    [str_contains($phoneJs, 'session.sendDTMF') && str_contains($phoneJs, 'session.refer')
+        && str_contains($phoneJs, 'session.hold') && str_contains($phoneJs, 'localStorage.setItem(historyStorageKey()'), 'web phone implements DTMF, transfer, hold, and persistent history'],
     [str_contains($updateView, '/system/update/progress') && str_contains($updateView, 'RECONNECTING') && str_contains($updateView, "setTimeout(poll, 1000)"), 'update page tracks background progress and reconnects automatically'],
     [str_contains($updateService, 'Progress was recovered after the server restart')
         && str_contains($updateHelper, 'systemd-run --quiet --collect')

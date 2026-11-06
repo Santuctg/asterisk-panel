@@ -150,8 +150,8 @@ code, .mono { font-family: var(--mono); font-size: 12.5px; }
 .webphone-presence.is-online { color:var(--success-500); }.webphone-presence.is-online::before { background:currentColor; }
 .webphone-search { display:flex; align-items:center; gap:6px; margin:12px; padding:0 9px; border:1px solid var(--border); border-radius:6px; color:var(--text-muted); background:var(--surface-alt); }
 .webphone-search input { padding:7px 2px; border:0; box-shadow:none!important; background:transparent; font-size:12px; }
-.webphone-history { flex:1; overflow:auto; padding:0 9px 12px; }.webphone-history-empty { height:180px; display:grid; place-items:center; color:var(--text-muted); font-size:12px; }
-.webphone-history-row { display:grid; grid-template-columns:34px 1fr; align-items:center; gap:8px; padding:9px; border-radius:7px; }
+.webphone-history,.webphone-contacts { flex:1; overflow:auto; padding:0 9px 12px; }.webphone-history-empty { height:180px; display:grid; place-items:center; color:var(--text-muted); font-size:12px; }
+.webphone-history-row { width:100%; display:grid; grid-template-columns:34px minmax(0,1fr); align-items:center; gap:8px; padding:9px; border:0; border-radius:7px; background:transparent; color:var(--text); text-align:left; cursor:pointer; }
 .webphone-history-row:hover { background:var(--surface-alt); }.webphone-history-row > span { width:30px; height:30px; display:grid; place-items:center; border-radius:50%; background:var(--brand-50); color:var(--brand-600); }
 .webphone-history-row strong, .webphone-history-row small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }.webphone-history-row strong { font-size:12px; }.webphone-history-row small { margin-top:3px; color:var(--text-muted); font-size:10px; }
 .webphone-main { min-width:0; min-height:100dvh; display:grid; place-items:center; overflow:auto; padding:24px; background:radial-gradient(circle at 60% 35%,rgba(65,91,230,.08),transparent 28%),var(--bg); }
@@ -162,9 +162,13 @@ code, .mono { font-family: var(--mono); font-size: 12.5px; }
 .webphone-welcome { text-align:center; }.webphone-welcome > span { color:var(--text-muted); font:12px var(--mono); }.webphone-welcome h1 { margin:8px 0; font-size:25px; }.webphone-welcome p { color:var(--text-muted); }
 .webphone-call-panel { padding:22px; border:1px solid var(--border); border-radius:14px; background:var(--surface); box-shadow:var(--shadow-lg); text-align:center; }
 .webphone-call-panel > input { text-align:center; font:16px var(--mono); }
-.webphone-keypad { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin:16px 0; }.webphone-keypad button { height:42px; border:1px solid var(--border); border-radius:9px; background:var(--surface-alt); color:var(--text); font:600 15px var(--font); cursor:pointer; }.webphone-keypad button:hover { border-color:var(--brand-500); color:var(--brand-600); }
+.webphone-keypad { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin:16px 0; }.webphone-keypad button { height:44px; display:flex; flex-direction:column; align-items:center; justify-content:center; border:1px solid var(--border); border-radius:9px; background:var(--surface-alt); color:var(--text); cursor:pointer; }.webphone-keypad button strong { font:600 15px var(--font); }.webphone-keypad button small { min-height:10px; color:var(--text-muted); font-size:7px; letter-spacing:1px; }.webphone-keypad button:hover { border-color:var(--brand-500); color:var(--brand-600); }
 .webphone-call-actions { display:flex; justify-content:center; gap:12px; }.webphone-call-actions button { width:48px; height:48px; border:0; border-radius:50%; color:#fff; font-size:19px; cursor:pointer; }.webphone-call-actions button:disabled { opacity:.4; cursor:not-allowed; }.webphone-call-btn,.webphone-answer-btn { background:var(--success-500); }.webphone-hangup-btn { background:var(--danger-500); transform:rotate(135deg); }
 .webphone-call-panel #web-phone-status { min-height:20px; margin:12px 0; color:var(--text-muted); font-size:11px; }
+.webphone-call-party { display:flex; flex-direction:column; align-items:center; gap:5px; margin-bottom:20px; }.webphone-call-party > span { width:58px; height:58px; display:grid; place-items:center; border-radius:50%; background:var(--brand-50); color:var(--brand-600); font-size:25px; }.webphone-call-party strong { max-width:100%; overflow:hidden; text-overflow:ellipsis; font-size:19px; }.webphone-call-party small { color:var(--text-muted); font:11px var(--mono); }
+.webphone-in-call-tools { display:grid; grid-template-columns:repeat(4,1fr); gap:7px; margin:16px 0 20px; }.webphone-in-call-tools button { min-width:0; display:flex; flex-direction:column; align-items:center; gap:4px; padding:8px 2px; border:1px solid var(--border); border-radius:8px; background:var(--surface-alt); color:var(--text-muted); cursor:pointer; }.webphone-in-call-tools button span { color:var(--text); font-size:17px; }.webphone-in-call-tools button small { font-size:8px; }.webphone-in-call-tools button.is-active { border-color:var(--brand-500); background:var(--brand-50); color:var(--brand-700); }
+.webphone-transfer-box { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:7px; margin:0 0 16px; }.webphone-transfer-box input { min-width:0; padding:7px; font-size:11px; }
+.webphone-call-panel.has-call { min-height:440px; display:flex; flex-direction:column; justify-content:center; }.webphone-call-panel.has-call .webphone-call-actions { margin-top:8px; }
 
 .main {
     flex: 1;
@@ -910,6 +914,8 @@ th.col-check input:indeterminate::after, td.col-check input:indeterminate::after
     .webphone-dialer { grid-template-columns:1fr; gap:18px; }
     .webphone-welcome { display:none; }
     .webphone-main { padding:14px; }
+    .webphone-app[data-view="contacts"] .webphone-side { display:flex; }
+    .webphone-app[data-view="contacts"] .webphone-main { display:none; }
     .tenant-switch select { max-width:92px; }
     .tenant-badge { max-width:82px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .language-control select { min-width:78px; max-width:82px; padding-left:8px; padding-right:29px; background-position:right 7px center; }

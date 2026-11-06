@@ -139,24 +139,36 @@ final class DashboardController extends BaseController
     /** Count bridged channel legs as one call while retaining unbridged ringing legs. */
     public static function activeCallCount(array $channels): int
     {
-        $known = [];
-        foreach ($channels as $channel) $known[(string) ($channel['name'] ?? '')] = true;
-        $seen = []; $linked = []; $count = 0;
-        foreach ($channels as $channel) {
-            $name = (string) ($channel['name'] ?? '');
-            if ($name === '' || isset($seen[$name])) continue;
-            $linkedId = (string) ($channel['linkedid'] ?? '');
-            if ($linkedId !== '') {
-                $seen[$name] = true;
-                if (!isset($linked[$linkedId])) { $linked[$linkedId] = true; $count++; }
-                continue;
+        $count = count($channels);
+        if ($count === 0) return 0;
+        $parents = range(0, $count - 1);
+        $find = static function (int $index) use (&$parents, &$find): int {
+            if ($parents[$index] !== $index) $parents[$index] = $find($parents[$index]);
+            return $parents[$index];
+        };
+        $union = static function (int $left, int $right) use (&$parents, $find): void {
+            $left = $find($left); $right = $find($right);
+            if ($left !== $right) $parents[$right] = $left;
+        };
+        $seen = [];
+        foreach (array_values($channels) as $index => $channel) {
+            foreach (['linkedid', 'bridgeid'] as $field) {
+                $value = (string) ($channel[$field] ?? '');
+                if ($value === '') continue;
+                $key = $field . ':' . $value;
+                if (isset($seen[$key])) $union($index, $seen[$key]);
+                else $seen[$key] = $index;
             }
-            $seen[$name] = true;
-            $bridged = (string) ($channel['bridged'] ?? '');
-            if ($bridged !== '' && isset($known[$bridged])) $seen[$bridged] = true;
-            $count++;
+            $name = (string) ($channel['name'] ?? '');
+            if ($name !== '') $seen['name:' . $name] = $index;
         }
-        return $count;
+        foreach (array_values($channels) as $index => $channel) {
+            $peer = (string) ($channel['bridged'] ?? '');
+            if ($peer !== '' && isset($seen['name:' . $peer])) $union($index, $seen['name:' . $peer]);
+        }
+        $groups = [];
+        for ($index = 0; $index < $count; $index++) $groups[$find($index)] = true;
+        return count($groups);
     }
 
     /** Recent tenant CDR rows formatted once for both initial and live UI. */

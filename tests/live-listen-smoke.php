@@ -208,12 +208,37 @@ $check(count($snapshot) === 3
     && $snapshot['PJSIP/1001@tenant-a.example.test-00000001']['app'] === 'Dial'
     && count($tenantSnapshot) === 3, 'concise live channels include tenant trunk and extension legs');
 
+$amiSnapshot = App\Services\Asterisk\AsteriskManager::parseCoreShowChannelEvents([
+    ['Event' => 'CoreShowChannel', 'Channel' => 'PJSIP/202@tenant.test-00000001', 'Context' => 'tenant',
+        'Exten' => '09611544567', 'ChannelStateDesc' => 'Up', 'Application' => 'Dial',
+        'CallerIDNum' => '202', 'ConnectedLineNum' => '09611544567', 'Uniqueid' => 'uid-a',
+        'Linkedid' => 'call-a', 'BridgeId' => 'bridge-a'],
+    ['Event' => 'CoreShowChannel', 'Channel' => 'PJSIP/outgoing-00000002', 'Context' => 'outgoing',
+        'Exten' => 's', 'ChannelStateDesc' => 'Up', 'CallerIDNum' => '09611544567',
+        'Uniqueid' => 'uid-b', 'Linkedid' => 'different-linked-id', 'BridgeId' => 'bridge-a'],
+    ['Event' => 'CoreShowChannelsComplete', 'EventList' => 'Complete'],
+]);
+$amiTenantSnapshot = App\Services\Asterisk\AsteriskManager::filterTenantChannels(
+    $amiSnapshot, [['extension' => '202']], 'tenant.test', 'tenant'
+);
+$check(count($amiSnapshot) === 2
+    && ($amiSnapshot['PJSIP/202@tenant.test-00000001']['connected'] ?? '') === '09611544567'
+    && count($amiTenantSnapshot) === 2
+    && App\Controllers\DashboardController::activeCallCount($amiTenantSnapshot) === 1,
+    'AMI bridge identity groups extension and outgoing trunk legs as one active call');
+
+$check(App\Controllers\DashboardController::activeCallCount([
+    ['name' => 'PJSIP/202-a', 'bridged' => 'PJSIP/trunk-b'],
+    ['name' => 'PJSIP/trunk-b', 'bridged' => 'PJSIP/202-a'],
+]) === 1, 'reciprocal bridge peers count as one call without AMI identifiers');
+
 $phoneLogin = (new App\Controllers\WebPhoneController())->connect(new App\Core\Request(
     'POST', '/web-phone/connect', [], ['extension' => '1001', 'secret' => 'test-secret'], ['REMOTE_ADDR' => '192.0.2.44']
 ));
 $phoneConfig = json_decode($phoneLogin->body(), true);
 $check($phoneLogin->status() === 200 && ($phoneConfig['username'] ?? '') === 'tenant_a_1001-phone-web'
-    && !isset($phoneConfig['password']), 'public Web Phone login validates SIP credentials without exposing the password');
+    && !isset($phoneConfig['password']) && count($phoneConfig['contacts'] ?? []) === 1,
+    'public Web Phone login validates SIP credentials and returns only tenant contacts without exposing the password');
 
 $controller = new App\Controllers\LiveListenController();
 $page = $controller->index(new App\Core\Request('GET', '/live-listen'));

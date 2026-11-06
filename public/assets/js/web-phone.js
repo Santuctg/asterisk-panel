@@ -1,45 +1,130 @@
 import JsSIP from '../vendor/jssip-3.13.9.mjs?v=2';
 
-const login = document.querySelector('#web-phone-login');
-const loginStatus = document.querySelector('#web-phone-login-status');
-const dialer = document.querySelector('#web-phone-dialer');
-const number = document.querySelector('#web-phone-number');
-const status = document.querySelector('#web-phone-status');
-const audio = document.querySelector('#web-phone-audio');
-const call = document.querySelector('#web-phone-call');
-const answer = document.querySelector('#web-phone-answer');
-const hangup = document.querySelector('#web-phone-hangup');
-const disconnect = document.querySelector('#web-phone-disconnect');
-const presence = document.querySelector('#web-phone-presence');
-const identity = document.querySelector('#web-phone-identity');
-const history = document.querySelector('#web-phone-history');
-const clock = document.querySelector('#web-phone-clock');
+const $ = selector => document.querySelector(selector);
+const login = $('#web-phone-login');
+const loginStatus = $('#web-phone-login-status');
+const dialer = $('#web-phone-dialer');
+const number = $('#web-phone-number');
+const status = $('#web-phone-status');
+const audio = $('#web-phone-audio');
+const callButton = $('#web-phone-call');
+const answerButton = $('#web-phone-answer');
+const hangupButton = $('#web-phone-hangup');
+const disconnectButton = $('#web-phone-disconnect');
+const presence = $('#web-phone-presence');
+const identity = $('#web-phone-identity');
+const historyList = $('#web-phone-history');
+const contactsList = $('#web-phone-contacts');
+const search = $('#web-phone-search');
+const listTitle = $('#web-phone-list-title');
+const clock = $('#web-phone-clock');
+const callPanel = $('#web-phone-call-panel');
+const callParty = $('#web-phone-call-party');
+const partyNumber = $('#web-phone-party-number');
+const callTime = $('#web-phone-call-time');
+const tools = $('#web-phone-in-call-tools');
+const muteButton = $('#web-phone-mute');
+const holdButton = $('#web-phone-hold');
+const transferButton = $('#web-phone-transfer');
+const dtmfButton = $('#web-phone-dtmf');
+const transferBox = $('#web-phone-transfer-box');
+const transferNumber = $('#web-phone-transfer-number');
+
 let ua = null;
 let session = null;
-let currentTarget = '';
 let realm = '';
+let accountKey = '';
+let contacts = [];
+let history = [];
+let currentView = 'calls';
+let currentTarget = '';
+let currentDirection = '';
+let startedAt = null;
+let confirmedAt = null;
+let callTimer = null;
+let muted = false;
+let held = false;
+let dtmfMode = false;
 
 function setStatus(message) { status.textContent = message; }
 function setPresence(message, online = false) {
     presence.textContent = message;
     presence.classList.toggle('is-online', online);
 }
-function setClock() {
-    clock.textContent = new Intl.DateTimeFormat([], {hour:'numeric', minute:'2-digit'}).format(new Date());
+function formatTime(value) {
+    return new Intl.DateTimeFormat([], {hour: 'numeric', minute: '2-digit'}).format(value);
 }
-setClock(); window.setInterval(setClock, 30000);
+function formatDuration(seconds) {
+    const minutes = Math.floor(seconds / 60).toString().padStart(2, '0');
+    return `${minutes}:${(seconds % 60).toString().padStart(2, '0')}`;
+}
+function setClock() { clock.textContent = formatTime(new Date()); }
+setClock();
+window.setInterval(setClock, 30000);
 
-function addHistory(target, result) {
-    const empty = history.querySelector('.webphone-history-empty');
-    if (empty) empty.remove();
-    const row = document.createElement('div');
-    row.className = 'webphone-history-row';
-    const avatar = document.createElement('span'); avatar.textContent = '☎';
-    const detail = document.createElement('div');
-    const strong = document.createElement('strong'); strong.textContent = target || 'Unknown';
-    const small = document.createElement('small'); small.textContent = `${result} · ${new Intl.DateTimeFormat([], {hour:'numeric',minute:'2-digit'}).format(new Date())}`;
-    detail.append(strong, small); row.append(avatar, detail); history.prepend(row);
+function historyStorageKey() { return `panel-webphone-history:${accountKey}`; }
+function loadHistory() {
+    try { history = JSON.parse(localStorage.getItem(historyStorageKey()) || '[]'); }
+    catch (_) { history = []; }
+    if (!Array.isArray(history)) history = [];
+    renderList();
 }
+function saveHistory(entry) {
+    history.unshift(entry);
+    history = history.slice(0, 100);
+    try { localStorage.setItem(historyStorageKey(), JSON.stringify(history)); } catch (_) {}
+    renderList();
+}
+function listRow(primary, secondary, numberValue, icon = '☎') {
+    const row = document.createElement('button');
+    row.type = 'button'; row.className = 'webphone-history-row'; row.dataset.number = numberValue;
+    const avatar = document.createElement('span'); avatar.textContent = icon;
+    const detail = document.createElement('div');
+    const strong = document.createElement('strong'); strong.textContent = primary || numberValue || 'Unknown';
+    const small = document.createElement('small'); small.textContent = secondary;
+    detail.append(strong, small); row.append(avatar, detail);
+    row.addEventListener('click', () => {
+        number.value = numberValue;
+        switchView('calls');
+        number.focus();
+    });
+    return row;
+}
+function renderList() {
+    const query = search.value.trim().toLowerCase();
+    const target = currentView === 'contacts' ? contactsList : historyList;
+    target.replaceChildren();
+    const rows = currentView === 'contacts'
+        ? contacts.filter(item => `${item.name} ${item.extension}`.toLowerCase().includes(query))
+        : history.filter(item => `${item.number} ${item.result} ${item.direction}`.toLowerCase().includes(query));
+    rows.forEach(item => {
+        if (currentView === 'contacts') {
+            target.appendChild(listRow(item.name, `Extension ${item.extension}`, item.extension, '♙'));
+        } else {
+            const when = new Date(item.time);
+            const direction = item.direction === 'incoming' ? 'Incoming' : 'Outgoing';
+            target.appendChild(listRow(item.number, `${direction} · ${item.result} · ${formatTime(when)}`, item.number));
+        }
+    });
+    if (!rows.length) {
+        const empty = document.createElement('div'); empty.className = 'webphone-history-empty';
+        empty.textContent = currentView === 'contacts' ? (ua ? 'No contacts found' : 'Sign in to view contacts') : 'No call history';
+        target.appendChild(empty);
+    }
+}
+function switchView(view) {
+    currentView = view;
+    $('.webphone-app').dataset.view = view;
+    document.querySelectorAll('[data-phone-view]').forEach(button => button.classList.toggle('is-active', button.dataset.phoneView === view));
+    historyList.hidden = view !== 'calls';
+    contactsList.hidden = view !== 'contacts';
+    listTitle.textContent = view === 'contacts' ? 'Contacts' : 'Calls';
+    search.placeholder = view === 'contacts' ? 'Search contacts' : 'Search calls';
+    search.value = '';
+    renderList();
+}
+document.querySelectorAll('[data-phone-view]').forEach(button => button.addEventListener('click', () => switchView(button.dataset.phoneView)));
+search.addEventListener('input', renderList);
 
 function attachMedia(current) {
     current.on('peerconnection', ({peerconnection}) => {
@@ -49,48 +134,84 @@ function attachMedia(current) {
         });
     });
 }
-
-function clearSession(result = 'Ended') {
-    if (session && !session.isEnded()) { try { session.terminate(); } catch (_) {} }
-    if (currentTarget) addHistory(currentTarget, result);
-    session = null; currentTarget = '';
-    answer.hidden = true; hangup.disabled = true; call.disabled = !ua;
-    setStatus(ua ? 'Ready to call.' : 'Disconnected.');
+function updateTimer() {
+    if (!confirmedAt) return;
+    callTime.textContent = formatDuration(Math.max(0, Math.floor((Date.now() - confirmedAt) / 1000)));
 }
-
+function showCallState(active) {
+    callPanel.classList.toggle('has-call', active);
+    callParty.hidden = !active;
+    tools.hidden = true;
+    number.hidden = active;
+    callButton.hidden = active;
+    hangupButton.disabled = !active;
+    transferBox.hidden = true;
+    $('#web-phone-keypad').hidden = active;
+    if (!active) {
+        answerButton.hidden = true;
+        muted = false; held = false; dtmfMode = false;
+        muteButton.classList.remove('is-active'); holdButton.classList.remove('is-active'); dtmfButton.classList.remove('is-active');
+        $('#web-phone-keypad').hidden = false;
+    }
+}
+function finalizeSession(result) {
+    if (!session && !currentTarget) return;
+    const target = currentTarget;
+    const direction = currentDirection;
+    const began = startedAt || new Date();
+    session = null; currentTarget = ''; currentDirection = ''; startedAt = null; confirmedAt = null;
+    window.clearInterval(callTimer); callTimer = null;
+    showCallState(false);
+    callButton.disabled = !ua;
+    setStatus(ua ? 'Ready to call.' : 'Disconnected.');
+    if (target) saveHistory({number: target, direction, result, time: began.toISOString()});
+}
 function setupSession(current, originator) {
     if (session) { current.terminate(); return; }
     session = current;
-    attachMedia(current);
+    currentDirection = originator === 'remote' ? 'incoming' : 'outgoing';
     currentTarget = originator === 'remote'
-        ? String(current.remote_identity && current.remote_identity.uri && current.remote_identity.uri.user || 'Incoming call')
+        ? String(current.remote_identity?.uri?.user || 'Unknown')
         : number.value.trim();
-    current.on('confirmed', () => { answer.hidden = true; setStatus(`Connected with ${currentTarget}.`); });
-    current.on('ended', () => clearSession('Completed'));
-    current.on('failed', event => clearSession(event.cause || 'Failed'));
-    hangup.disabled = false; call.disabled = true;
+    startedAt = new Date();
+    partyNumber.textContent = originator === 'remote' && current.remote_identity?.display_name
+        ? `${current.remote_identity.display_name} · ${currentTarget}` : currentTarget;
+    callTime.textContent = originator === 'remote' ? 'Incoming call' : 'Calling…';
+    attachMedia(current);
+    current.on('confirmed', () => {
+        confirmedAt = Date.now(); answerButton.hidden = true;
+        tools.hidden = false;
+        setStatus(`Connected with ${currentTarget}.`); updateTimer();
+        callTimer = window.setInterval(updateTimer, 1000);
+    });
+    current.on('ended', () => finalizeSession('Completed'));
+    current.on('failed', event => finalizeSession(event.cause || (originator === 'remote' ? 'Missed' : 'Failed')));
+    showCallState(true);
+    callButton.disabled = true;
     if (originator === 'remote') {
-        number.value = currentTarget;
-        answer.hidden = false;
+        answerButton.hidden = false;
         setStatus(`Incoming call from ${currentTarget}.`);
     } else {
+        answerButton.hidden = true;
         setStatus(`Calling ${currentTarget}…`);
     }
 }
-
 function startPhone(config, password) {
     realm = config.realm;
+    accountKey = `${config.realm}:${config.extension}`;
+    contacts = Array.isArray(config.contacts) ? config.contacts : [];
+    loadHistory(); renderList();
     const socket = new JsSIP.WebSocketInterface(`wss://${window.location.host}/ws`);
     ua = new JsSIP.UA({
         sockets: [socket], uri: `sip:${config.username}@${config.realm}`,
         password, register: true, register_expires: 120, session_timers: false,
     });
     ua.on('newRTCSession', ({originator, session: current}) => setupSession(current, originator));
-    ua.on('registered', () => { call.disabled = false; setPresence('Online', true); setStatus('Ready to call.'); });
+    ua.on('registered', () => { callButton.disabled = false; setPresence('Online', true); setStatus('Ready to call.'); });
     ua.on('unregistered', () => setPresence('Offline'));
     ua.on('registrationFailed', () => {
         setStatus('SIP registration failed. Check the extension password.');
-        setPresence('Offline'); call.disabled = true;
+        setPresence('Offline'); callButton.disabled = true;
     });
     identity.textContent = `${config.extension} · ${config.name}`;
     login.hidden = true; dialer.hidden = false;
@@ -104,7 +225,7 @@ login.addEventListener('submit', async event => {
     const data = new FormData(login); const password = String(data.get('secret') || '');
     submit.disabled = true; submit.textContent = 'Connecting…';
     try {
-        const response = await fetch('/web-phone/connect', {method:'POST', body:data, headers:{Accept:'application/json'}});
+        const response = await fetch('/web-phone/connect', {method: 'POST', body: data, headers: {Accept: 'application/json'}});
         const config = await response.json();
         if (!response.ok) throw new Error(config.error || 'Unable to sign in.');
         login.querySelector('[name="secret"]').value = '';
@@ -117,22 +238,60 @@ login.addEventListener('submit', async event => {
 });
 
 document.querySelectorAll('#web-phone-keypad [data-key]').forEach(button => {
-    button.addEventListener('click', () => { number.value += button.dataset.key; number.focus(); });
+    button.addEventListener('click', () => {
+        const key = button.dataset.key;
+        if (session && confirmedAt && dtmfMode) {
+            try { session.sendDTMF(key, {duration: 160, interToneGap: 70}); setStatus(`DTMF ${key} sent.`); } catch (_) { setStatus('Unable to send DTMF.'); }
+        } else if (!session) {
+            number.value += key; number.focus();
+        }
+    });
 });
-call.addEventListener('click', () => {
+callButton.addEventListener('click', () => {
     const destination = number.value.trim();
     if (!ua || !destination || !/^[0-9*+#().-]{2,40}$/.test(destination)) { setStatus('Enter a valid number or extension.'); return; }
-    setupSession(ua.call(`sip:${destination}@${realm}`, {
-        mediaConstraints:{audio:true,video:false}, sessionTimersExpires:90,
-    }), 'local');
+    setupSession(ua.call(`sip:${destination}@${realm}`, {mediaConstraints: {audio: true, video: false}, sessionTimersExpires: 90}), 'local');
 });
-answer.addEventListener('click', () => {
+answerButton.addEventListener('click', () => {
     if (!session) return;
-    session.answer({mediaConstraints:{audio:true,video:false}}); answer.hidden = true;
+    session.answer({mediaConstraints: {audio: true, video: false}}); answerButton.hidden = true;
 });
-hangup.addEventListener('click', () => clearSession('Ended'));
-disconnect.addEventListener('click', () => {
-    clearSession(); if (ua) { ua.stop(); ua = null; }
-    setPresence('Offline'); dialer.hidden = true; login.hidden = false; number.value = '';
+hangupButton.addEventListener('click', () => {
+    if (!session) return;
+    try { session.terminate(); } catch (_) { finalizeSession('Ended'); }
 });
-window.addEventListener('pagehide', () => { if (session) clearSession(); if (ua) ua.stop(); });
+muteButton.addEventListener('click', () => {
+    if (!session?.connection) return;
+    muted = !muted;
+    session.connection.getSenders().filter(sender => sender.track?.kind === 'audio').forEach(sender => { sender.track.enabled = !muted; });
+    muteButton.classList.toggle('is-active', muted); muteButton.querySelector('small').textContent = muted ? 'Unmute' : 'Mute';
+    setStatus(muted ? 'Microphone muted.' : 'Microphone unmuted.');
+});
+holdButton.addEventListener('click', () => {
+    if (!session || !confirmedAt) return;
+    const done = () => {
+        held = !held; holdButton.classList.toggle('is-active', held);
+        holdButton.querySelector('small').textContent = held ? 'Resume' : 'Hold'; setStatus(held ? 'Call on hold.' : 'Call resumed.');
+    };
+    try { held ? session.unhold({}, done) : session.hold({}, done); } catch (_) { setStatus('Unable to change hold state.'); }
+});
+dtmfButton.addEventListener('click', () => {
+    dtmfMode = !dtmfMode; dtmfButton.classList.toggle('is-active', dtmfMode);
+    $('#web-phone-keypad').hidden = !dtmfMode; transferBox.hidden = true;
+});
+transferButton.addEventListener('click', () => { transferBox.hidden = !transferBox.hidden; transferNumber.focus(); });
+$('#web-phone-transfer-send').addEventListener('click', () => {
+    const target = transferNumber.value.trim();
+    if (!session || !confirmedAt || !/^[0-9*+#().-]{2,40}$/.test(target)) { setStatus('Enter a valid transfer destination.'); return; }
+    try {
+        session.refer(`sip:${target}@${realm}`);
+        setStatus(`Transferring call to ${target}…`); transferBox.hidden = true; transferNumber.value = '';
+    } catch (_) { setStatus('Call transfer failed.'); }
+});
+disconnectButton.addEventListener('click', () => {
+    if (session) { try { session.terminate(); } catch (_) {} }
+    if (ua) { ua.stop(); ua = null; }
+    setPresence('Offline'); dialer.hidden = true; login.hidden = false; number.value = ''; contacts = [];
+    callButton.disabled = true; finalizeSession('Ended'); setStatus('Disconnected.'); renderList();
+});
+window.addEventListener('pagehide', () => { if (session) session.terminate(); if (ua) ua.stop(); });

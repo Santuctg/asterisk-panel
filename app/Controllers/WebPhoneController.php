@@ -68,10 +68,18 @@ final class WebPhoneController extends BaseController
         Session::throttleReset($throttleKey);
         $context = preg_replace('/[^A-Za-z0-9_]/', '_', (string) $row['context']) ?: '';
         $realm = strtolower(rtrim(trim((string) ($row['domain'] ?? '')), '.')) ?: TenantHost::requestHost();
+        $contacts = array_map(static fn (array $contact): array => [
+            'extension' => (string) $contact['extension'],
+            'name' => (string) ($contact['name'] ?: $contact['extension']),
+        ], $this->db()->all(
+            'SELECT extension, name FROM extensions WHERE tenant_id = ? AND enabled = 1 AND extension <> ? ORDER BY name, extension',
+            [$tenantId, $extension]
+        ));
         return $this->json([
             'extension' => $row['extension'], 'name' => $row['name'],
             'username' => $context . '_' . $row['extension'] . '-phone-web',
             'realm' => $realm,
+            'contacts' => $contacts,
         ]);
     }
 }
