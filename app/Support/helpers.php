@@ -351,6 +351,51 @@ if (!function_exists('mask_secret')) {
     }
 }
 
+if (!function_exists('format_bytes')) {
+    /** Human-readable byte size: 512 B, 1.4 MB, 12.3 GB. */
+    function format_bytes(int|float $bytes, int $decimals = 1): string
+    {
+        $bytes = (float) $bytes;
+        if ($bytes <= 0) {
+            return '0 B';
+        }
+
+        $units = ['B', 'kB', 'MB', 'GB', 'TB', 'PB'];
+        $index = min((int) floor(log($bytes, 1024)), count($units) - 1);
+        $value = $bytes / (1024 ** $index);
+
+        if ($index === 0) {
+            return (string) (int) round($value) . ' B';
+        }
+        return rtrim(rtrim(number_format($value, $decimals, '.', ''), '0'), '.') . ' ' . $units[$index];
+    }
+}
+
+if (!function_exists('format_rate')) {
+    /** Throughput label for the server-resource card: "1.2 kB/s". */
+    function format_rate(int|float $bytesPerSecond): string
+    {
+        return format_bytes($bytesPerSecond) . '/s';
+    }
+}
+
+if (!function_exists('usage_level')) {
+    /**
+     * Threshold class for a usage percentage so the meter colour follows
+     * the same green / amber / red language as the rest of the panel.
+     */
+    function usage_level(float $percent): string
+    {
+        if ($percent >= 85) {
+            return 'hot';
+        }
+        if ($percent >= 70) {
+            return 'warn';
+        }
+        return 'ok';
+    }
+}
+
 if (!function_exists('human_mac')) {
     function human_mac(string $mac): string
     {

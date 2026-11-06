@@ -79,6 +79,30 @@ $check(str_contains($empty, '0 extension(s) connected'), 'empty online status pa
 $check(str_contains($empty, 'No active calls') && str_contains($empty, 'No registrations'),
     'empty states render instead of broken tables');
 
+// 3b) Server resources card, with real stats and with none available.
+$resources = $renderStatus([
+    'online'      => true,
+    'version'     => ['version' => '20.5.0', 'raw' => 'Asterisk 20.5.0'],
+    'uptime'      => '3 days, 4:05:06',
+    'channels'    => [],
+    'contacts'    => [],
+    'conferences' => [],
+    'queues'      => [],
+    'configDir'   => '/etc/asterisk/asterisk_panel',
+    'extIps'      => [],
+    'serverStats' => [
+        'cpu'     => 64.2,
+        'memory'  => ['total' => 8 * 1024 ** 3, 'used' => 6 * 1024 ** 3, 'available' => 2 * 1024 ** 3, 'percent' => 75.0],
+        'disk'    => ['total' => 50 * 1024 ** 3, 'free' => 30 * 1024 ** 3, 'used' => 20 * 1024 ** 3, 'percent' => 40.0],
+        'network' => ['rx' => 10240.0, 'tx' => 2048.0],
+    ],
+]);
+$check(str_contains($resources, 'Server resources') && str_contains($resources, '64.2%'),
+    'server resources card renders with live stats');
+$check(str_contains($resources, 'meter"><span class="warn"'), 'a 75% memory load renders an amber meter');
+$check(str_contains($resources, 'Sending 2 kB/s'), 'network tile reports the transmit rate');
+$check(!str_contains($resources, 'Something went wrong'), 'server resource card never breaks the status page');
+
 // 4) Every icon referenced anywhere in the theme must exist on disk.
 $missing = [];
 $rii = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(BASE_PATH . '/themes/default/views'));

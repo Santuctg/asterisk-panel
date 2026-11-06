@@ -194,6 +194,9 @@ $check(($contactDetails['1001@tenant-a.example.test']['count'] ?? 0) === 2
     && ($contactDetails['1001@tenant-a.example.test']['rtt'] ?? null) === 14.0
     && array_key_exists('rtt', $contactDetails['trunk-1-aor'] ?? [])
     && $contactDetails['trunk-1-aor']['rtt'] === null, 'contact latency and device-count parsing');
+$check(($contactDetails['1001@tenant-a.example.test']['ips'] ?? null) === ['192.0.2.10', '192.0.2.11']
+    && ($contactDetails['trunk-1-aor']['ips'] ?? null) === ['198.51.100.10'],
+    'registered contact IPs are collected per AOR for the extensions page');
 
 // 24-hour availability timeline stays inside its window and classifies states.
 $timelineSegments = status_timeline([

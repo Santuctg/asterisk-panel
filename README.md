@@ -26,7 +26,7 @@ supervisor extension) or **Browser Listen** (WebRTC over HTTPS/WSS). See
 | **Authentication** | Login/logout, sessions, CSRF, roles, throttling, and Fail2ban protection for web/SIP attacks |
 | **Dashboard** | Live Asterisk status, active calls, registrations, per-feature counts, recent CDR |
 | **Tenants** | Multiple businesses, each with its own Asterisk dialplan `context` so numbers never collide |
-| **Extensions** | PJSIP endpoints, caller ID, ring timeout, regenerate SIP secret, voicemail binding |
+| **Extensions** | PJSIP endpoints, caller ID, ring timeout, regenerate SIP secret, voicemail binding, live registered IP per device |
 | **Voicemail to email** | Mailboxes, PINs, attach audio / notify-only, envelope, per-mailbox timezone |
 | **Device provisioning** | MAC-addressed devices, vendor templates (Yealink, Polycom, Grandstream, Fanvil), resync |
 | **Ring groups** | Ring-all / least-recent / random / sequential, member selection, timeout |
@@ -37,7 +37,7 @@ supervisor extension) or **Browser Listen** (WebRTC over HTTPS/WSS). See
 | **Call center** | Queues with ring strategies, wrap-up, penalties, agent assignment, live status |
 | **Conferences** | ConfBridge rooms, participant/admin PINs, max members, recording |
 | **Call history** | Automatic CDR import, filters, stats, tenant-scoped WAV recording downloads |
-| **System** | Live status, automatic inbound/outbound/all-call recording, settings, audit log |
+| **System** | Live status with host CPU/memory/disk/network, automatic inbound/outbound/all-call recording, settings, audit log |
 
 ---
 

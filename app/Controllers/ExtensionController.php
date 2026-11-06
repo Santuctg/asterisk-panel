@@ -83,7 +83,7 @@ final class ExtensionController extends BaseController
                 $context . '_' . $ae['extension'] . '-phone-web',
                 $context . '_' . $ae['extension'] . '-web',
             ];
-            $state = ['status' => null, 'rtt' => null, 'devices' => 0];
+            $state = ['status' => null, 'rtt' => null, 'devices' => 0, 'ips' => []];
             foreach ($keys as $key) {
                 if (!isset($contactDetails[$key])) {
                     continue;
@@ -91,6 +91,11 @@ final class ExtensionController extends BaseController
                 $state['status'] ??= $contactDetails[$key]['status'];
                 $state['rtt']    ??= $contactDetails[$key]['rtt'];
                 $state['devices'] += $contactDetails[$key]['count'];
+                foreach (($contactDetails[$key]['ips'] ?? []) as $ip) {
+                    if (!in_array($ip, $state['ips'], true)) {
+                        $state['ips'][] = $ip;
+                    }
+                }
             }
             $live[(int) $ae['id']] = $state;
         }
@@ -98,10 +103,11 @@ final class ExtensionController extends BaseController
         foreach ($rows as &$row) {
             $row['sip_username'] = $row['extension'];
             $row['sip_realm'] = $realm;
-            $state = $live[(int) $row['id']] ?? ['status' => null, 'rtt' => null, 'devices' => 0];
+            $state = $live[(int) $row['id']] ?? ['status' => null, 'rtt' => null, 'devices' => 0, 'ips' => []];
             $row['registration_status'] = $state['status'];
             $row['latency_ms'] = $state['rtt'];
             $row['active_devices'] = $state['devices'];
+            $row['registration_ips'] = $state['ips'];
         }
         unset($row);
 
@@ -135,7 +141,7 @@ final class ExtensionController extends BaseController
                 'extension' => (string) $ae['extension'],
                 'name' => (string) $ae['name'],
                 'enabled' => (int) $ae['enabled'],
-                'state' => $live[$id] ?? ['status' => null, 'rtt' => null, 'devices' => 0],
+                'state' => $live[$id] ?? ['status' => null, 'rtt' => null, 'devices' => 0, 'ips' => []],
                 'events' => [],
             ];
         }

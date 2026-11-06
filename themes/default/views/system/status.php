@@ -1,9 +1,13 @@
 <?php
 /**
  * System status page. Expects: $online, $version, $uptime, $channels,
- * $contacts, $conferences, $queues, $configDir
+ * $contacts, $conferences, $queues, $configDir, $extIps, $serverStats
  */
 require dirname(__DIR__) . '/partials/fields.php';
+
+// Older callers (cached renders, tests) may not pass the resource sample.
+$serverStats = $serverStats ?? ['cpu' => null, 'memory' => null, 'disk' => null, 'network' => null];
+$serverStats = array_merge(['cpu' => null, 'memory' => null, 'disk' => null, 'network' => null], $serverStats);
 ?>
 
 <div class="page-head">
@@ -57,6 +61,79 @@ require dirname(__DIR__) . '/partials/fields.php';
         <div class="stat-body">
             <div class="stat-value"><?= $online ? count($extIps ?? []) . ' extension(s) connected' : '—' ?></div>
             <div class="stat-label">Connected extensions</div>
+        </div>
+    </div>
+</div>
+
+<?php
+$cpu  = $serverStats['cpu'];
+$mem  = $serverStats['memory'];
+$disk = $serverStats['disk'];
+$net  = $serverStats['network'];
+
+/** Clamp a percentage to a usable meter width. */
+$meterWidth = static function (float $percent): int {
+    return (int) round(max(0.0, min(100.0, $percent)));
+};
+?>
+<div class="card mb-4">
+    <div class="card-head">
+        <h2>Server resources</h2>
+        <span class="card-subtitle">Panel host · sampled live</span>
+    </div>
+    <div class="card-body">
+        <div class="grid grid-4">
+            <div class="stat">
+                <div class="stat-icon"><?= $this->fragment('icons/cpu') ?></div>
+                <div class="stat-body stat-fill">
+                    <div class="stat-value"><?= $cpu !== null ? e(number_format($cpu, 1)) . '%' : '—' ?></div>
+                    <div class="stat-label"><?= $cpu !== null ? 'CPU usage' : 'CPU not available' ?></div>
+                    <?php if ($cpu !== null): ?>
+                        <div class="meter"><span class="<?= e(usage_level((float) $cpu)) ?>" style="width:<?= $meterWidth((float) $cpu) ?>%"></span></div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <div class="stat">
+                <div class="stat-icon violet"><?= $this->fragment('icons/memory') ?></div>
+                <div class="stat-body stat-fill">
+                    <div class="stat-value"><?= $mem !== null ? e(format_bytes((int) $mem['used'])) : '—' ?></div>
+                    <div class="stat-label">
+                        <?= $mem !== null
+                            ? 'Memory · ' . e(number_format((float) $mem['percent'], 1)) . '% of ' . e(format_bytes((int) $mem['total']))
+                            : 'Memory not available' ?>
+                    </div>
+                    <?php if ($mem !== null): ?>
+                        <div class="meter"><span class="<?= e(usage_level((float) $mem['percent'])) ?>" style="width:<?= $meterWidth((float) $mem['percent']) ?>%"></span></div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <div class="stat">
+                <div class="stat-icon amber"><?= $this->fragment('icons/disk') ?></div>
+                <div class="stat-body stat-fill">
+                    <div class="stat-value"><?= $disk !== null ? e(format_bytes((int) $disk['used'])) : '—' ?></div>
+                    <div class="stat-label">
+                        <?= $disk !== null
+                            ? 'Disk · ' . e(number_format((float) $disk['percent'], 1)) . '% of ' . e(format_bytes((int) $disk['total']))
+                            : 'Disk not available' ?>
+                    </div>
+                    <?php if ($disk !== null): ?>
+                        <div class="meter"><span class="<?= e(usage_level((float) $disk['percent'])) ?>" style="width:<?= $meterWidth((float) $disk['percent']) ?>%"></span></div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <div class="stat">
+                <div class="stat-icon green"><?= $this->fragment('icons/network') ?></div>
+                <div class="stat-body stat-fill">
+                    <div class="stat-value" style="font-size:18px"><?= $net !== null ? e(format_rate((float) $net['rx'])) : '—' ?></div>
+                    <div class="stat-label"><?= $net !== null ? 'Receiving' : 'Network not available' ?></div>
+                    <?php if ($net !== null): ?>
+                        <div class="text-xs muted">Sending <?= e(format_rate((float) $net['tx'])) ?></div>
+                    <?php endif; ?>
+                </div>
+            </div>
         </div>
     </div>
 </div>

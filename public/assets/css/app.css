@@ -402,6 +402,20 @@ code, .mono { font-family: var(--mono); font-size: 12.5px; }
 .stat-value { font-size: 22px; font-weight: 700; line-height: 1.15; color: var(--gray-900); }
 [data-theme="dark"] .stat-value { color: var(--text); }
 .stat-label { font-size: 12.5px; color: var(--text-muted); }
+.stat-icon.teal { background: var(--info-100); color: var(--info-500); }
+/* Resource tiles need the full row so their meter bar can stretch. */
+.stat-body.stat-fill { flex: 1; min-width: 0; }
+
+/* ---------- Resource meters (server status card) ---------- */
+.meter {
+    height: 6px; margin-top: 9px; overflow: hidden;
+    border: 1px solid var(--border); border-radius: 999px;
+    background: var(--surface-alt);
+}
+.meter > span { display: block; height: 100%; border-radius: 999px; background: var(--brand-500); }
+.meter > span.ok   { background: var(--success-500); }
+.meter > span.warn { background: var(--warning-500); }
+.meter > span.hot  { background: var(--danger-500); }
 
 /* ---------- Buttons ---------- */
 .btn {

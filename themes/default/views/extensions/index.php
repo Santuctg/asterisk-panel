@@ -99,6 +99,11 @@ require dirname(__DIR__) . '/partials/fields.php';
                                         <?php if (!empty($r['active_devices'])): ?>
                                             <div class="text-xs muted"><?= (int) $r['active_devices'] ?> active device<?= (int) $r['active_devices'] === 1 ? '' : 's' ?></div>
                                         <?php endif; ?>
+                                        <?php if (!empty($r['registration_ips'])): ?>
+                                            <div class="text-xs mono muted" title="Registered from IP<?= count($r['registration_ips']) > 1 ? 's' : '' ?>: <?= e(implode(', ', $r['registration_ips'])) ?>">
+                                                <?= e(implode(', ', $r['registration_ips'])) ?>
+                                            </div>
+                                        <?php endif; ?>
                                     <?php else: ?>
                                         <span class="badge amber"><span class="dot"></span>Unregistered</span>
                                     <?php endif; ?>
@@ -212,6 +217,11 @@ require dirname(__DIR__) . '/partials/fields.php';
                     <?php endif; ?>
                     <?php if ($r['latency_ms'] !== null): ?>
                         <span class="muted text-xs"> · <span class="mono"><?= e((string) $r['latency_ms']) ?> ms</span></span>
+                    <?php endif; ?>
+                    <?php if (!empty($r['registration_ips'])): ?>
+                        <div class="text-xs mono muted mt-3" title="Registered from IP<?= count($r['registration_ips']) > 1 ? 's' : '' ?>">
+                            <?= e(implode(', ', $r['registration_ips'])) ?>
+                        </div>
                     <?php endif; ?>
                 </div>
                 <span class="muted text-xs">Sampled every minute</span>

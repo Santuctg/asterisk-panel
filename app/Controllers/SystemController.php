@@ -28,6 +28,7 @@ final class SystemController extends BaseController
         $queues  = [];
         $extIps  = [];
         $configDir = '';
+        $serverStats = ['cpu' => null, 'memory' => null, 'disk' => null, 'network' => null];
 
         try {
             $mgr = asterisk();
@@ -68,6 +69,14 @@ final class SystemController extends BaseController
             $configDir = '/etc/asterisk/asterisk_panel';
         }
 
+        // Host CPU / memory / disk / network. Independent of Asterisk, so it
+        // is sampled even when AMI is down; every value may be null.
+        try {
+            $serverStats = (new \App\Services\ServerStats())->sample();
+        } catch (\Throwable $e) {
+            \App\Core\Logger::info('Status page: server stats unavailable', ['error' => $e->getMessage()]);
+        }
+
         return $this->view('system/status', [
             'online'     => $online,
             'version'    => $version,
@@ -78,6 +87,7 @@ final class SystemController extends BaseController
             'queues'     => $queues,
             'configDir'  => $configDir,
             'extIps'     => $extIps,
+            'serverStats'=> $serverStats,
         ]);
     }
 

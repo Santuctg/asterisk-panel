@@ -86,8 +86,10 @@ final class AsteriskManager
     }
 
     /**
-     * AOR => ['status' => string, 'rtt' => float|null, 'count' => int].
+     * AOR => ['status' => string, 'rtt' => float|null, 'count' => int,
+     *         'ips' => string[]].
      * RTT is only numeric once the AOR is being qualified (OPTIONS keepalive).
+     * `ips` holds every distinct host address the AOR's contacts came from.
      */
     public function contactDetails(): array
     {
@@ -104,15 +106,64 @@ final class AsteriskManager
             $rtt = isset($m[4]) && is_numeric($m[4]) ? round((float) $m[4], 1) : null;
 
             if (!isset($rows[$aor])) {
-                $rows[$aor] = ['status' => $m[3], 'rtt' => $rtt, 'count' => 1];
-                continue;
+                $rows[$aor] = ['status' => $m[3], 'rtt' => $rtt, 'count' => 1, 'ips' => []];
+            } else {
+                // Multiple contacts on one AOR = multiple registered devices.
+                $rows[$aor]['count']++;
+                $rows[$aor]['status'] = $m[3];
+                $rows[$aor]['rtt'] = $rtt ?? $rows[$aor]['rtt'];
             }
-            // Multiple contacts on one AOR = multiple registered devices.
-            $rows[$aor]['count']++;
-            $rows[$aor]['status'] = $m[3];
-            $rows[$aor]['rtt'] = $rtt ?? $rows[$aor]['rtt'];
+
+            // Remember where the phone actually registered from.
+            $ip = self::contactIp($m[1]);
+            if ($ip !== '' && !in_array($ip, $rows[$aor]['ips'], true)) {
+                $rows[$aor]['ips'][] = $ip;
+            }
         }
         return $rows;
+    }
+
+    /**
+     * Pull the host address out of a PJSIP contact URI such as
+     * `1001@tenant.test/sip:1001@192.0.2.10:5062` or `trunk-aor/sip:198.51.100.10`.
+     * Returns '' when the host is not a literal IP address.
+     */
+    public static function contactIp(string $uri): string
+    {
+        $uri = trim($uri);
+        if ($uri === '') {
+            return '';
+        }
+
+        // The address lives in the URI after the last "/".
+        $host = str_contains($uri, '/')
+            ? substr($uri, (int) strrpos($uri, '/') + 1)
+            : $uri;
+
+        // Drop the scheme (sip:, sips:, udp:, tcp: ...).
+        if (preg_match('/^(?:sips?|udps?|tcps?):/i', $host, $m)) {
+            $host = substr($host, strlen($m[0]));
+        }
+
+        // user@host -> host; the user part may itself contain "@".
+        $at = strrpos($host, '@');
+        if ($at !== false) {
+            $host = substr($host, $at + 1);
+        }
+
+        $host = trim($host, "<>\t\n\r ");
+        if ($host === '') {
+            return '';
+        }
+
+        if (str_starts_with($host, '[')) {              // IPv6 literal: [2001:db8::1]:5060
+            $end = strpos($host, ']');
+            $host = $end === false ? '' : substr($host, 1, $end - 1);
+        } elseif (substr_count($host, ':') === 1) {     // host:port (a bare IPv6 has many colons)
+            $host = explode(':', $host, 2)[0];
+        }
+
+        return filter_var($host, FILTER_VALIDATE_IP) !== false ? $host : '';
     }
 
     /** Registration name => state for outbound SIP trunks. */
