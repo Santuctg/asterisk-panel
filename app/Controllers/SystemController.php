@@ -61,25 +61,43 @@ final class SystemController extends BaseController
     public function update(Request $request): Response
     {
         $status = []; $error = null;
-        try { $status = (new UpdateService())->status(); } catch (\Throwable $e) { $error = $e->getMessage(); }
+        $service = new UpdateService();
+        $updateJob = $service->jobStatus();
+        if (in_array($updateJob['state'] ?? '', ['queued', 'running'], true)) {
+            $status = [
+                'current_version' => $updateJob['current_version'] ?? config('app.version', ''),
+                'latest_version' => $updateJob['target_version'] ?? '',
+            ];
+        } else {
+            try { $status = $service->status(); } catch (\Throwable $e) { $error = $e->getMessage(); }
+        }
         $current = (string) ($status['current_version'] ?? config('app.version', ''));
         $latest = (string) ($status['latest_version'] ?? '');
         $hasUpdate = $current !== '' && $latest !== '' && $latest !== 'unknown' && version_compare($latest, $current, '>');
         $repo = rtrim((string) config('app.github_repo', ''), '/');
         return $this->view('system/update', [
             'status' => $status, 'error' => $error, 'hasUpdate' => $hasUpdate,
-            'repo' => $repo, 'releaseUrl' => $repo . '/releases/latest',
+            'repo' => $repo, 'releaseUrl' => $repo . '/releases/latest', 'updateJob' => $updateJob,
         ]);
     }
 
     public function applyUpdate(Request $request): Response
     {
         try {
-            $result = (new UpdateService())->update();
-            $this->audit('system.update', 'system', null, ['result' => $result]);
-            Flash::success('Update completed successfully.');
-        } catch (\Throwable $e) { Flash::error('Update failed: ' . $e->getMessage()); }
+            $job = (new UpdateService())->start($this->app->auth()->id());
+            $this->audit('system.update.started', 'system', null, ['target' => $job['target_version'] ?? null]);
+            if (str_contains(strtolower((string) $request->header('Accept')), 'application/json')) return $this->json($job, 202);
+            Flash::info('Update started. Progress will appear on this page.');
+        } catch (\Throwable $e) {
+            if (str_contains(strtolower((string) $request->header('Accept')), 'application/json')) return $this->json(['error' => $e->getMessage()], 500);
+            Flash::error('Update failed: ' . $e->getMessage());
+        }
         return Response::redirect('/system/update');
+    }
+
+    public function updateProgress(Request $request): Response
+    {
+        return $this->json((new UpdateService())->jobStatus());
     }
 
     /** POST /system/apply — regenerate config + reload Asterisk. */

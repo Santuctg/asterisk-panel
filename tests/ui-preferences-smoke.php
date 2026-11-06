@@ -12,6 +12,8 @@ $appJs = file_get_contents(BASE_PATH . '/public/assets/js/app.js');
 $i18nJs = file_get_contents(BASE_PATH . '/public/assets/js/i18n.js');
 $routesView = file_get_contents(BASE_PATH . '/themes/default/views/routes/index.php');
 $extensionsView = file_get_contents(BASE_PATH . '/themes/default/views/extensions/index.php');
+$phoneLayout = file_get_contents(BASE_PATH . '/themes/default/layouts/phone.php');
+$updateView = file_get_contents(BASE_PATH . '/themes/default/views/system/update.php');
 
 $checks = [
     [str_contains($appLayout, 'id="themeToggle"') && str_contains($authLayout, 'id="themeToggle"'), 'light/dark controls render in app and auth layouts'],
@@ -24,9 +26,11 @@ $checks = [
     [str_contains($css, '[data-theme="light"] .sidebar') && str_contains($css, '[data-theme="light"] .nav-link.is-active'), 'sidebar follows light mode'],
     [str_contains($routesView, 'route-modal outbound-route-modal') && str_contains($routesView, 'route-time-grid') && str_contains($routesView, 'Pattern examples'), 'routing editors use compact layouts'],
     [str_contains($extensionsView, 'Extension / name') && !str_contains($extensionsView, '<th>SIP password</th>') && str_contains($extensionsView, 'extensions-table'), 'extension table removes redundant columns and uses compact sizing'],
-    [str_contains($appJs, 'enhanceFieldHelp(document)') && str_contains($appJs, "button.className = 'field-help-button'") && str_contains($appJs, "required.className = 'required-mark'"), 'field instructions become accessible info tooltips'],
+    [str_contains($appJs, 'enhanceFieldHelp(document)') && str_contains($appJs, 'enhanceCheckHelp(document)') && str_contains($appJs, "button.className = 'field-help-button'") && str_contains($appJs, "required.className = 'required-mark'"), 'field and checkbox instructions become accessible info tooltips'],
     [str_contains($css, '.form-help-popover') && str_contains($css, '.field-label-row') && str_contains($css, '.required-mark'), 'instruction tooltip and required-field styles are available'],
     [str_contains($css, '.form-grid:has(> .field) > .check') && str_contains($css, '> :not(.field) > .check'), 'checkbox cards align with adjacent form controls'],
+    [str_contains($phoneLayout, 'phone-topbar') && str_contains($phoneLayout, 'Back to panel') && !str_contains($phoneLayout, 'sidebar-nav'), 'web phone uses a standalone shell'],
+    [str_contains($updateView, '/system/update/progress') && str_contains($updateView, 'RECONNECTING') && str_contains($updateView, "setTimeout(poll, 1000)"), 'update page tracks background progress and reconnects automatically'],
 ];
 
 foreach ($checks as [$passed, $description]) {

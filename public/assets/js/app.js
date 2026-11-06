@@ -232,6 +232,30 @@
         helpPopover.style.top = Math.round(top) + 'px';
     }
 
+    function makeHelpButton(source) {
+        source.dataset.helpReady = '1';
+        source.hidden = true;
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'field-help-button';
+        button.textContent = 'i';
+        button.setAttribute('aria-label', 'Show field instructions');
+        button.setAttribute('aria-describedby', helpPopover.id);
+        button.setAttribute('aria-expanded', 'false');
+        button._helpSource = source;
+        button.addEventListener('mouseenter', function () { showFieldHelp(button, false); });
+        button.addEventListener('mouseleave', function () { if (!helpPinned && document.activeElement !== button) hideFieldHelp(); });
+        button.addEventListener('focus', function () { showFieldHelp(button, false); });
+        button.addEventListener('blur', function () { if (!helpPinned) hideFieldHelp(); });
+        button.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (activeHelp === button && helpPinned) hideFieldHelp();
+            else showFieldHelp(button, true);
+        });
+        return button;
+    }
+
     function enhanceFieldHelp(root) {
         var fields = [];
         if (root instanceof Element && root.matches('.field')) fields.push(root);
@@ -258,37 +282,39 @@
             row.appendChild(label);
 
             if (hint) {
-                hint.dataset.helpReady = '1';
-                hint.hidden = true;
-                var button = document.createElement('button');
-                button.type = 'button';
-                button.className = 'field-help-button';
-                button.textContent = 'i';
-                button.setAttribute('aria-label', 'Show field instructions');
-                button.setAttribute('aria-describedby', helpPopover.id);
-                button.setAttribute('aria-expanded', 'false');
-                button._helpSource = hint;
-                button.addEventListener('mouseenter', function () { showFieldHelp(button, false); });
-                button.addEventListener('mouseleave', function () { if (!helpPinned && document.activeElement !== button) hideFieldHelp(); });
-                button.addEventListener('focus', function () { showFieldHelp(button, false); });
-                button.addEventListener('blur', function () { if (!helpPinned) hideFieldHelp(); });
-                button.addEventListener('click', function (event) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    if (activeHelp === button && helpPinned) hideFieldHelp();
-                    else showFieldHelp(button, true);
-                });
-                row.appendChild(button);
+                row.appendChild(makeHelpButton(hint));
             }
             field.dataset.helpEnhanced = '1';
         });
     }
 
+    function enhanceCheckHelp(root) {
+        var checks = [];
+        if (root instanceof Element && root.matches('.check')) checks.push(root);
+        if (root.querySelectorAll) checks = checks.concat(Array.from(root.querySelectorAll('.check')));
+        checks.forEach(function (check) {
+            if (check.dataset.helpEnhanced) return;
+            var body = check.querySelector(':scope > .check-body');
+            var title = body && body.querySelector(':scope > strong');
+            var description = body && body.querySelector(':scope > span');
+            if (!title || !description) return;
+            var row = document.createElement('span');
+            row.className = 'check-title-row';
+            body.insertBefore(row, title);
+            row.append(title, makeHelpButton(description));
+            check.dataset.helpEnhanced = '1';
+        });
+    }
+
     enhanceFieldHelp(document);
+    enhanceCheckHelp(document);
     new MutationObserver(function (mutations) {
         mutations.forEach(function (mutation) {
             mutation.addedNodes.forEach(function (node) {
-                if (node.nodeType === Node.ELEMENT_NODE) enhanceFieldHelp(node);
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                    enhanceFieldHelp(node);
+                    enhanceCheckHelp(node);
+                }
             });
         });
     }).observe(document.body, { childList: true, subtree: true });

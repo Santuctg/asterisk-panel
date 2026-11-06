@@ -185,6 +185,7 @@ $router->post('/fail2ban/whitelist/remove', [Fail2banController::class, 'whiteli
 // System: status, apply config, settings, audit log
 $router->get('/system/status', [SystemController::class, 'status'], [Auth::require('system_status.view')]);
 $router->get('/system/update', [SystemController::class, 'update'], [Auth::require('system.update')]);
+$router->get('/system/update/progress', [SystemController::class, 'updateProgress'], [Auth::require('system.update')]);
 $router->post('/system/update', [SystemController::class, 'applyUpdate'], [Auth::require('system.update'), Csrf::middleware(...) ]);
 $router->post('/system/apply', [SystemController::class, 'apply'], [Auth::require('system.apply'), Csrf::middleware(...)]);
 $router->get('/system/settings', [SystemController::class, 'settings'], [Auth::require('system_settings.view')]);

@@ -80,42 +80,7 @@ $tile = function (string $icon, string $tone, int|string $value, string $label, 
                 <span class="dot"></span><?= $online ? 'Live' : 'Offline' ?>
             </span>
         </div>
-        <div class="card-body tight" id="activeCallsBody">
-            <?php if (!$online): ?>
-                <?= \App\Core\View::fragment('partials/empty', [
-                    'icon' => 'pulse', 'title' => 'No connection',
-                    'message' => 'Connect to Asterisk to see live calls.',
-                ]) ?>
-            <?php elseif (empty($channels)): ?>
-                <?= \App\Core\View::fragment('partials/empty', [
-                    'icon' => 'phone', 'title' => 'No active calls',
-                    'message' => 'Calls in progress will appear here in real time.',
-                ]) ?>
-            <?php else: ?>
-                <div class="table-wrap">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Channel</th>
-                                <th>Caller</th>
-                                <th>App</th>
-                                <th class="num">Duration</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($channels as $c): ?>
-                                <tr>
-                                    <td class="mono text-xs"><?= e($c['name']) ?></td>
-                                    <td><?= e($c['caller']) ?></td>
-                                    <td><span class="badge gray"><?= e($c['app']) ?></span></td>
-                                    <td class="num mono"><?= e($c['duration']) ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            <?php endif; ?>
-        </div>
+        <div class="card-body tight dashboard-live-body" id="activeCallsBody" aria-live="polite"></div>
     </div>
 
     <!-- Recent calls -->
@@ -124,47 +89,7 @@ $tile = function (string $icon, string $tone, int|string $value, string $label, 
             <h2>Recent calls</h2>
             <a href="/cdr" class="btn btn-sm btn-ghost">View all</a>
         </div>
-        <div class="card-body tight">
-            <?php if (empty($recentCalls)): ?>
-                <?= \App\Core\View::fragment('partials/empty', [
-                    'icon' => 'clock', 'title' => 'No call history yet',
-                    'message' => 'Once calls are made and CDR collection is configured, they will show up here.',
-                ]) ?>
-            <?php else: ?>
-                <div class="table-wrap">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Time</th>
-                                <th>From</th>
-                                <th>To</th>
-                                <th>Result</th>
-                                <th class="num">Dur</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($recentCalls as $c): ?>
-                                <?php
-                                $tone = match ($c['disposition']) {
-                                    'ANSWERED'   => 'green',
-                                    'BUSY'       => 'amber',
-                                    'NO ANSWER'  => 'gray',
-                                    default      => 'red',
-                                };
-                                ?>
-                                <tr>
-                                    <td class="nowrap muted text-xs"><?= e(format_date($c['calldate'], 'M j, g:i A')) ?></td>
-                                    <td class="mono"><?= e($c['src']) ?></td>
-                                    <td class="mono"><?= e($c['dst']) ?></td>
-                                    <td><span class="badge <?= $tone ?>"><?= e($c['disposition']) ?></span></td>
-                                    <td class="num mono"><?= e(format_duration((int) $c['billsec'])) ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            <?php endif; ?>
-        </div>
+        <div class="card-body tight" id="recentCallsBody" aria-live="polite"></div>
     </div>
 </div>
 
@@ -197,17 +122,55 @@ $tile = function (string $icon, string $tone, int|string $value, string $label, 
     var body = document.getElementById('activeCallsBody');
     var status = document.getElementById('activeCallsStatus');
     var count = document.getElementById('activeCallsCount');
-    if (!body || !status || !count) return;
+    var recentBody = document.getElementById('recentCallsBody');
+    if (!body || !status || !count || !recentBody) return;
 
-    function cell(row, value, className) {
-        var td = document.createElement('td');
-        if (className) td.className = className;
-        td.textContent = value || '—';
-        row.appendChild(td);
+    function emptyState(target, titleText, messageText) {
+        var empty = document.createElement('div');
+        empty.className = 'empty dashboard-empty';
+        var icon = document.createElement('span');
+        icon.className = 'active-call-empty-icon';
+        icon.textContent = '☎';
+        var title = document.createElement('strong');
+        title.textContent = titleText;
+        var message = document.createElement('p');
+        message.textContent = messageText;
+        empty.append(icon, title, message);
+        target.appendChild(empty);
     }
 
-    function render(data) {
-        count.textContent = data.online ? String(data.count || 0) : '—';
+    function endpoint(channel) {
+        var name = String((channel && channel.name) || '').replace(/^PJSIP\//, '').replace(/-[a-f\d]+$/i, '');
+        return name.split('@')[0] || 'Unknown';
+    }
+
+    function callCards(channels) {
+        var byName = {};
+        channels.forEach(function (channel) { byName[channel.name] = channel; });
+        var seen = {};
+        var calls = [];
+        channels.forEach(function (channel) {
+            if (seen[channel.name]) return;
+            var peer = channel.bridged && byName[channel.bridged] ? byName[channel.bridged] : null;
+            seen[channel.name] = true;
+            if (peer) seen[peer.name] = true;
+            var destination = peer ? endpoint(peer) : String(channel.extension || channel.data || '—').split(',')[0];
+            calls.push({
+                from: String(channel.caller || endpoint(channel) || '—'),
+                fromEndpoint: endpoint(channel),
+                to: destination || '—',
+                toEndpoint: peer ? String(peer.caller || endpoint(peer)) : destination,
+                status: String(channel.state || '').toLowerCase() === 'up' ? 'Connected' : 'Ringing',
+                duration: String(channel.duration || '00:00:00'),
+                route: String(channel.app || 'Call')
+            });
+        });
+        return calls;
+    }
+
+    function renderActive(data) {
+        var calls = callCards(data.channels || []);
+        count.textContent = data.online ? String(calls.length) : '—';
         count.closest('.stat-body').querySelector('.stat-label').textContent = data.online ? 'Active calls' : 'Offline';
         status.className = 'badge ' + (data.online ? 'green' : 'gray');
         status.replaceChildren();
@@ -218,34 +181,69 @@ $tile = function (string $icon, string $tone, int|string $value, string $label, 
 
         body.replaceChildren();
         if (!data.online || !data.channels || data.channels.length === 0) {
-            var empty = document.createElement('div');
-            empty.className = 'empty';
-            var title = document.createElement('strong');
-            title.textContent = data.online ? 'No active calls' : 'No connection';
-            var message = document.createElement('p');
-            message.textContent = data.online ? 'Calls in progress will appear here automatically.' : 'Asterisk is currently unreachable.';
-            empty.appendChild(title);
-            empty.appendChild(message);
-            body.appendChild(empty);
+            emptyState(body, data.online ? 'No active calls' : 'No connection', data.online ? 'Calls in progress will appear here automatically.' : 'Asterisk is currently unreachable.');
             return;
         }
 
-        var wrap = document.createElement('div');
-        wrap.className = 'table-wrap';
+        var grid = document.createElement('div');
+        grid.className = 'active-call-grid';
+        calls.forEach(function (call) {
+            var card = document.createElement('article');
+            card.className = 'active-call-card';
+            var head = document.createElement('div');
+            head.className = 'active-call-head';
+            head.innerHTML = '<span class="active-call-state"><i></i></span><span class="mono"></span>';
+            head.querySelector('.active-call-state').appendChild(document.createTextNode(call.status));
+            head.querySelector('.mono').textContent = call.duration;
+            var people = document.createElement('div');
+            people.className = 'active-call-people';
+            function person(number, label) {
+                var el = document.createElement('div');
+                el.className = 'active-call-person';
+                var avatar = document.createElement('span'); avatar.className = 'active-call-avatar'; avatar.textContent = '●';
+                var strong = document.createElement('strong'); strong.textContent = number || '—';
+                var small = document.createElement('small'); small.textContent = label || number || '—';
+                el.append(avatar, strong, small); return el;
+            }
+            var connector = document.createElement('div');
+            connector.className = 'active-call-connector';
+            connector.innerHTML = '<span></span><span></span><span></span><small></small>';
+            connector.querySelector('small').textContent = call.route;
+            people.append(person(call.from, call.fromEndpoint), connector, person(call.toEndpoint, call.to));
+            card.append(head, people);
+            grid.appendChild(card);
+        });
+        body.appendChild(grid);
+    }
+
+    function renderRecent(calls) {
+        recentBody.replaceChildren();
+        if (!calls || calls.length === 0) {
+            emptyState(recentBody, 'No call history yet', 'Completed calls will appear here automatically.');
+            return;
+        }
+        var wrap = document.createElement('div'); wrap.className = 'table-wrap';
         var table = document.createElement('table');
-        table.innerHTML = '<thead><tr><th>Channel</th><th>Caller</th><th>App</th><th class="num">Duration</th></tr></thead>';
-        var tbody = document.createElement('tbody');
-        data.channels.forEach(function (channel) {
+        table.innerHTML = '<thead><tr><th>Time</th><th>From</th><th>To</th><th>Result</th><th class="num">Dur</th></tr></thead><tbody></tbody>';
+        var tbody = table.querySelector('tbody');
+        calls.forEach(function (call) {
             var row = document.createElement('tr');
-            cell(row, channel.name, 'mono text-xs');
-            cell(row, channel.caller, '');
-            cell(row, channel.app, '');
-            cell(row, channel.duration, 'num mono');
+            [call.time, call.src, call.dst, call.disposition, call.duration].forEach(function (value, index) {
+                var td = document.createElement('td'); td.textContent = value || '—';
+                if (index === 0) td.className = 'nowrap muted text-xs';
+                if (index === 1 || index === 2 || index === 4) td.className += ' mono';
+                if (index === 3) { var badge = document.createElement('span'); badge.className = 'badge ' + (value === 'ANSWERED' ? 'green' : (value === 'BUSY' ? 'amber' : (value === 'NO ANSWER' ? 'gray' : 'red'))); badge.textContent = value; td.replaceChildren(badge); }
+                if (index === 4) td.className += ' num';
+                row.appendChild(td);
+            });
             tbody.appendChild(row);
         });
-        table.appendChild(tbody);
-        wrap.appendChild(table);
-        body.appendChild(wrap);
+        wrap.appendChild(table); recentBody.appendChild(wrap);
+    }
+
+    function render(data) {
+        renderActive(data);
+        renderRecent(data.recent_calls || []);
     }
 
     async function poll() {
@@ -257,9 +255,20 @@ $tile = function (string $icon, string $tone, int|string $value, string $label, 
         } catch (error) {
             // Keep the last good snapshot during a temporary network failure.
         } finally {
-            window.setTimeout(poll, document.hidden ? 15000 : 5000);
+            window.setTimeout(poll, document.hidden ? 10000 : 3000);
         }
     }
-    window.setTimeout(poll, 5000);
+    render(<?= json_encode([
+        'online' => $online,
+        'count' => \App\Controllers\DashboardController::activeCallCount($channels),
+        'channels' => array_values($channels),
+        'recent_calls' => array_map(static fn (array $call): array => [
+            'time' => format_date($call['calldate'], 'M j, g:i A'),
+            'src' => (string) $call['src'], 'dst' => (string) $call['dst'],
+            'disposition' => (string) $call['disposition'],
+            'duration' => format_duration((int) $call['billsec']),
+        ], $recentCalls),
+    ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>);
+    poll();
 })();
 </script>

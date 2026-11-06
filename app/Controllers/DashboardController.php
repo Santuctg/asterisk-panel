@@ -45,7 +45,7 @@ final class DashboardController extends BaseController
             if ($online) {
                 $astVersion    = $mgr->version()['version'] ?? 'unknown';
                 $channels      = $tid ? $mgr->tenantChannels($tid, 12) : [];
-                $activeChannels = count($channels);
+                $activeChannels = self::activeCallCount($channels);
                 if ($tid) {
                     $tenant = $db->one('SELECT context, domain FROM tenants WHERE id = ?', [$tid]) ?? [];
                     $extensions = $db->all(
@@ -130,9 +130,47 @@ final class DashboardController extends BaseController
 
         return $this->json([
             'online' => $online,
-            'count' => count($channels),
+            'count' => self::activeCallCount($channels),
             'channels' => array_values($channels),
+            'recent_calls' => $this->recentCalls($tid),
         ]);
+    }
+
+    /** Count bridged channel legs as one call while retaining unbridged ringing legs. */
+    public static function activeCallCount(array $channels): int
+    {
+        $known = [];
+        foreach ($channels as $channel) $known[(string) ($channel['name'] ?? '')] = true;
+        $seen = []; $count = 0;
+        foreach ($channels as $channel) {
+            $name = (string) ($channel['name'] ?? '');
+            if ($name === '' || isset($seen[$name])) continue;
+            $seen[$name] = true;
+            $bridged = (string) ($channel['bridged'] ?? '');
+            if ($bridged !== '' && isset($known[$bridged])) $seen[$bridged] = true;
+            $count++;
+        }
+        return $count;
+    }
+
+    /** Recent tenant CDR rows formatted once for both initial and live UI. */
+    private function recentCalls(?int $tenantId): array
+    {
+        if (!$tenantId) {
+            return [];
+        }
+        return array_map(static function (array $call): array {
+            return [
+                'time' => format_date($call['calldate'] ?? null, 'M j, g:i A'),
+                'src' => (string) ($call['src'] ?? ''),
+                'dst' => (string) ($call['dst'] ?? ''),
+                'disposition' => (string) ($call['disposition'] ?? ''),
+                'duration' => format_duration((int) ($call['billsec'] ?? 0)),
+            ];
+        }, $this->db()->all(
+            'SELECT calldate, src, dst, disposition, billsec FROM cdr WHERE tenant_id = ? ORDER BY calldate DESC LIMIT 10',
+            [$tenantId]
+        ));
     }
 
     /** POST /dashboard/switch-tenant */

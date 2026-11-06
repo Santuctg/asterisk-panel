@@ -72,11 +72,19 @@ $check(str_contains($dialplan, $announcementStep) && str_contains($dialplan, $di
     && !str_contains($dialplan, 'm(sales)'), 'ring group announcement plays before normal simultaneous ringing');
 $liveFeed = (new App\Controllers\DashboardController())->liveCalls(new App\Core\Request('GET', '/dashboard/live-calls'));
 $liveData = json_decode($liveFeed->body(), true);
-$check($liveFeed->status() === 200 && isset($liveData['online'], $liveData['count'], $liveData['channels']), 'live calls polling feed responds');
+$check($liveFeed->status() === 200 && isset($liveData['online'], $liveData['count'], $liveData['channels'], $liveData['recent_calls']), 'live calls and recent CDR polling feed responds');
 $dashboard = (new App\Controllers\DashboardController())->index(new App\Core\Request('GET', '/dashboard'));
-$check(str_contains($dashboard->body(), '/dashboard/live-calls') && str_contains($dashboard->body(), 'setTimeout(poll'), 'dashboard polls live calls automatically');
+$check(str_contains($dashboard->body(), '/dashboard/live-calls') && str_contains($dashboard->body(), 'setTimeout(poll')
+    && str_contains($dashboard->body(), 'active-call-grid') && str_contains($dashboard->body(), 'renderRecent'), 'dashboard polls and consistently renders active and recent calls');
 $check(str_contains($dashboard->body(), 'method="post" action="/system/apply"')
     && !str_contains($dashboard->body(), 'href="/system/apply"'), 'dashboard applies Asterisk config with a protected POST form');
+$check(App\Controllers\DashboardController::activeCallCount([
+    ['name' => 'PJSIP/1001-a', 'bridged' => 'PJSIP/2002-b'],
+    ['name' => 'PJSIP/2002-b', 'bridged' => 'PJSIP/1001-a'],
+    ['name' => 'PJSIP/1001-c', 'bridged' => ''],
+]) === 2, 'bridged channel legs render as one active call card');
+$updateProgress = (new App\Controllers\SystemController())->updateProgress(new App\Core\Request('GET', '/system/update/progress'));
+$check($updateProgress->status() === 200 && isset(json_decode($updateProgress->body(), true)['state']), 'system update progress endpoint remains available during background updates');
 $contactStatuses = App\Services\Asterisk\AsteriskManager::parseContactStatuses(
     "Contact: 201@pbx.example.test/sip:201@192.0.2.10 abc123 Avail 12.000\n" .
     "Contact: trunk-1-aor/sip:198.51.100.10 def456 NonQual nan\n"

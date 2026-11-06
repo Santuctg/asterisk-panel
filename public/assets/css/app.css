@@ -133,6 +133,13 @@ code, .mono { font-family: var(--mono); font-size: 12.5px; }
 
 /* ---------- App shell ---------- */
 .app-shell { display: flex; min-height: 100vh; }
+.phone-body { min-height:100vh; background:var(--bg); }
+.phone-topbar { position:sticky; top:0; z-index:20; min-height:58px; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:9px 18px; border-bottom:1px solid var(--border); background:var(--surface); box-shadow:var(--shadow-xs); }
+.phone-brand, .phone-topbar-actions { display:flex; align-items:center; gap:10px; }
+.phone-brand { color:var(--text); text-decoration:none; }.phone-brand .brand-mark { width:32px; height:32px; }
+.phone-topbar-actions select { width:auto; min-width:96px; padding-top:6px; padding-bottom:6px; }
+.phone-content { width:min(780px,100%); margin:0 auto; padding:24px 18px 40px; }
+.phone-content .page-head { margin-bottom:14px; }
 
 .main {
     flex: 1;
@@ -411,7 +418,26 @@ code, .mono { font-family: var(--mono); font-size: 12.5px; }
 .github-mark { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--border-strong); border-radius: 9px; font-size: 10px; font-weight: 800; }
 .release-info { flex: 1; }.release-info span, .release-info small { display: block; color: var(--text-muted); font-size: 10px; }.release-info strong { display: block; margin: 3px 0; font-size: 13px; }.release-link { color: var(--brand-600); font-size: 11px; }.release-badge, .job-status { padding: 5px 9px; border: 1px solid var(--success-500); border-radius: 999px; color: var(--success-500); font: 700 10px var(--mono); white-space: nowrap; }.job-status.job-ready { color: var(--warning-500); border-color: var(--warning-500); }
 .verification-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; margin-top: 12px; }.verification-grid > div { display: grid; grid-template-columns: 28px 1fr; column-gap: 9px; padding: 13px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }.verification-grid b { grid-row: span 2; color: var(--success-500); }.verification-grid strong { font-size: 12px; }.verification-grid small { color: var(--text-muted); font-size: 10px; }
+.dashboard-live-body { min-height:220px; }
+.dashboard-empty { min-height:190px; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+.active-call-empty-icon { width:44px; height:44px; display:grid; place-items:center; margin-bottom:12px; border-radius:12px; background:var(--surface-alt); color:var(--text-muted); font-size:20px; }
+.active-call-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; padding:12px; }
+.active-call-card { min-width:0; padding:11px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface); }
+.active-call-head { display:flex; align-items:center; justify-content:space-between; gap:8px; color:var(--text-muted); font-size:11px; }
+.active-call-state { color:var(--success-500); font-weight:600; }
+.active-call-state i { display:inline-block; width:7px; height:7px; margin-right:6px; border-radius:50%; background:currentColor; }
+.active-call-people { display:grid; grid-template-columns:minmax(0,1fr) 76px minmax(0,1fr); align-items:center; gap:5px; margin-top:12px; }
+.active-call-person { min-width:0; display:flex; flex-direction:column; align-items:center; text-align:center; }
+.active-call-avatar { width:34px; height:34px; display:grid; place-items:center; margin-bottom:5px; border:1px solid var(--border-strong); border-radius:50%; color:var(--text-muted); }
+.active-call-person strong, .active-call-person small { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.active-call-person strong { font:12px var(--mono); }.active-call-person small { margin-top:3px; color:var(--text-muted); font-size:10px; }
+.active-call-connector { display:grid; grid-template-columns:repeat(3,5px); justify-content:center; gap:7px; color:var(--brand-500); }
+.active-call-connector span { width:5px; height:5px; border-radius:50%; background:currentColor; }
+.active-call-connector small { grid-column:1/-1; max-width:76px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:5px; color:var(--text-muted); text-align:center; font-size:9px; }
 .update-job { margin-top: 12px; padding: 18px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }.job-head { display: flex; justify-content: space-between; align-items: center; }.job-head h3 { font-size: 14px; }.job-head small { color: var(--text-muted); }.job-steps { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin: 20px 0 15px; }.job-steps span { display: flex; flex-direction: column; align-items: center; gap: 5px; color: var(--text-muted); font-size: 10px; }.job-steps i { width: 25px; height: 25px; display: grid; place-items: center; border: 1px solid var(--border-strong); border-radius: 50%; font-style: normal; }.job-steps .done { color: var(--success-500); }.job-steps .done i { border-color: var(--success-500); }.job-version { display: flex; justify-content: space-between; padding: 12px; border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted); font-size: 12px; }.job-version strong { color: var(--text); }.job-action { display: flex; justify-content: flex-end; margin-top: 12px; }.job-success { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--success-500); border-radius: 6px; color: var(--success-500); font-size: 12px; }
+.job-status.job-running { color:var(--brand-500); border-color:var(--brand-500); }.job-status.job-failed, .job-steps .failed { color:var(--danger-500); border-color:var(--danger-500); }
+.job-steps .running { color:var(--brand-500); }.job-steps .running i { border-color:var(--brand-500); animation:update-pulse 1s ease-in-out infinite alternate; }
+@keyframes update-pulse { to { background:var(--brand-500); color:#fff; box-shadow:0 0 0 5px rgba(65,91,230,.15); } }
 .whitelist-form { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: end; }
 
 /* ---------- Fail2ban ---------- */
@@ -538,6 +564,12 @@ input[readonly] { background: var(--surface-alt); color: var(--text-muted); }
 .check input { margin: 2px 0 0; accent-color: var(--brand-600); width: 15px; height: 15px; }
 .check .check-body strong { display: block; font-size: 13px; font-weight: 600; }
 .check .check-body span { font-size: 11.5px; color: var(--text-muted); }
+.check-title-row { display:flex; align-items:center; gap:5px; }
+.check .check-title-row strong { display:inline; }
+.check .check-title-row .field-help-button { color:var(--brand-600); }
+.check .check-title-row .field-help-button:hover,
+.check .check-title-row .field-help-button:focus-visible,
+.check .check-title-row .field-help-button[aria-expanded="true"] { color:#fff; }
 /* In mixed grids, reserve the same label row used by adjacent fields so
    checkbox cards align with the input/select control rather than its label. */
 .form-grid:has(> .field) > .check,
@@ -841,11 +873,16 @@ th.col-check input:indeterminate::after, td.col-check input:indeterminate::after
     .outbound-schedule-table tr[data-empty], .outbound-schedule-table tr[data-empty] td { display:block; width:100%; }
     .outbound-schedule-time { display:grid!important; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); }
 }
+@media (max-width:640px) { .active-call-grid { grid-template-columns:1fr; } }
 @media (max-width: 560px) {
     :root { --topbar-h:56px; }
     .topbar { gap:6px; padding:0 10px; }
     .topbar-actions { gap:4px; min-width:0; }
     .topbar-actions > a[title="System status"] { display:none; }
+    .phone-topbar { align-items:flex-start; flex-wrap:wrap; padding:9px 12px; }
+    .phone-topbar-actions { width:100%; justify-content:space-between; flex-wrap:wrap; }
+    .phone-topbar-actions > .muted { display:none; }
+    .phone-content { padding:16px 12px 30px; }
     .tenant-switch select { max-width:92px; }
     .tenant-badge { max-width:82px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .language-control select { min-width:78px; max-width:82px; padding-left:8px; padding-right:29px; background-position:right 7px center; }

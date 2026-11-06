@@ -23,6 +23,6 @@ final class WebPhoneController extends BaseController
             'extensions' => $extensions,
             'context' => $tenant ? (preg_replace('/[^A-Za-z0-9_]/', '_', $tenant['context']) ?: '') : '',
             'browserReady' => str_starts_with((string) Config::get('app.url', ''), 'https://'),
-        ]);
+        ], 'layouts/phone');
     }
 }
