@@ -16,6 +16,8 @@ $phoneLayout = file_get_contents(BASE_PATH . '/themes/default/layouts/phone.php'
 $updateView = file_get_contents(BASE_PATH . '/themes/default/views/system/update.php');
 $loginView = file_get_contents(BASE_PATH . '/themes/default/views/auth/login.php');
 $routes = file_get_contents(BASE_PATH . '/resources/routes.php');
+$updateService = file_get_contents(BASE_PATH . '/app/Services/UpdateService.php');
+$updateHelper = file_get_contents(BASE_PATH . '/scripts/update-helper.sh');
 
 $checks = [
     [str_contains($appLayout, 'id="themeToggle"') && str_contains($authLayout, 'id="themeToggle"'), 'light/dark controls render in app and auth layouts'],
@@ -35,6 +37,9 @@ $checks = [
     [str_contains($loginView, 'Open Web Phone') && str_contains($loginView, 'href="/web-phone"')
         && str_contains($routes, "get('/web-phone', [WebPhoneController::class, 'index'])"), 'main login links to the public Web Phone login'],
     [str_contains($updateView, '/system/update/progress') && str_contains($updateView, 'RECONNECTING') && str_contains($updateView, "setTimeout(poll, 1000)"), 'update page tracks background progress and reconnects automatically'],
+    [str_contains($updateService, 'Progress was recovered after the server restart')
+        && str_contains($updateHelper, 'systemd-run --quiet --collect')
+        && !str_contains($updateHelper, "    systemctl restart php8.3-fpm\n    nginx -t"), 'update completion survives the PHP-FPM restart'],
 ];
 
 foreach ($checks as [$passed, $description]) {

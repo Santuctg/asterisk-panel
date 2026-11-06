@@ -32,6 +32,17 @@ final class UpdateService
         $job = json_decode((string) file_get_contents($file), true);
         if (!is_array($job)) return ['state' => 'idle', 'phase' => 'ready'];
         $updated = strtotime((string) ($job['updated_at'] ?? '')) ?: 0;
+        $target = ltrim((string) ($job['target_version'] ?? ''), 'v');
+        $installed = ltrim((string) Config::get('app.version', ''), 'v');
+        if (in_array($job['state'] ?? '', ['queued', 'running'], true)
+            && $target !== '' && $installed !== '' && version_compare($installed, $target, '>=')
+            && $updated < time() - 15) {
+            $job['state'] = 'completed'; $job['phase'] = 'complete';
+            $job['message'] = 'Update completed successfully. Progress was recovered after the server restart.';
+            $job['completed_at'] = date(DATE_ATOM);
+            $this->writeJob($job);
+            return $job;
+        }
         if (in_array($job['state'] ?? '', ['queued', 'running'], true) && $updated < time() - 1800) {
             $job['state'] = 'failed'; $job['phase'] = 'error'; $job['message'] = 'The update job stopped responding.';
         }

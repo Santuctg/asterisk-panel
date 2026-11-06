@@ -162,13 +162,17 @@ EOF
     systemctl enable --now asterisk-panel-trunk-monitor.timer
     systemctl enable --now asterisk-panel-cdr.path
     install -o root -g root -m 0755 "$REPO/scripts/update-helper.sh" /usr/local/sbin/asterisk-panel-update
-    systemctl restart php8.3-fpm
     nginx -t
     systemctl reload nginx
     systemctl restart asterisk-panel-cdr.timer
     systemctl restart asterisk-panel-cdr.path
     systemctl restart asterisk-panel-trunk-monitor.timer
     printf 'updated=%s\nbackup=%s\n' "$(git -C "$REPO" rev-parse --short HEAD)" "$backup"
+    # Restarting FPM synchronously kills the detached PHP update worker because
+    # it inherits the php-fpm systemd cgroup. Schedule the restart only after
+    # this helper returns so the worker can persist its completed state.
+    systemd-run --quiet --collect --unit="asterisk-panel-php-restart-${stamp}" \
+        --on-active=2s /bin/systemctl restart php8.3-fpm
 }
 
 case "${1:-}" in
