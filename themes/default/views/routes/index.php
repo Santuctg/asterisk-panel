@@ -614,7 +614,8 @@ $activeTab = $_GET['tab'] ?? 'inbound';
         var emptyDays = outboundScheduleRows.querySelector('.schedule-days:not(:has(input[type="checkbox"]:checked))');
         if (emptyDays) {
             event.preventDefault();
-            alert('Select at least one day for every outbound schedule.');
+            var message = 'Select at least one day for every outbound schedule.';
+            alert(window.PanelI18n ? window.PanelI18n.translate(message) : message);
             emptyDays.querySelector('input[type="checkbox"]').focus();
         }
     });

@@ -17,7 +17,8 @@
         // Close the drawer when clicking the main area on small screens.
         document.addEventListener('click', function (e) {
             if (!shell.classList.contains('sidebar-open')) return;
-            if (shell.contains(e.target)) return;
+            var sidebar = document.getElementById('sidebar');
+            if ((sidebar && sidebar.contains(e.target)) || toggle.contains(e.target)) return;
             shell.classList.remove('sidebar-open');
         });
     }
@@ -321,12 +322,25 @@
     } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
         document.documentElement.setAttribute('data-theme', 'dark');
     }
+    var syncThemeButton = function () {
+        if (!themeBtn) return;
+        var dark = document.documentElement.getAttribute('data-theme') === 'dark';
+        var icon = themeBtn.querySelector('.theme-icon');
+        if (icon) icon.textContent = dark ? '☀' : '☾';
+        var label = dark ? 'Use light mode' : 'Use dark mode';
+        if (window.PanelI18n) label = window.PanelI18n.translate(label);
+        themeBtn.setAttribute('aria-label', label);
+        themeBtn.setAttribute('title', label);
+    };
+    syncThemeButton();
     if (themeBtn) {
         themeBtn.addEventListener('click', function () {
             var cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
             document.documentElement.setAttribute('data-theme', cur);
             try { localStorage.setItem('panel-theme', cur); } catch (err) { /* no-op */ }
+            syncThemeButton();
         });
+        document.addEventListener('panel:language', syncThemeButton);
     }
 
     // ---- Auto-submit selects (filters) ---------------------------------------
