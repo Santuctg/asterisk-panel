@@ -568,14 +568,18 @@ final class ConfigGenerator
         );
 
         $out  = "[{$ctx}-outbound]\n";
-        $out .= "exten => _X.,1,NoOp(Outbound access check)\n";
-        foreach ($routes as $r) {
-            $out .= " same => n,GotoIf(\$[\"\${PANEL_OUTBOUND_ROUTE_ID}\"=\"{$r['id']}\"]?route-{$r['id']})\n";
-        }
-        $out .= " same => n,NoOp(Outbound calling denied: no enabled route assigned)\n";
-        $out .= " same => n,Hangup(21)\n";
-        foreach ($routes as $r) {
-            $out .= " same => n(route-{$r['id']}),Goto({$ctx}-outbound-{$r['id']},\${EXTEN},1)\n";
+        // The access gate must accept both ordinary digit strings and E.164
+        // numbers beginning with + before dispatching to the assigned route.
+        foreach (['_X.', '_+X.'] as $gatePattern) {
+            $out .= "exten => {$gatePattern},1,NoOp(Outbound access check)\n";
+            foreach ($routes as $r) {
+                $out .= " same => n,GotoIf(\$[\"\${PANEL_OUTBOUND_ROUTE_ID}\"=\"{$r['id']}\"]?route-{$r['id']})\n";
+            }
+            $out .= " same => n,NoOp(Outbound calling denied: no enabled route assigned)\n";
+            $out .= " same => n,Hangup(21)\n";
+            foreach ($routes as $r) {
+                $out .= " same => n(route-{$r['id']}),Goto({$ctx}-outbound-{$r['id']},\${EXTEN},1)\n";
+            }
         }
         $out .= "\n";
 

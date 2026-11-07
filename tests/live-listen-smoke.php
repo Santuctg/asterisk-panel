@@ -174,6 +174,7 @@ $db->update('extensions', $targetExtension, ['outbound_route_id' => $outboundRou
 $outboundDialplan = $gen->renderDialplan();
 $outboundPjsip = $gen->renderPjsipEndpoints();
 $check(str_contains($outboundDialplan, '[tenant_a-outbound]')
+    && str_contains($outboundDialplan, "exten => _+X.,1,NoOp(Outbound access check)")
     && str_contains($outboundDialplan, '${PANEL_OUTBOUND_ROUTE_ID}"="' . $outboundRoute)
     && str_contains($outboundDialplan, '[tenant_a-outbound-' . $outboundRoute . ']')
     && str_contains($outboundDialplan, 'GotoIfTime(09:00-17:00,sun&mon&wed&sat,*,*,America/New_York?time-allowed)')
