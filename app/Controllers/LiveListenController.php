@@ -30,7 +30,8 @@ final class LiveListenController extends BaseController
 
         $url = (string) Config::get('app.url', '');
         $browserReady = str_starts_with($url, 'https://') && $context !== '';
-        return $this->view('live-listen/index', compact('channels', 'extensions', 'context', 'browserReady'));
+        $canHangup = auth()->can('call.hangup');
+        return $this->view('live-listen/index', compact('channels', 'extensions', 'context', 'browserReady', 'canHangup'));
     }
 
     /** Polled by the page so connected calls appear and disappear without reload. */

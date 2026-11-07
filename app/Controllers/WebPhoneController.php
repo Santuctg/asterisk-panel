@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Core\Config;
+use App\Core\Logger;
 use App\Core\Request;
 use App\Core\Response;
-use App\Core\Session;
 use App\Services\TenantHost;
 use App\Services\TenantSecurity;
+use App\Services\WebPhoneLoginThrottle;
 
 /** Browser WebRTC softphone. SIP secrets stay in the user's browser only. */
 final class WebPhoneController extends BaseController
@@ -26,10 +27,14 @@ final class WebPhoneController extends BaseController
     {
         $extension = trim($request->str('extension'));
         $secret = (string) $request->input('secret', '');
-        $throttleKey = 'web-phone-login-v2:' . md5($request->ip());
-        $throttle = Session::throttle($throttleKey);
-        if ($throttle['attempts'] >= 5 && time() - $throttle['last'] < 300) {
-            return $this->json(['error' => 'Too many attempts. Wait a few minutes and try again.'], 429);
+        $tenantId = $this->tenantIdForWebPhoneHost() ?? TenantHost::tenantIdForRequest();
+        if (!$tenantId && auth()->check()) $tenantId = $this->tenantId();
+        $throttle = new WebPhoneLoginThrottle();
+        $throttleKey = $throttle->key($request->ip());
+        $retryAfter = $throttle->retryAfter($throttleKey);
+        if ($retryAfter > 0) {
+            return $this->json(['error' => 'Too many attempts. Wait a few minutes and try again.'], 429)
+                ->withHeader('Retry-After', (string) $retryAfter);
         }
         if (!preg_match('/^[0-9]{2,12}$/', $extension) || $secret === '') {
             return $this->json(['error' => 'Enter a valid extension and SIP password.'], 422);
@@ -38,8 +43,6 @@ final class WebPhoneController extends BaseController
         // A hostname may intentionally be both APP_PRIMARY_HOST and a tenant
         // domain. Web Phone must honor that URL's tenant before the generic
         // primary-host behavior, otherwise repeated credentials are ambiguous.
-        $tenantId = $this->tenantIdForWebPhoneHost() ?? TenantHost::tenantIdForRequest();
-        if (!$tenantId && auth()->check()) $tenantId = $this->tenantId();
         $select = 'SELECT e.extension, e.name, e.secret, e.tenant_id, t.context, t.domain
              FROM extensions e JOIN tenants t ON t.id = e.tenant_id
              WHERE e.extension = ? AND e.enabled = 1 AND t.enabled = 1';
@@ -58,10 +61,11 @@ final class WebPhoneController extends BaseController
             return $this->json(['error' => 'Web Phone access from this IP address is blocked.'], 403);
         }
         if (!$row) {
-            Session::throttleHit($throttleKey);
+            $throttle->hit($throttleKey, $request->ip(), $tenantId);
+            Logger::warning('Web Phone authentication failed', ['ip' => $request->ip(), 'extension' => $extension]);
             return $this->json(['error' => 'SIP extension or password is incorrect.'], 401);
         }
-        Session::throttleReset($throttleKey);
+        $throttle->reset($throttleKey);
         $context = preg_replace('/[^A-Za-z0-9_]/', '_', (string) $row['context']) ?: '';
         $realm = strtolower(rtrim(trim((string) ($row['domain'] ?? '')), '.')) ?: TenantHost::requestHost();
         $contacts = array_map(static fn (array $contact): array => [

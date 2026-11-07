@@ -65,11 +65,7 @@ final class IvrController extends BaseController
             return Response::redirect('/ivr/create');
         }
 
-        $dup = $this->db()->scalar(
-            'SELECT COUNT(*) FROM ivr_menus WHERE tenant_id = ? AND extension = ?',
-            [$tid, $data['extension']]
-        );
-        if ($dup) {
+        if (!$this->dialplanNumberAvailable($tid, $data['extension'], 'ivr_menus')) {
             $this->stashOld($request);
             Flash::error('That extension number is already used by an IVR.');
             return Response::redirect('/ivr/create');
@@ -120,6 +116,12 @@ final class IvrController extends BaseController
         if ($v->fails()) {
             $this->stashOld($request);
             Flash::error($v->firstError());
+            return Response::redirect("/ivr/{$row['id']}/edit");
+        }
+
+        if (!$this->dialplanNumberAvailable((int) $row['tenant_id'], $data['extension'], 'ivr_menus', (int) $row['id'])) {
+            $this->stashOld($request);
+            Flash::error('That dialplan number is already used by another tenant feature.');
             return Response::redirect("/ivr/{$row['id']}/edit");
         }
 

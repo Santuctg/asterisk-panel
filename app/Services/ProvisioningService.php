@@ -12,8 +12,8 @@ use App\Support\Str;
 /**
  * Generates and serves device provisioning files.
  *
- * Phones poll a URL like:
- *     http://pbx.example.com/prov/001565aabbcc.cfg
+ * Phones poll a tokenized URL like:
+ *     https://pbx.example.com/prov/<random-token>/001565aabbcc.cfg
  * and we render a vendor-specific config from the panel's database.
  * Files are cached under storage/provision/ and can be regenerated
  * from the Devices page ("Resync").
@@ -54,8 +54,9 @@ final class ProvisioningService
             $ext = $this->db->one(
                 'SELECT e.*, t.context AS ctx, t.name AS tenant_name, t.domain AS tenant_domain,
                         t.provision_url AS tenant_provision
-                 FROM extensions e JOIN tenants t ON t.id = e.tenant_id WHERE e.id = ?',
-                [$device['extension_id']]
+                 FROM extensions e JOIN tenants t ON t.id = e.tenant_id
+                 WHERE e.id = ? AND e.tenant_id = ?',
+                [$device['extension_id'], $device['tenant_id']]
             );
         }
 
@@ -84,56 +85,26 @@ final class ProvisioningService
     }
 
     /** Serve (and cache) a device config. Returns [body, content_type]. */
-    public function serve(string $mac): array
+    public function serve(string $mac, string $token): array
     {
         $device = $this->findByMac($mac);
-        if (!$device || empty($device['enabled'])) {
+        if (!$device || empty($device['enabled']) || empty($device['provision_token'])
+            || !hash_equals((string) $device['provision_token'], strtolower($token))) {
             return ['', 'text/plain'];
         }
 
         $cacheFile = $this->cacheDir() . '/' . Str::macCompact($mac) . '.cfg';
+        $rendered = $this->render($device);
+        $cached = @file_get_contents($cacheFile);
 
-        // Rebuild when the device row is newer than the cached file.
-        $mtime  = is_file($cacheFile) ? filemtime($cacheFile) : 0;
-        $stamp  = strtotime((string) ($device['updated_at'] ?: $device['created_at'])) ?: 0;
-
-        if ($mtime < $stamp) {
-            $rendered = $this->render($device);
-            @file_put_contents($cacheFile, $rendered['body']);
-            return [$rendered['body'], $rendered['content_type']];
+        // Compare actual rendered content rather than timestamps: several
+        // legacy update paths do not maintain updated_at, and changes to an
+        // extension secret or tenant realm must never serve stale credentials.
+        if ($cached === false || !hash_equals(hash('sha256', $cached), hash('sha256', $rendered['body']))) {
+            @file_put_contents($cacheFile, $rendered['body'], LOCK_EX);
         }
 
-        $body = @file_get_contents($cacheFile);
-        if ($body === false) {
-            $rendered = $this->render($device);
-            @file_put_contents($cacheFile, $rendered['body']);
-            return [$rendered['body'], $rendered['content_type']];
-        }
-
-        $ext = $this->extensionFor($device);
-        $ctype = $this->contentTypeFor((string) ($device['vendor'] ?: 'generic'));
-        return [$body, $ctype];
-    }
-
-    private function extensionFor(array $device): ?array
-    {
-        if (empty($device['extension_id'])) {
-            return null;
-        }
-        return $this->db->one(
-            'SELECT e.*, t.context AS ctx FROM extensions e JOIN tenants t ON t.id = e.tenant_id WHERE e.id = ?',
-            [$device['extension_id']]
-        );
-    }
-
-    private function contentTypeFor(string $vendor): string
-    {
-        return match ($vendor) {
-            'yealink', 'fanvil' => 'text/xml',
-            'grandstream'       => 'application/xml',
-            'polycom'           => 'application/octet-stream',
-            default             => 'text/plain',
-        };
+        return [$rendered['body'], $rendered['content_type']];
     }
 
     /** Load a template from resources/templates/provisioning/{vendor}.cfg */
@@ -223,7 +194,7 @@ final class ProvisioningService
 
         $body = <<<CFG
 ; Generic provisioning file for {$t['MAC']}
-; Point the phone's provisioning URL at: {$t['SIP_SERVER']}/prov/{$t['MAC_LOWER']}.cfg
+; Use the tokenized provisioning URL shown on the Devices page.
 [general]
 sip_server={$t['SIP_SERVER']}
 sip_port={$t['SIP_PORT']}
@@ -243,6 +214,7 @@ CFG;
     {
         $base  = rtrim((string) Config::get('app.url', 'http://localhost'), '/');
         $mac   = Str::macCompact((string) $device['mac']);
+        $token = strtolower((string) ($device['provision_token'] ?? ''));
         $model = strtolower((string) ($device['model'] ?: ''));
 
         // Vendor-specific filename conventions:
@@ -255,6 +227,6 @@ CFG;
             default  => $mac . '.cfg',
         };
 
-        return $base . '/prov/' . $file;
+        return $base . '/prov/' . $token . '/' . $file;
     }
 }

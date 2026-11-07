@@ -12,6 +12,7 @@ const callsBody = $('#listen-calls-body');
 const callsTotal = $('#active-calls-total');
 const csrf = document.querySelector('meta[name="csrf-token"]').content;
 const browserReady = $('#listen-browser-ready').value === '1';
+const canHangup = $('#listen-can-hangup').value === '1';
 let selected = null;
 let ua = null;
 let session = null;
@@ -94,7 +95,7 @@ function renderCalls(calls) {
         const actions = document.createElement('div'); actions.className = 'active-session-actions';
         if (browserReady) actions.append(button('Listen in browser', 'btn btn-primary listen-browser', call));
         actions.append(button('Listen on extension', 'btn listen-extension', call));
-        actions.append(button('End call', 'btn btn-danger active-call-hangup', {...call, monitorable: true}));
+        if (canHangup) actions.append(button('End call', 'btn btn-danger active-call-hangup', {...call, monitorable: true}));
         card.append(head, route, meta, actions); callsBody.append(card);
     });
 }

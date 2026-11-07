@@ -130,6 +130,12 @@ final class Auth
             return true;
         }
 
+        // Regenerating every tenant's config and reloading Asterisk is a
+        // global control-plane operation, never a delegable tenant ability.
+        if ($ability === 'system.apply') {
+            return false;
+        }
+
         $user = $this->user();
         if (!$user || empty($user['tenant_id'])) { return false; }
         $json = App::getInstance()->db()->scalar(
@@ -168,11 +174,12 @@ final class Auth
             'cdr.view' => 'Call history — view',
             'cdr.delete' => 'Delete call history',
             'call.listen' => 'Active calls — view/listen',
+            'call.hangup' => 'Active calls — end calls',
             'user.view' => 'Users — view', 'user.manage' => 'Users — create/edit/delete',
             'role.view' => 'Roles — view', 'role.manage' => 'Roles — create/edit/delete',
             'tenant_security.view' => 'Tenant login security — view',
             'tenant_security.manage' => 'Tenant login security — block/unblock IPs',
-            'system_status.view' => 'System status — view', 'system.apply' => 'Apply Asterisk configuration',
+            'system_status.view' => 'System status — view',
             'system_settings.view' => 'Tenant settings — view', 'system_settings.manage' => 'Tenant settings — edit',
             'audit.view' => 'Audit log — view',
         ];

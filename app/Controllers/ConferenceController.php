@@ -59,11 +59,7 @@ final class ConferenceController extends BaseController
             return Response::redirect('/conferences');
         }
 
-        $dup = $this->db()->scalar(
-            'SELECT COUNT(*) FROM conferences WHERE tenant_id = ? AND extension = ?',
-            [$tid, $data['extension']]
-        );
-        if ($dup) {
+        if (!$this->dialplanNumberAvailable($tid, $data['extension'], 'conferences')) {
             $this->stashOld($request);
             Flash::error('That extension number is already used by a conference.');
             return Response::redirect('/conferences');
@@ -99,6 +95,12 @@ final class ConferenceController extends BaseController
         if ($v->fails()) {
             $this->stashOld($request);
             Flash::error($v->firstError());
+            return Response::redirect('/conferences');
+        }
+
+        if (!$this->dialplanNumberAvailable((int) $row['tenant_id'], $data['extension'], 'conferences', (int) $row['id'])) {
+            $this->stashOld($request);
+            Flash::error('That dialplan number is already used by another tenant feature.');
             return Response::redirect('/conferences');
         }
 

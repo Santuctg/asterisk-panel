@@ -67,6 +67,33 @@ $check((int) $db->scalar('SELECT COUNT(*) FROM voicemail') === 0
 $check((int) $db->scalar('SELECT COUNT(*) FROM outbound_routes') === 0,
     'an outbound route cannot reference another tenant trunk');
 
+(new App\Controllers\RingGroupController())->store(new App\Core\Request('POST', '/ring-groups', [], [
+    'extension' => '1001', 'name' => 'Colliding group', 'strategy' => 'ringall', 'timeout' => '30', 'enabled' => '1',
+]));
+$check((int) $db->scalar('SELECT COUNT(*) FROM ring_groups WHERE tenant_id = ?', [$tenantA]) === 0,
+    'one tenant cannot reuse an extension number for another dialplan feature');
+
+$provisionToken = bin2hex(random_bytes(32));
+$db->insert('devices', [
+    'tenant_id' => $tenantA, 'extension_id' => $extensionA, 'mac' => '001565aabbcc',
+    'vendor' => 'generic', 'provision_token' => $provisionToken, 'enabled' => 1,
+]);
+$provisioning = new App\Services\ProvisioningService();
+[$deniedProvision] = $provisioning->serve('001565aabbcc', str_repeat('0', 64));
+[$allowedProvision] = $provisioning->serve('001565aabbcc', $provisionToken);
+$check($deniedProvision === '' && str_contains($allowedProvision, 'password=a-secret')
+    && str_contains($provisioning->provisionUrl($db->one('SELECT * FROM devices WHERE mac = ?', ['001565aabbcc'])), '/prov/' . $provisionToken . '/'),
+    'device provisioning requires a per-device random capability token');
+$db->update('extensions', $extensionA, ['secret' => 'rotated-secret']);
+[$refreshedProvision] = $provisioning->serve('001565aabbcc', $provisionToken);
+$check(str_contains($refreshedProvision, 'password=rotated-secret') && !str_contains($refreshedProvision, 'password=a-secret'),
+    'provisioning cache refreshes after a credential change without relying on timestamps');
+$db->update('devices', (int) $db->scalar('SELECT id FROM devices WHERE mac = ?', ['001565aabbcc']), ['extension_id' => $extensionB]);
+[$crossTenantProvision] = $provisioning->serve('001565aabbcc', $provisionToken);
+$check(!str_contains($crossTenantProvision, 'b-secret') && !str_contains($crossTenantProvision, 'username=2001'),
+    'legacy cross-tenant device links cannot disclose another tenant SIP credentials');
+$db->update('extensions', $extensionA, ['secret' => 'a-secret']);
+
 // Direct database writes model legacy/imported data and prove generation is safe too.
 $payload = "\n[evil]\ninjected_directive = yes\n";
 $db->update('tenants', $tenantA, ['name' => 'Tenant A' . $payload]);
@@ -122,4 +149,31 @@ $nginx = (string) file_get_contents(BASE_PATH . '/resources/deploy/nginx-https.c
 $check(str_contains($nginx, 'microphone=(self)') && !str_contains($nginx, 'microphone=()'),
     'main HTTPS policy allows same-origin Web Phone microphone access');
 
-echo "All emergency security regression checks passed.\n";
+$db->insert('audit_log', [
+    'tenant_id' => $tenantA, 'user_id' => $adminA, 'action' => 'tenant_a.visible_action', 'created_at' => date('Y-m-d H:i:s'),
+]);
+$db->insert('audit_log', [
+    'tenant_id' => $tenantB, 'user_id' => null, 'action' => 'tenant_b.private_action', 'created_at' => date('Y-m-d H:i:s'),
+]);
+$system = new App\Controllers\SystemController();
+$auditPage = $system->auditLog(new App\Core\Request('GET', '/system/audit'));
+$auditFeed = json_decode($system->auditFeed(new App\Core\Request('GET', '/system/audit-feed', ['since' => 0]))->body(), true);
+$check(str_contains($auditPage->body(), 'tenant_a.visible_action')
+    && !str_contains($auditPage->body(), 'tenant_b.private_action')
+    && count($auditFeed['rows'] ?? []) === 1,
+    'tenant audit pages and feeds cannot disclose another tenant actions');
+$check($system->apply(new App\Core\Request('POST', '/system/apply', [], ['feature' => 'all']))->status() === 403,
+    'tenant admins cannot trigger a global Asterisk regeneration or reload');
+$tenantStats = json_decode($system->serverStats(new App\Core\Request('GET', '/system/server-stats'))->body(), true);
+$check(array_key_exists('cpu', $tenantStats['current'] ?? []) && $tenantStats['current']['cpu'] === null
+    && ($tenantStats['series'] ?? null) === [],
+    'tenant status endpoint does not expose panel host resource history');
+$tenantContacts = App\Services\Asterisk\AsteriskManager::filterTenantContacts([
+    ['uri' => '1001@a.test/sip:1001@192.0.2.10', 'status' => 'Avail'],
+    ['uri' => '2001@b.test/sip:2001@192.0.2.20', 'status' => 'Avail'],
+    ['uri' => 'trunk-99-aor/sip:198.51.100.20', 'status' => 'Avail'],
+], [['extension' => '1001']], 'a.test', 'tenant_a');
+$check(count($tenantContacts) === 1 && str_starts_with($tenantContacts[0]['uri'], '1001@a.test/'),
+    'tenant status contact filtering excludes other endpoint and trunk registrations');
+
+echo "All security regression checks passed.\n";

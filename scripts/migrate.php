@@ -23,6 +23,8 @@ $db->exec($schema['extension_status_history']);
 $db->exec($schema['server_stats_history']);
 $db->exec($schema['announcements']);
 $db->exec($schema['outbound_route_schedules']);
+$db->exec($schema['audit_log']);
+$db->exec($schema['webphone_login_throttles']);
 
 // Outbound calling is denied by default and enabled per extension by assigning
 // one tenant-scoped outbound route.
@@ -50,6 +52,10 @@ if ($hasTimeConditions && $hasTimeConditionLink) {
           AND NOT EXISTS (SELECT 1 FROM outbound_route_schedules s WHERE s.outbound_route_id = o.id)');
 }
 if ($driver === 'sqlite') {
+    $auditColumns = array_column($db->all('PRAGMA table_info(audit_log)'), 'name');
+    if (!in_array('tenant_id', $auditColumns, true)) {
+        $pdo->exec('ALTER TABLE audit_log ADD COLUMN tenant_id INTEGER REFERENCES tenants(id) ON DELETE SET NULL');
+    }
     $hasMohClasses = (int) $db->scalar(
         "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'moh_classes'"
     );
@@ -105,6 +111,19 @@ if ($driver === 'sqlite') {
             $pdo->exec('ALTER TABLE extensions ADD COLUMN outbound_route_id INTEGER');
         }
     }
+    $hasDevices = (int) $db->scalar(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'devices'"
+    );
+    if ($hasDevices) {
+        $deviceColumns = array_column($db->all('PRAGMA table_info(devices)'), 'name');
+        if (!in_array('provision_token', $deviceColumns, true)) {
+            $pdo->exec('ALTER TABLE devices ADD COLUMN provision_token VARCHAR(64)');
+        }
+        foreach ($db->all('SELECT id FROM devices WHERE provision_token IS NULL OR provision_token = ""') as $device) {
+            $db->update('devices', (int) $device['id'], ['provision_token' => bin2hex(random_bytes(32))]);
+        }
+        $pdo->exec('CREATE UNIQUE INDEX IF NOT EXISTS devices_provision_token_unique ON devices(provision_token)');
+    }
     $hasOutboundRoutes = (int) $db->scalar(
         "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'outbound_routes'"
     );
@@ -133,6 +152,13 @@ if ($driver === 'sqlite') {
         $pdo->exec('ALTER TABLE announcements ADD COLUMN original_filename VARCHAR(255)');
     }
 } else {
+    $hasAuditTenant = (int) $db->scalar(
+        'SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+        ['audit_log', 'tenant_id']
+    );
+    if (!$hasAuditTenant) {
+        $pdo->exec('ALTER TABLE audit_log ADD COLUMN tenant_id BIGINT NULL');
+    }
     $hasMohTenant = (int) $db->scalar(
         'SELECT COUNT(*) FROM information_schema.COLUMNS
          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
@@ -160,6 +186,19 @@ if ($driver === 'sqlite') {
     if (!$hasOutboundRoute) {
         $pdo->exec('ALTER TABLE extensions ADD COLUMN outbound_route_id BIGINT NULL');
     }
+    $hasProvisionToken = (int) $db->scalar(
+        'SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+        ['devices', 'provision_token']
+    );
+    if (!$hasProvisionToken) {
+        $pdo->exec('ALTER TABLE devices ADD COLUMN provision_token VARCHAR(64) NULL');
+    }
+    foreach ($db->all('SELECT id FROM devices WHERE provision_token IS NULL OR provision_token = ""') as $device) {
+        $db->update('devices', (int) $device['id'], ['provision_token' => bin2hex(random_bytes(32))]);
+    }
+    if (!(int) $db->scalar('SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?', ['devices', 'devices_provision_token_unique'])) {
+        $pdo->exec('CREATE UNIQUE INDEX devices_provision_token_unique ON devices(provision_token)');
+    }
     $hasTimeCondition = (int) $db->scalar(
         'SELECT COUNT(*) FROM information_schema.COLUMNS
          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
@@ -185,6 +224,11 @@ if ($driver === 'sqlite') {
         if (!$exists) { $pdo->exec("ALTER TABLE announcements ADD COLUMN {$column} {$definition}"); }
     }
 }
+
+// Existing tenant-user actions can be safely assigned to their account's
+// tenant. Global/superadmin actions remain NULL and are visible only globally.
+$db->run('UPDATE audit_log SET tenant_id = (SELECT u.tenant_id FROM users u WHERE u.id = audit_log.user_id)
+          WHERE tenant_id IS NULL AND user_id IS NOT NULL');
 
 // Every tenant starts with a private default playlist. Existing global MOH
 // rows were assigned to the first tenant above; this fills the remaining ones.

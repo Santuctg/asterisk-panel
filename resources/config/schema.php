@@ -179,6 +179,7 @@ return [
             description    VARCHAR(160),
             firmware       VARCHAR(80),
             provision_path VARCHAR(255),
+            provision_token VARCHAR(64) NOT NULL UNIQUE,
             enabled        INTEGER DEFAULT 1,
             created_at     DATETIME,
             updated_at     DATETIME
@@ -416,6 +417,7 @@ return [
     'audit_log' => '
         CREATE TABLE IF NOT EXISTS audit_log (
             id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            tenant_id  INTEGER REFERENCES tenants(id) ON DELETE SET NULL,
             user_id    INTEGER,
             action     VARCHAR(120) NOT NULL,
             entity     VARCHAR(60),
@@ -423,6 +425,17 @@ return [
             detail     TEXT,
             ip         VARCHAR(45),
             created_at DATETIME
+        )',
+
+    'webphone_login_throttles' => '
+        CREATE TABLE IF NOT EXISTS webphone_login_throttles (
+            key_hash       VARCHAR(64) PRIMARY KEY,
+            ip             VARCHAR(45) NOT NULL,
+            tenant_id      INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+            attempts       INTEGER NOT NULL DEFAULT 0,
+            window_started INTEGER NOT NULL,
+            last_attempt   INTEGER NOT NULL,
+            blocked_until  INTEGER NOT NULL DEFAULT 0
         )',
 
     'cdr_import_log' => '

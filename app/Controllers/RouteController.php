@@ -477,6 +477,10 @@ final class RouteController extends BaseController
             Flash::error($v->firstError());
             return Response::redirect('/routes');
         }
+        if ($data['extension'] !== '' && !$this->dialplanNumberAvailable($tid, $data['extension'], 'time_conditions')) {
+            Flash::error('That dialplan number is already used by another tenant feature.');
+            return Response::redirect('/routes?tab=time');
+        }
         if (!$this->validDestination($data['open_type'], $data['open_dest_id'], $tid)
             || !$this->validDestination($data['closed_type'], $data['closed_dest_id'], $tid)) {
             Flash::error('Choose valid tenant destinations for both time-condition branches.');
@@ -516,6 +520,13 @@ final class RouteController extends BaseController
             'priority'       => $request->int('priority', 0),
             'enabled'        => $request->bool('enabled', true) ? 1 : 0,
         ];
+
+        if ($data['extension'] !== '' && !$this->dialplanNumberAvailable(
+            (int) $row['tenant_id'], $data['extension'], 'time_conditions', (int) $row['id']
+        )) {
+            Flash::error('That dialplan number is already used by another tenant feature.');
+            return Response::redirect('/routes?tab=time');
+        }
 
         if (!$this->validDestination($data['open_type'], $data['open_dest_id'], (int) $row['tenant_id'])
             || !$this->validDestination($data['closed_type'], $data['closed_dest_id'], (int) $row['tenant_id'])) {

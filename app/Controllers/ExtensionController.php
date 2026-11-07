@@ -219,11 +219,7 @@ final class ExtensionController extends BaseController
         }
 
         // Unique check scoped by tenant (Validator's unique rule is generic).
-        $dup = $this->db()->scalar(
-            'SELECT COUNT(*) FROM extensions WHERE tenant_id = ? AND extension = ?',
-            [$tid, $data['extension']]
-        );
-        if ($dup) {
+        if (!$this->dialplanNumberAvailable($tid, $data['extension'], 'extensions')) {
             $this->stashOld($request);
             Flash::error('That extension number is already in use in this tenant.');
             return Response::redirect('/extensions/create');
@@ -293,11 +289,7 @@ final class ExtensionController extends BaseController
             return Response::redirect("/extensions/{$row['id']}/edit");
         }
 
-        $dup = $this->db()->scalar(
-            'SELECT COUNT(*) FROM extensions WHERE tenant_id = ? AND extension = ? AND id != ?',
-            [(int) $row['tenant_id'], $data['extension'], (int) $row['id']]
-        );
-        if ($dup) {
+        if (!$this->dialplanNumberAvailable((int) $row['tenant_id'], $data['extension'], 'extensions', (int) $row['id'])) {
             $this->stashOld($request);
             Flash::error('That extension number is already in use in this tenant.');
             return Response::redirect("/extensions/{$row['id']}/edit");

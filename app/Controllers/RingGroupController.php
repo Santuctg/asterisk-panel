@@ -80,11 +80,7 @@ final class RingGroupController extends BaseController
             return Response::redirect('/ring-groups/create');
         }
 
-        $dup = $this->db()->scalar(
-            'SELECT COUNT(*) FROM ring_groups WHERE tenant_id = ? AND extension = ?',
-            [$tid, $data['extension']]
-        );
-        if ($dup) {
+        if (!$this->dialplanNumberAvailable($tid, $data['extension'], 'ring_groups')) {
             $this->stashOld($request);
             Flash::error('That extension number is already used by a ring group.');
             return Response::redirect('/ring-groups/create');
@@ -149,6 +145,12 @@ final class RingGroupController extends BaseController
         if ($v->fails()) {
             $this->stashOld($request);
             Flash::error($v->firstError());
+            return Response::redirect("/ring-groups/{$row['id']}/edit");
+        }
+
+        if (!$this->dialplanNumberAvailable((int) $row['tenant_id'], $data['extension'], 'ring_groups', (int) $row['id'])) {
+            $this->stashOld($request);
+            Flash::error('That dialplan number is already used by another tenant feature.');
             return Response::redirect("/ring-groups/{$row['id']}/edit");
         }
 

@@ -76,6 +76,7 @@ final class DeviceController extends BaseController
         ]);
         $data['tenant_id'] = $tid;
         $data['mac']       = Str::macCompact($data['mac']);
+        $data['provision_token'] = bin2hex(random_bytes(32));
 
         if ($v->fails()) {
             $this->stashOld($request);

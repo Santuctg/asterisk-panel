@@ -30,8 +30,8 @@ $router->post('/logout', [AuthController::class, 'logout'], [Csrf::middleware(..
 $router->get('/web-phone', [WebPhoneController::class, 'index']);
 $router->post('/web-phone/connect', [WebPhoneController::class, 'connect'], [Csrf::middleware(...)]);
 
-// Phones poll their config here; no session auth (MAC-address keyed).
-$router->get('/prov/{file}', [ProvisionController::class, 'serve']);
+// Phones poll with a per-device random capability token; no panel session.
+$router->get('/prov/{token}/{file}', [ProvisionController::class, 'serve']);
 
 /** Everything below requires an authenticated session. */
 $auth    = [Auth::require()];
@@ -46,7 +46,7 @@ $router->get('/active-calls', [LiveListenController::class, 'index'], [Auth::req
 $router->get('/active-calls/feed', [LiveListenController::class, 'calls'], [Auth::require('call.listen')]);
 $router->post('/active-calls/browser-session', [LiveListenController::class, 'browserSession'], [Auth::require('call.listen'), Csrf::middleware(...)]);
 $router->post('/active-calls/listen', [LiveListenController::class, 'start'], [Auth::require('call.listen'), Csrf::middleware(...)]);
-$router->post('/active-calls/hangup', [LiveListenController::class, 'hangup'], [Auth::require('call.listen'), Csrf::middleware(...)]);
+$router->post('/active-calls/hangup', [LiveListenController::class, 'hangup'], [Auth::require('call.hangup'), Csrf::middleware(...)]);
 $router->get('/live-listen', [LiveListenController::class, 'legacy'], [Auth::require('call.listen')]);
 
 // Extensions

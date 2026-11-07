@@ -400,6 +400,38 @@ final class AsteriskManager
         return $rows;
     }
 
+    /** Registered contacts belonging only to one tenant's endpoint namespace. */
+    public function tenantContacts(int $tenantId): array
+    {
+        $db = App::getInstance()->db();
+        $tenant = $db->one('SELECT context, domain FROM tenants WHERE id = ? AND enabled = 1', [$tenantId]);
+        if (!$tenant) return [];
+        $realm = strtolower(rtrim(trim((string) ($tenant['domain'] ?? '')), '.')) ?: (string) $tenant['context'];
+        return self::filterTenantContacts(
+            $this->contacts(),
+            $db->all('SELECT extension FROM extensions WHERE tenant_id = ? AND enabled = 1', [$tenantId]),
+            $realm,
+            (string) $tenant['context'],
+            $db->all('SELECT id FROM trunks WHERE tenant_id = ? AND enabled = 1', [$tenantId])
+        );
+    }
+
+    public static function filterTenantContacts(array $contacts, array $extensions, string $realm, string $context, array $trunks = []): array
+    {
+        $safeContext = preg_replace('/[^A-Za-z0-9_]/', '_', $context) ?: '';
+        $allowed = [];
+        foreach ($extensions as $extension) {
+            $number = (string) $extension['extension'];
+            $allowed[$number . '@' . $realm] = true;
+            if ($safeContext !== '') $allowed[$safeContext . '_' . $number . '-phone-web'] = true;
+        }
+        foreach ($trunks as $trunk) $allowed['trunk-' . (int) $trunk['id'] . '-aor'] = true;
+        return array_values(array_filter($contacts, static function (array $contact) use ($allowed): bool {
+            $aor = strstr((string) ($contact['uri'] ?? ''), '/', true);
+            return isset($allowed[$aor === false ? (string) ($contact['uri'] ?? '') : $aor]);
+        }));
+    }
+
     /** Live conferences (ConfBridge). */
     public function conferences(): array
     {

@@ -17,6 +17,7 @@ $serverSeries = is_array($serverSeries ?? null) ? $serverSeries : [];
         <div class="subtitle">Live Asterisk state and configuration deployment</div>
     </div>
     <div class="page-actions">
+        <?php if (auth()->can('system.apply')): ?>
         <form method="post" action="/system/apply" class="inline">
             <?= csrf() ?>
             <input type="hidden" name="feature" value="all">
@@ -24,6 +25,7 @@ $serverSeries = is_array($serverSeries ?? null) ? $serverSeries : [];
                 <?= $this->fragment('icons/refresh') ?> Apply all config
             </button>
         </form>
+        <?php endif; ?>
         <a href="/system/settings" class="btn"><?= $this->fragment('icons/cog') ?> Settings</a>
     </div>
 </div>
@@ -77,6 +79,7 @@ $meterWidth = static function (float $percent): int {
     return (int) round(max(0.0, min(100.0, $percent)));
 };
 ?>
+<?php if (!auth()->check() || auth()->isSuperAdmin()): ?>
 <div class="card mb-4">
     <div class="card-head">
         <h2>Server resources</h2>
@@ -158,7 +161,9 @@ $meterWidth = static function (float $percent): int {
         </div>
     </div>
 </div>
+<?php endif; ?>
 
+<?php if (auth()->can('system.apply')): ?>
 <div class="card mb-4">
     <div class="card-head"><h2>Apply configuration</h2></div>
     <div class="card-body">
@@ -195,6 +200,7 @@ $meterWidth = static function (float $percent): int {
         </div>
     </div>
 </div>
+<?php endif; ?>
 
 <?php if ($online): ?>
 <div class="grid grid-2">

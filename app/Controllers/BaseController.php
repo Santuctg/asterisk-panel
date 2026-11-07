@@ -92,10 +92,18 @@ abstract class BaseController
         unset($_SESSION['__old']);
     }
 
+    protected function dialplanNumberAvailable(int $tenantId, string $number, string $table, ?int $id = null): bool
+    {
+        return (new \App\Services\DialplanNumberRegistry())->available($tenantId, $number, $table, $id);
+    }
+
     /** Record an audit-log entry for the current user + action. */
     protected function audit(string $action, ?string $entity = null, ?int $entityId = null, array $detail = []): void
     {
+        $user = $this->app->auth()->user() ?? [];
+        $tenantId = !empty($user['tenant_id']) ? (int) $user['tenant_id'] : ($this->tenantId() ?: null);
         $this->db()->insert('audit_log', [
+            'tenant_id'  => $tenantId,
             'user_id'   => $this->app->auth()->id(),
             'action'    => $action,
             'entity'    => $entity,

@@ -57,11 +57,7 @@ final class ParkingController extends BaseController
             return Response::redirect('/parking');
         }
 
-        $dup = $this->db()->scalar(
-            'SELECT COUNT(*) FROM parking_lots WHERE tenant_id = ? AND extension = ?',
-            [$tid, $data['extension']]
-        );
-        if ($dup) {
+        if (!$this->dialplanNumberAvailable($tid, $data['extension'], 'parking_lots')) {
             $this->stashOld($request);
             Flash::error('That park extension is already in use.');
             return Response::redirect('/parking');
@@ -97,6 +93,12 @@ final class ParkingController extends BaseController
         if ($v->fails()) {
             $this->stashOld($request);
             Flash::error($v->firstError());
+            return Response::redirect('/parking');
+        }
+
+        if (!$this->dialplanNumberAvailable((int) $row['tenant_id'], $data['extension'], 'parking_lots', (int) $row['id'])) {
+            $this->stashOld($request);
+            Flash::error('That dialplan number is already used by another tenant feature.');
             return Response::redirect('/parking');
         }
 

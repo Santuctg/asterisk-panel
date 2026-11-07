@@ -38,6 +38,8 @@ $check = static function (bool $ok, string $label): void {
 };
 $check(tenant_id() === $tid, 'tenant scope cannot be overridden by session');
 $check($app->auth()->can('call.listen'), 'tenant admin may listen');
+$check($app->auth()->can('call.hangup') && !$app->auth()->can('system.apply'),
+    'tenant admin may end tenant calls but cannot run a global Asterisk reload');
 $gen = new App\Services\Asterisk\ConfigGenerator();
 $pjsip = $gen->renderPjsipEndpoints();
 $check(str_contains($pjsip, "[1001@tenant-a.example.test](endpoint_basic)\ncontext = tenant_a\nauth = 1001@tenant-a.example.test\naors = 1001@tenant-a.example.test\nidentify_by = username,auth_username")
@@ -50,7 +52,7 @@ $check(str_contains($pjsip, "[tenant_a_1001-phone-web]\ntype = endpoint")
     && str_contains($pjsip, "callerid = \"Target\" <1001>\nwebrtc = yes")
     && substr_count($pjsip, "force_rport = yes\nrewrite_contact = yes\nrtp_symmetric = yes") >= 4,
     'WebRTC endpoints keep caller identity and symmetric NAT-safe audio');
-$device = ['mac' => '001565aabbcc', 'vendor' => 'generic', 'model' => '', 'extension_id' => $targetExtension, 'description' => 'Desk'];
+$device = ['tenant_id' => $tid, 'mac' => '001565aabbcc', 'vendor' => 'generic', 'model' => '', 'extension_id' => $targetExtension, 'description' => 'Desk'];
 $provisioned = (new App\Services\ProvisioningService())->render($device)['body'];
 $check(str_contains($provisioned, 'sip_server=tenant-a.example.test')
     && str_contains($provisioned, 'username=1001')
@@ -86,8 +88,8 @@ $check(str_contains($dashboard->body(), '/dashboard/live-calls') && str_contains
     && str_contains($dashboard->body(), 'inbound.caller')
     && str_contains($dashboard->body(), 'trunk.uniqueid === trunk.linkedid'),
     'dashboard detects inbound direction from the oldest trunk leg and renders its caller number');
-$check(str_contains($dashboard->body(), 'method="post" action="/system/apply"')
-    && !str_contains($dashboard->body(), 'href="/system/apply"'), 'dashboard applies Asterisk config with a protected POST form');
+$check(!str_contains($dashboard->body(), 'action="/system/apply"'),
+    'tenant dashboard does not expose the global Asterisk apply action');
 $check(App\Controllers\DashboardController::activeCallCount([
     ['name' => 'PJSIP/trunk-a', 'bridged' => '', 'linkedid' => 'call-1'],
     ['name' => 'PJSIP/1001-a', 'bridged' => 'PJSIP/2002-b', 'linkedid' => 'call-1'],
@@ -286,6 +288,18 @@ $primaryUrlPhone = (new App\Controllers\WebPhoneController())->connect(new App\C
 $check($primaryUrlPhone->status() === 200
     && (json_decode($primaryUrlPhone->body(), true)['username'] ?? '') === 'primary_url_3001-phone-web',
     'Web Phone honors a tenant domain even when it is also the primary panel URL');
+$failedLogin = null;
+for ($attempt = 1; $attempt <= 5; $attempt++) {
+    $failedLogin = (new App\Controllers\WebPhoneController())->connect(new App\Core\Request(
+        'POST', '/web-phone/connect', [], ['extension' => '9999', 'secret' => 'wrong'], ['REMOTE_ADDR' => '192.0.2.47']
+    ));
+}
+$blockedLogin = (new App\Controllers\WebPhoneController())->connect(new App\Core\Request(
+    'POST', '/web-phone/connect', [], ['extension' => '9999', 'secret' => 'wrong'], ['REMOTE_ADDR' => '192.0.2.47']
+));
+$check($failedLogin?->status() === 401 && $blockedLogin->status() === 429
+    && (int) $db->scalar('SELECT attempts FROM webphone_login_throttles WHERE ip = ?', ['192.0.2.47']) === 5,
+    'Web Phone brute-force throttling persists in the database across controller instances');
 $app->auth()->login($user);
 unset($_SERVER['HTTP_HOST']);
 

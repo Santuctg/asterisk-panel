@@ -19,6 +19,8 @@ final class SystemController extends BaseController
     /** GET /system/status */
     public function status(Request $request): Response
     {
+        $isGlobal = $this->app->auth()->isSuperAdmin();
+        $tenantId = $this->tenantId();
         $online  = false;
         $version = ['version' => 'unavailable', 'raw' => ''];
         $uptime  = '';
@@ -35,18 +37,19 @@ final class SystemController extends BaseController
             $online = $mgr->isOnline();
 
             if ($online) {
-                $version  = $mgr->version();
-                $uptime   = $mgr->uptime()['raw'] ?? '';
-                $channels = $this->tenantId() ? $mgr->tenantChannels($this->tenantId(), 30) : [];
-                $contacts = $mgr->contacts();
-                $confs    = $mgr->conferences();
-                $queues   = $mgr->queueStatus();
+                if ($isGlobal) {
+                    $version  = $mgr->version();
+                    $uptime   = $mgr->uptime()['raw'] ?? '';
+                }
+                $channels = $tenantId ? $mgr->tenantChannels($tenantId, 30) : [];
+                $contacts = $tenantId && !$isGlobal ? $mgr->tenantContacts($tenantId) : $mgr->contacts();
+                $confs    = $this->tenantConferences($mgr->conferences());
+                $queues   = $this->tenantLiveRows($mgr->queueStatus(), 'name', 'queues', ['extension']);
 
                 // Collect per-extension connected IP from channel snapshot.
-                if ($this->tenantId()) {
+                if ($tenantId) {
                     try {
-                        $snapshot = $mgr->channelSnapshot();
-                        foreach ($snapshot as $chan) {
+                        foreach ($channels as $chan) {
                             $ext = (string) ($chan['extension'] ?? '');
                             if ($ext !== '' && !isset($extIps[$ext])) {
                                 $ui = (string) ($chan['uniqueid'] ?? '');
@@ -63,38 +66,44 @@ final class SystemController extends BaseController
             \App\Core\Logger::info('Status page: Asterisk unavailable', ['error' => $e->getMessage()]);
         }
 
-        try {
-            $configDir = (new \App\Services\Asterisk\ConfigGenerator())->dir();
-        } catch (\Throwable $e) {
-            $configDir = '/etc/asterisk/asterisk_panel';
+        if ($isGlobal) {
+            try {
+                $configDir = (new \App\Services\Asterisk\ConfigGenerator())->dir();
+            } catch (\Throwable $e) {
+                $configDir = '/etc/asterisk/asterisk_panel';
+            }
         }
 
         // Host CPU / memory / disk / network. Independent of Asterisk, so it
         // is sampled even when AMI is down; every value may be null.
-        try {
-            $serverStats = (new \App\Services\ServerStats())->sample();
-        } catch (\Throwable $e) {
-            \App\Core\Logger::info('Status page: server stats unavailable', ['error' => $e->getMessage()]);
-        }
+        if ($isGlobal) {
+            try {
+                $serverStats = (new \App\Services\ServerStats())->sample();
+            } catch (\Throwable $e) {
+                \App\Core\Logger::info('Status page: server stats unavailable', ['error' => $e->getMessage()]);
+            }
 
         // Feed the 24-hour graph from the page load too, so history grows
         // even when JavaScript is disabled. Capped at one row a minute.
-        try {
-            $history = new \App\Services\ServerStatsHistory();
-            $history->record($serverStats);
-            $history->prune();
-        } catch (\Throwable $e) {
-            \App\Core\Logger::info('Status page: server history unavailable', ['error' => $e->getMessage()]);
-        }
+            try {
+                $history = new \App\Services\ServerStatsHistory();
+                $history->record($serverStats);
+                $history->prune();
+            } catch (\Throwable $e) {
+                \App\Core\Logger::info('Status page: server history unavailable', ['error' => $e->getMessage()]);
+            }
 
         // 24-hour history behind the resource graph. The table is created by
         // scripts/migrate.php; a panel that has not migrated yet just shows
         // the empty state.
-        $serverSeries = [];
-        try {
-            $serverSeries = (new \App\Services\ServerStatsHistory())->series(24, 168);
-        } catch (\Throwable $e) {
-            \App\Core\Logger::info('Status page: server history unavailable', ['error' => $e->getMessage()]);
+            $serverSeries = [];
+            try {
+                $serverSeries = (new \App\Services\ServerStatsHistory())->series(24, 168);
+            } catch (\Throwable $e) {
+                \App\Core\Logger::info('Status page: server history unavailable', ['error' => $e->getMessage()]);
+            }
+        } else {
+            $serverSeries = [];
         }
 
         return $this->view('system/status', [
@@ -118,6 +127,12 @@ final class SystemController extends BaseController
      */
     public function serverStats(Request $request): Response
     {
+        if (!$this->app->auth()->isSuperAdmin()) {
+            return $this->json([
+                'current' => ['cpu' => null, 'memory' => null, 'disk' => null, 'network' => null],
+                'series' => [], 'generated_at' => date('c'),
+            ]);
+        }
         $stats = ['cpu' => null, 'memory' => null, 'disk' => null, 'network' => null];
         try {
             $stats = (new \App\Services\ServerStats())->sample();
@@ -192,6 +207,9 @@ final class SystemController extends BaseController
     /** POST /system/apply — regenerate config + reload Asterisk. */
     public function apply(Request $request): Response
     {
+        if (!$this->app->auth()->isSuperAdmin()) {
+            return Response::text('Forbidden', 403);
+        }
         $feature = $request->str('feature', 'all');
 
         try {
@@ -321,7 +339,10 @@ final class SystemController extends BaseController
         $page = $request->page();
         $per  = $request->perPage();
 
-        $total = (int) $this->db()->scalar('SELECT COUNT(*) FROM audit_log');
+        $tenantId = $this->app->auth()->isSuperAdmin() ? null : $this->tenantId();
+        $where = $tenantId ? ' WHERE a.tenant_id = ?' : '';
+        $params = $tenantId ? [$tenantId] : [];
+        $total = (int) $this->db()->scalar('SELECT COUNT(*) FROM audit_log a' . $where, $params);
         $pages = max(1, (int) ceil($total / $per));
         $page  = min($page, $pages);
         $off   = ($page - 1) * $per;
@@ -329,7 +350,8 @@ final class SystemController extends BaseController
         $rows = $this->db()->all(
             'SELECT a.*, u.username FROM audit_log a
              LEFT JOIN users u ON u.id = a.user_id
-             ORDER BY a.id DESC LIMIT ' . (int) $per . ' OFFSET ' . (int) $off
+             ' . $where . ' ORDER BY a.id DESC LIMIT ' . (int) $per . ' OFFSET ' . (int) $off,
+            $params
         );
 
         return $this->view('system/audit', [
@@ -342,11 +364,14 @@ final class SystemController extends BaseController
     {
         $since = (int) $request->get('since', 0);
 
+        $tenantId = $this->app->auth()->isSuperAdmin() ? null : $this->tenantId();
+        $where = $tenantId ? ' AND a.tenant_id = ?' : '';
+        $params = $tenantId ? [$since, $tenantId] : [$since];
         $rows = $this->db()->all(
             'SELECT a.*, u.username FROM audit_log a
              LEFT JOIN users u ON u.id = a.user_id
-             WHERE a.id > ? ORDER BY a.id DESC LIMIT 50',
-            [$since]
+             WHERE a.id > ?' . $where . ' ORDER BY a.id DESC LIMIT 50',
+            $params
         );
 
         return $this->json(['rows' => $rows]);
@@ -364,6 +389,42 @@ final class SystemController extends BaseController
             $out[$r['key']] = $r['value'];
         }
         return $out;
+    }
+
+    /** Filter global AMI rows to values owned by the selected tenant. */
+    private function tenantLiveRows(array $rows, string $rowKey, string $table, array $columns): array
+    {
+        if ($this->app->auth()->isSuperAdmin()) return $rows;
+        $tenantId = $this->tenantId();
+        if (!$tenantId) return [];
+        $allowed = [];
+        foreach ($this->db()->all('SELECT ' . implode(', ', $columns) . " FROM {$table} WHERE tenant_id = ? AND enabled = 1", [$tenantId]) as $item) {
+            foreach ($columns as $column) {
+                $value = trim((string) ($item[$column] ?? ''));
+                if ($value !== '') $allowed[$value] = true;
+            }
+        }
+        return array_values(array_filter($rows, static fn (array $row): bool => isset($allowed[(string) ($row[$rowKey] ?? '')])));
+    }
+
+    /** ConfBridge conference IDs are generated as "<pin>@<tenant-context>". */
+    private function tenantConferences(array $rows): array
+    {
+        if ($this->app->auth()->isSuperAdmin()) return $rows;
+        $tenantId = $this->tenantId();
+        if (!$tenantId) return [];
+        $tenant = $this->db()->one('SELECT context FROM tenants WHERE id = ? AND enabled = 1', [$tenantId]);
+        if (!$tenant) return [];
+        $context = preg_replace('/[^A-Za-z0-9_-]/', '_', (string) $tenant['context']) ?: 'invalid';
+        $allowed = [];
+        foreach ($this->db()->all('SELECT pin FROM conferences WHERE tenant_id = ? AND enabled = 1', [$tenantId]) as $conference) {
+            $pin = preg_replace('/[^A-Za-z0-9*#+_.@-]/', '', (string) $conference['pin']) ?: 'invalid';
+            $allowed[$pin . '@' . $context] = true;
+        }
+        return array_values(array_filter(
+            $rows,
+            static fn (array $row): bool => isset($allowed[(string) ($row['conference'] ?? '')])
+        ));
     }
 
     private function saveGlobalSetting(string $key, string $value): void

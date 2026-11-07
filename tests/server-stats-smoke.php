@@ -261,6 +261,11 @@ $check(str_contains(server_resource_chart([
 // ---------------------------------------------------------------------
 // The realtime endpoint the status page polls.
 // ---------------------------------------------------------------------
+$statsAdmin = $db->insert('users', [
+    'tenant_id' => null, 'username' => 'stats-root', 'password' => password_hash('test-only', PASSWORD_DEFAULT),
+    'role' => 'superadmin', 'active' => 1,
+]);
+$app->auth()->login($statsAdmin);
 $endpoint = (new App\Controllers\SystemController())->serverStats(
     new App\Core\Request('GET', '/system/server-stats')
 );
