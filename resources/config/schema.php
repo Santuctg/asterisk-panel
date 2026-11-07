@@ -408,11 +408,11 @@ return [
         CREATE TABLE IF NOT EXISTS settings (
             id         INTEGER PRIMARY KEY AUTOINCREMENT,
             tenant_id  INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
-            key        VARCHAR(80) NOT NULL,
+            `key`      VARCHAR(80) NOT NULL,
             value      TEXT,
             created_at DATETIME,
             updated_at DATETIME,
-            UNIQUE(tenant_id, key)
+            UNIQUE(tenant_id, `key`)
         )',
 
     'audit_log' => '

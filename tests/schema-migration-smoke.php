@@ -3,6 +3,26 @@
 declare(strict_types=1);
 
 $base = dirname(__DIR__);
+require_once $base . '/app/Core/SchemaSql.php';
+$schema = require $base . '/resources/config/schema.php';
+$mysqlRoles = App\Core\SchemaSql::compile($schema['roles'], 'mysql');
+$mysqlSettings = App\Core\SchemaSql::compile($schema['settings'], 'mysql');
+foreach ($schema as $table => $ddl) {
+    $mysqlDdl = App\Core\SchemaSql::compile($ddl, 'mysql');
+    if (str_contains($mysqlDdl, 'AUTOINCREMENT') || str_contains($mysqlDdl, 'DEFAULT "')) {
+        throw new RuntimeException("MySQL schema compilation left SQLite-only syntax in {$table}");
+    }
+}
+if (!str_contains($mysqlRoles, 'AUTO_INCREMENT')
+    || preg_match("/permissions\\s+TEXT[^,]*DEFAULT/i", $mysqlRoles)) {
+    throw new RuntimeException('MySQL schema compilation did not normalize identity or default syntax');
+}
+if (!str_contains($mysqlSettings, '`key`') || !str_contains($mysqlSettings, 'UNIQUE(tenant_id, `key`)')) {
+    throw new RuntimeException('MySQL settings schema does not quote the reserved key column');
+}
+if (App\Core\SchemaSql::compile($schema['roles'], 'sqlite') !== $schema['roles']) {
+    throw new RuntimeException('SQLite schema compilation must preserve canonical DDL');
+}
 $path = $base . '/storage/cache/schema-migration-smoke.sqlite';
 @mkdir(dirname($path), 0775, true);
 @unlink($path);

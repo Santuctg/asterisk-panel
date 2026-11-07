@@ -48,10 +48,11 @@ foreach (['storage/database', 'storage/logs', 'storage/cache', 'storage/provisio
 // ---------------------------------------------------------------------
 echo "[2/4] Creating database tables...\n";
 $schema = require BASE_PATH . '/resources/config/schema.php';
+$driver = (string) $db->pdo()->getAttribute(PDO::ATTR_DRIVER_NAME);
 
 $tables = [];
 foreach ($schema as $name => $sql) {
-    $db->exec($sql);
+    $db->exec(\App\Core\SchemaSql::compile($sql, $driver));
     $tables[] = $name;
 }
 echo '      ' . count($tables) . " tables ensured\n";

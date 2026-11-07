@@ -178,4 +178,41 @@ $check((new App\Services\TenantSecurity())->isBlocked($tenantA, '203.0.113.77')
     && !(new App\Services\TenantSecurity())->isBlocked($tenantB, '203.0.113.77'),
     'tenant login block is isolated per tenant');
 
+// Main-panel throttling must survive a replaced session cookie and must not
+// share reset state with successful Web Phone authentication from the same IP.
+$app->auth()->logout();
+$_SERVER['HTTP_HOST'] = 'a.example.test';
+$loginIp = '192.0.2.88';
+$authController = new App\Controllers\AuthController();
+for ($attempt = 1; $attempt <= 5; $attempt++) {
+    $_SESSION = []; // Simulate replacing the panel session cookie each time.
+    $failedPanelLogin = $authController->login(new App\Core\Request(
+        'POST', '/login', [], ['username' => 'admin-a', 'password' => 'wrong-password'],
+        ['REMOTE_ADDR' => $loginIp, 'HTTP_HOST' => 'a.example.test']
+    ));
+}
+$_SESSION = [];
+$blockedPanelLogin = $authController->login(new App\Core\Request(
+    'POST', '/login', [], ['username' => 'admin-a', 'password' => 'wrong-password'],
+    ['REMOTE_ADDR' => $loginIp, 'HTTP_HOST' => 'a.example.test']
+));
+$panelKey = (new App\Services\WebPhoneLoginThrottle())->key(
+    $loginIp,
+    App\Services\WebPhoneLoginThrottle::PANEL
+);
+$check($failedPanelLogin->status() === 302 && $blockedPanelLogin->status() === 429
+    && (int) ($blockedPanelLogin->headers()['Retry-After'] ?? 0) > 0
+    && (int) $db->scalar('SELECT attempts FROM webphone_login_throttles WHERE key_hash = ?', [$panelKey]) === 5,
+    'panel login throttling survives session-cookie replacement and returns Retry-After');
+$webPhoneLogin = (new App\Controllers\WebPhoneController())->connect(new App\Core\Request(
+    'POST', '/web-phone/connect', [], ['extension' => '1001', 'secret' => '1'],
+    ['REMOTE_ADDR' => $loginIp, 'HTTP_HOST' => 'a.example.test']
+));
+$stillBlocked = $authController->login(new App\Core\Request(
+    'POST', '/login', [], ['username' => 'admin-a', 'password' => 'correct-horse'],
+    ['REMOTE_ADDR' => $loginIp, 'HTTP_HOST' => 'a.example.test']
+));
+$check($webPhoneLogin->status() === 200 && $stillBlocked->status() === 429,
+    'successful Web Phone authentication cannot reset panel-login failures');
+
 echo "All tenant authentication and role checks passed.\n";

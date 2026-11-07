@@ -304,7 +304,7 @@ final class SystemController extends BaseController
             $value = $request->str($key);
 
             $existing = $this->db()->one(
-                'SELECT id FROM settings WHERE key = ? AND (tenant_id = ? OR (tenant_id IS NULL AND ? IS NULL)) ORDER BY id DESC LIMIT 1',
+                'SELECT id FROM settings WHERE `key` = ? AND (tenant_id = ? OR (tenant_id IS NULL AND ? IS NULL)) ORDER BY id DESC LIMIT 1',
                 [$key, $tid, $tid]
             );
 
@@ -314,12 +314,10 @@ final class SystemController extends BaseController
                     'updated_at' => date('Y-m-d H:i:s'),
                 ]);
             } else {
-                $this->db()->insert('settings', [
-                    'tenant_id'  => $tid,
-                    'key'        => $key,
-                    'value'      => $value,
-                    'created_at' => date('Y-m-d H:i:s'),
-                ]);
+                $this->db()->run(
+                    'INSERT INTO settings (tenant_id, `key`, value, created_at) VALUES (?, ?, ?, ?)',
+                    [$tid, $key, $value, date('Y-m-d H:i:s')]
+                );
             }
         }
 
@@ -380,7 +378,7 @@ final class SystemController extends BaseController
     private function loadSettings(?int $tid): array
     {
         $rows = $this->db()->all(
-            'SELECT key, value FROM settings WHERE tenant_id = ? OR tenant_id IS NULL
+            'SELECT `key`, value FROM settings WHERE tenant_id = ? OR tenant_id IS NULL
              ORDER BY CASE WHEN tenant_id IS NULL THEN 0 ELSE 1 END, id',
             [$tid]
         );
@@ -431,7 +429,7 @@ final class SystemController extends BaseController
     private function saveGlobalSetting(string $key, string $value): void
     {
         $existing = $this->db()->one(
-            'SELECT id FROM settings WHERE key = ? AND tenant_id IS NULL ORDER BY id DESC LIMIT 1',
+            'SELECT id FROM settings WHERE `key` = ? AND tenant_id IS NULL ORDER BY id DESC LIMIT 1',
             [$key]
         );
         $data = ['value' => $value, 'updated_at' => date('Y-m-d H:i:s')];
@@ -439,9 +437,9 @@ final class SystemController extends BaseController
             $this->db()->update('settings', (int) $existing['id'], $data);
             return;
         }
-        $this->db()->insert('settings', [
-            'tenant_id' => null, 'key' => $key, 'value' => $value,
-            'created_at' => date('Y-m-d H:i:s'),
-        ]);
+        $this->db()->run(
+            'INSERT INTO settings (tenant_id, `key`, value, created_at) VALUES (NULL, ?, ?, ?)',
+            [$key, $value, date('Y-m-d H:i:s')]
+        );
     }
 }

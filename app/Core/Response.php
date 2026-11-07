@@ -58,6 +58,12 @@ final class Response
         return $this;
     }
 
+    public function withStatus(int $status): self
+    {
+        $this->status = $status;
+        return $this;
+    }
+
     public function send(): void
     {
         http_response_code($this->status);

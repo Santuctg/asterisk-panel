@@ -25,7 +25,7 @@ final class SipPort
     public static function configured(): int
     {
         $value = App::getInstance()->db()->scalar(
-            'SELECT value FROM settings WHERE tenant_id IS NULL AND key = ? ORDER BY id DESC LIMIT 1',
+            'SELECT value FROM settings WHERE tenant_id IS NULL AND `key` = ? ORDER BY id DESC LIMIT 1',
             ['sip_udp_port']
         );
         $port = $value === false ? (string) Config::get('asterisk.sip_port', self::DEFAULT) : (string) $value;

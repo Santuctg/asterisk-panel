@@ -6,9 +6,11 @@ namespace App\Services;
 
 use App\Core\App;
 
-/** Database-backed Web Phone authentication throttle, independent of cookies. */
+/** Database-backed authentication throttle, independent of cookies. */
 final class WebPhoneLoginThrottle
 {
+    public const WEBPHONE = 'webphone';
+    public const PANEL = 'panel';
     private const MAX_ATTEMPTS = 5;
     private const WINDOW_SECONDS = 300;
 
@@ -19,11 +21,14 @@ final class WebPhoneLoginThrottle
         $this->db = App::getInstance()->db();
     }
 
-    public function key(string $ip): string
+    public function key(string $ip, string $namespace = self::WEBPHONE): string
     {
         // Do not include the request Host: an attacker may be able to vary an
         // unrecognised Host header and must not gain a fresh attempt window.
-        return hash('sha256', trim($ip));
+        if (!in_array($namespace, [self::WEBPHONE, self::PANEL], true)) {
+            throw new \InvalidArgumentException('Unknown login throttle namespace.');
+        }
+        return hash('sha256', $namespace . "\0" . trim($ip));
     }
 
     /** Seconds until another attempt is allowed, or zero when allowed. */

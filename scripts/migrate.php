@@ -14,23 +14,20 @@ $pdo = $db->pdo();
 
 // New tables are always safe to ensure.
 $schema = require BASE_PATH . '/resources/config/schema.php';
-$db->exec($schema['roles']);
-$db->exec($schema['tenant_login_bans']);
-$db->exec($schema['cdr']);
-$db->exec($schema['cdr_import_log']);
-$db->exec($schema['trunk_status_history']);
-$db->exec($schema['extension_status_history']);
-$db->exec($schema['server_stats_history']);
-$db->exec($schema['announcements']);
-$db->exec($schema['outbound_route_schedules']);
-$db->exec($schema['audit_log']);
-$db->exec($schema['webphone_login_throttles']);
-$db->exec($schema['settings']);
+$driver = (string) $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+$ensureTable = static function (string $name) use ($db, $schema, $driver): void {
+    $db->exec(\App\Core\SchemaSql::compile($schema[$name], $driver));
+};
+foreach ([
+    'roles', 'tenant_login_bans', 'cdr', 'cdr_import_log', 'trunk_status_history',
+    'extension_status_history', 'server_stats_history', 'announcements',
+    'outbound_route_schedules', 'audit_log', 'webphone_login_throttles', 'settings',
+] as $table) {
+    $ensureTable($table);
+}
 
 // Outbound calling is denied by default and enabled per extension by assigning
 // one tenant-scoped outbound route.
-$driver = (string) $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
-
 // Preserve existing outbound Time Condition assignments as route-local
 // schedules. Direct schedules take precedence; the legacy relation remains
 // readable until the route is next saved.
@@ -61,7 +58,7 @@ if ($driver === 'sqlite') {
         "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'moh_classes'"
     );
     if (!$hasMohClasses) {
-        $db->exec($schema['moh_classes']);
+        $ensureTable('moh_classes');
     } else {
         $mohColumns = array_column($db->all('PRAGMA table_info(moh_classes)'), 'name');
         if (!in_array('tenant_id', $mohColumns, true)) {
@@ -236,15 +233,15 @@ $db->run('UPDATE audit_log SET tenant_id = (SELECT u.tenant_id FROM users u WHER
 // COALESCE scope column on MySQL (where UNIQUE otherwise permits many NULLs).
 if ($driver === 'sqlite') {
     $db->run('DELETE FROM settings WHERE id NOT IN (
-        SELECT MAX(id) FROM settings GROUP BY COALESCE(tenant_id, -1), key
+        SELECT MAX(id) FROM settings GROUP BY COALESCE(tenant_id, -1), `key`
     )');
     $pdo->exec('CREATE UNIQUE INDEX IF NOT EXISTS settings_tenant_key_unique
-                ON settings(tenant_id, key) WHERE tenant_id IS NOT NULL');
+                ON settings(tenant_id, `key`) WHERE tenant_id IS NOT NULL');
     $pdo->exec('CREATE UNIQUE INDEX IF NOT EXISTS settings_global_key_unique
-                ON settings(key) WHERE tenant_id IS NULL');
+                ON settings(`key`) WHERE tenant_id IS NULL');
 } else {
     $db->run('DELETE older FROM settings older
-              JOIN settings newer ON newer.key = older.key
+              JOIN settings newer ON newer.`key` = older.`key`
                AND ((newer.tenant_id = older.tenant_id) OR (newer.tenant_id IS NULL AND older.tenant_id IS NULL))
                AND newer.id > older.id');
     $hasSettingsScope = (int) $db->scalar(

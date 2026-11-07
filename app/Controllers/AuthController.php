@@ -12,6 +12,7 @@ use App\Core\Response;
 use App\Core\Session;
 use App\Services\TenantHost;
 use App\Services\TenantSecurity;
+use App\Services\WebPhoneLoginThrottle;
 
 /**
  * Login / logout / profile flow.
@@ -44,13 +45,16 @@ final class AuthController extends BaseController
             return Response::redirect('/login');
         }
 
-        // Basic throttling to slow brute-force attempts.
-        $throttleKey = 'login:' . md5($request->ip());
-        $throttle    = Session::throttle($throttleKey);
-
-        if ($throttle['attempts'] >= 5 && (time() - $throttle['last']) < 300) {
+        // Database-backed and host-independent so replacing the session cookie
+        // or varying Host cannot create a fresh brute-force attempt window.
+        $throttle = new WebPhoneLoginThrottle();
+        $throttleKey = $throttle->key($request->ip(), WebPhoneLoginThrottle::PANEL);
+        $retryAfter = $throttle->retryAfter($throttleKey);
+        if ($retryAfter > 0) {
             Flash::error('Too many login attempts. Please wait a few minutes and try again.');
-            return Response::redirect('/login');
+            return $this->view('auth/login', ['layout' => 'layouts/auth'], 'layouts/auth')
+                ->withStatus(429)
+                ->withHeader('Retry-After', (string) $retryAfter);
         }
 
         if ($username === '' || $password === '') {
@@ -60,7 +64,7 @@ final class AuthController extends BaseController
         }
 
         if (!auth()->attempt($username, $password)) {
-            Session::throttleHit($throttleKey);
+            $throttle->hit($throttleKey, $request->ip(), $hostTenant);
             Logger::warning('Authentication failed', [
                 'ip' => $request->ip(),
                 'username' => mb_substr($username, 0, 80),
@@ -70,7 +74,7 @@ final class AuthController extends BaseController
             return Response::redirect('/login');
         }
 
-        Session::throttleReset($throttleKey);
+        $throttle->reset($throttleKey);
         $this->clearOld();
 
         $user = auth()->user();

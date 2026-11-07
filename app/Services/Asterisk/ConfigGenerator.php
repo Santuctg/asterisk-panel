@@ -1069,7 +1069,7 @@ final class ConfigGenerator
     {
         $value = $this->db->scalar(
             'SELECT value FROM settings
-             WHERE key = ? AND (tenant_id = ? OR tenant_id IS NULL)
+             WHERE `key` = ? AND (tenant_id = ? OR tenant_id IS NULL)
              ORDER BY CASE WHEN tenant_id = ? THEN 0 ELSE 1 END, id DESC LIMIT 1',
             [$key, $tenantId, $tenantId]
         );
