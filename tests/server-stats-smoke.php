@@ -2,13 +2,26 @@
 
 declare(strict_types=1);
 
-// Run: php tests/server-stats-smoke.php
+// Run: php tests/server-stats-smoke.php (uses only an in-memory SQLite DB).
 define('BASE_PATH', dirname(__DIR__));
 define('PUBLIC_PATH', BASE_PATH . '/public');
+putenv('DB_DRIVER=sqlite');
+putenv('DB_NAME=:memory:');
+putenv('AMI_HOST=127.0.0.1');
+putenv('AMI_PORT=1');
+putenv('APP_URL=https://pbx.example.test');
 require BASE_PATH . '/app/bootstrap.php';
 
 use App\Services\Asterisk\AsteriskManager;
 use App\Services\ServerStats;
+use App\Services\ServerStatsHistory;
+
+$app = App\Core\App::getInstance();
+$app->boot();
+$db = $app->db();
+foreach (require BASE_PATH . '/resources/config/schema.php' as $sql) {
+    $db->exec($sql);
+}
 
 $_SESSION = [];
 
@@ -48,6 +61,19 @@ $check(ServerStats::parseCpuLine('') === null, 'an empty cpu line is rejected');
 $check(ServerStats::parseCpuLine("procs_running 2") === null, 'non-cpu /proc/stat rows are rejected');
 $check(ServerStats::cpuPercent(['total' => 10, 'idle' => 5], ['total' => 10, 'idle' => 5]) === null,
     'a zero-length cpu window is rejected instead of dividing by zero');
+
+// /proc/stat is a whole file, not one line — this is what production sends.
+$procStat = "cpu  1000 0 1000 8000 0 0 0 0 0 0\ncpu0 500 0 500 4000 0 0 0 0 0 0\n"
+    . "cpu1 500 0 500 4000 0 0 0 0 0 0\nintr 12345\nctxt 6789\nbtime 1700000000\n"
+    . "processes 100\nprocs_running 2\nprocs_blocked 0\n";
+$check(ServerStats::parseCpuLine($procStat) === ['total' => 10000, 'idle' => 8000],
+    'the aggregate cpu row is parsed out of the full multi-row /proc/stat file');
+$check(ServerStats::parseCpuLine("cpu0 500 0 500 4000 0 0 0 0 0 0\ncpu1 500 0 500 4000 0 0 0 0 0 0\n") !== null,
+    'a per-core row still parses when no aggregate row is present');
+$check(ServerStats::parseCpuLine(
+    "cpu0 500 0 500 4000 0 0 0 0 0 0\ncpu  1000 0 1000 8000 0 0 0 0 0 0\n"
+) === ['total' => 10000, 'idle' => 8000],
+    'the aggregate cpu row wins even when a per-core row comes first');
 
 // ---------------------------------------------------------------------
 // Memory: /proc/meminfo
@@ -153,6 +179,102 @@ if ($stats['cpu'] !== null) {
 }
 
 // ---------------------------------------------------------------------
+// 24-hour history: record, series, prune.
+// ---------------------------------------------------------------------
+$check((int) $db->scalar(
+    "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'server_stats_history'"
+) === 1, 'server_stats_history table exists in the schema');
+
+$history = new ServerStatsHistory();
+$fullSample = [
+    'cpu'     => 22.5,
+    'memory'  => ['total' => 4 * 1024 ** 3, 'used' => 1 * 1024 ** 3, 'available' => 3 * 1024 ** 3, 'percent' => 25.0],
+    'disk'    => ['total' => 40 * 1024 ** 3, 'used' => 10 * 1024 ** 3, 'free' => 30 * 1024 ** 3, 'percent' => 25.0],
+    'network' => ['rx' => 1500.0, 'tx' => 900.0],
+];
+
+// Backdate a minute of samples so the graph has something to draw.
+$baseTs = time() - 3600;
+for ($i = 0; $i < 59; $i++) {
+    $db->insert('server_stats_history', [
+        'sampled_at'  => date('Y-m-d H:i:s', $baseTs + $i * 60),
+        'cpu_percent' => 10 + ($i % 30),
+        'mem_used'    => 512 * 1024 * 1024,
+        'mem_total'   => 4 * 1024 * 1024 * 1024,
+        'disk_used'   => 10 * 1024 ** 3,
+        'disk_total'  => 40 * 1024 ** 3,
+        'net_rx'      => 100.0,
+        'net_tx'      => 50.0,
+    ]);
+}
+
+$series = $history->series(24, 24);
+$check($series !== [] && count($series) <= 24, 'series() buckets a day of samples into a bounded list');
+$check($series !== [] && abs($series[count($series) - 1]['t'] - ($baseTs + 58 * 60)) <= 60,
+    'series() timestamps follow the recorded samples');
+$check($series !== [] && $series[0]['mem'] === 87.5 && $series[0]['disk'] === 75.0,
+    'series() converts stored byte counters into percentages');
+$check($series !== [] && is_float($series[0]['cpu']), 'series() averages CPU per bucket');
+
+$check($history->rows(24) !== [] && $history->rows(0) === [], 'rows() honours the look-back window');
+
+$check($history->record($fullSample) === true, 'record() stores the first sample');
+$check($history->record($fullSample) === false, 'record() skips a sample taken within the throttle window');
+$check((int) $db->scalar(
+    "SELECT COUNT(*) FROM server_stats_history WHERE cpu_percent = ?", [22.5]
+) === 1, 'record() wrote exactly one row');
+
+$db->insert('server_stats_history', [
+    'sampled_at' => date('Y-m-d H:i:s', time() - 3 * 86400),
+    'cpu_percent' => 5.0,
+]);
+$pruned = $history->prune(48);
+$check($pruned >= 1 && (int) $db->scalar(
+    "SELECT COUNT(*) FROM server_stats_history WHERE sampled_at < ?", [date('Y-m-d H:i:s', time() - 48 * 3600)]
+) === 0, 'prune() drops everything older than the retention window');
+
+// ---------------------------------------------------------------------
+// The SVG graph helper.
+// ---------------------------------------------------------------------
+$chartSeries = [
+    ['t' => $baseTs, 'cpu' => 12.0, 'mem' => 40.0, 'disk' => 75.0],
+    ['t' => $baseTs + 1800, 'cpu' => 55.0, 'mem' => 41.5, 'disk' => 75.0],
+    ['t' => $baseTs + 3600, 'cpu' => 33.0, 'mem' => 42.0, 'disk' => 75.5],
+];
+$chart = server_resource_chart($chartSeries);
+$check(str_starts_with($chart, '<svg class="chart"'), 'the graph renders an SVG for a usable series');
+$check(substr_count($chart, '<path ') === 3, 'the graph plots one path per metric');
+$check(str_contains($chart, 'stroke="#3b66f5"') && str_contains($chart, 'stroke="#7c5cff"')
+    && str_contains($chart, 'stroke="#d97706"'), 'CPU, memory and disk use distinct colours');
+$check(str_contains($chart, 'now') && str_contains($chart, '-1h'), 'the time axis runs from an hour ago to now');
+$check(server_resource_chart([]) === '', 'an empty series renders no graph');
+$check(server_resource_chart([['t' => $baseTs, 'cpu' => 10.0]]) === '', 'a single sample renders no graph');
+$check(server_resource_chart([
+    ['t' => $baseTs, 'cpu' => null, 'mem' => null, 'disk' => null],
+    ['t' => $baseTs + 60, 'cpu' => null, 'mem' => null, 'disk' => null],
+]) === '', 'a series with no usable values renders no graph');
+$check(str_contains(server_resource_chart([
+    ['t' => $baseTs, 'cpu' => 10.0, 'mem' => null, 'disk' => null],
+    ['t' => $baseTs + 60, 'cpu' => 20.0, 'mem' => null, 'disk' => null],
+]), '<path '), 'a series with only one usable metric still renders');
+
+// ---------------------------------------------------------------------
+// The realtime endpoint the status page polls.
+// ---------------------------------------------------------------------
+$endpoint = (new App\Controllers\SystemController())->serverStats(
+    new App\Core\Request('GET', '/system/server-stats')
+);
+$check($endpoint->status() === 200, 'the resource endpoint answers 200');
+$payload = json_decode($endpoint->body(), true);
+$check(is_array($payload) && array_keys($payload) === ['current', 'series', 'generated_at'],
+    'the resource endpoint returns current stats, the series and a timestamp');
+$check(is_array($payload['current'] ?? null)
+    && array_keys($payload['current']) === ['cpu', 'memory', 'disk', 'network'],
+    'the endpoint reports all four resource groups');
+$check(is_array($payload['series'] ?? null) && $payload['series'] !== [],
+    'the endpoint includes the 24-hour series');
+
+// ---------------------------------------------------------------------
 // The status view renders the Server resources card without failing.
 // ---------------------------------------------------------------------
 $renderStatus = static function (array $data): string {
@@ -183,8 +305,13 @@ $check(str_contains($full, '12.3%') && str_contains($full, 'CPU usage'), 'CPU ti
 $check(str_contains($full, '1.5 GB') && str_contains($full, '37.5% of 4 GB'), 'memory tile renders used and total');
 $check(str_contains($full, '12 GB') && str_contains($full, '40.0% of 30 GB'), 'disk tile renders used and total');
 $check(str_contains($full, '1.3 kB/s') && str_contains($full, 'Sending 340 B/s'), 'network tile renders both directions');
-$check(str_contains($full, 'class="meter"') && str_contains($full, 'meter"><span class="ok"'),
+$check(str_contains($full, 'class="meter"') && str_contains($full, 'id="srvCpuBar" class="ok"'),
     'usage meters render with a threshold colour');
+$check(str_contains($full, 'id="srvChart"') && str_contains($full, 'Resource history'),
+    'status page renders the 24-hour resource history card');
+$check(str_contains($full, '/system/server-stats') && str_contains($full, 'INTERVAL = 10000')
+    && str_contains($full, 'setInterval(poll'),
+    'status page wires up the realtime resource poller');
 $check(!str_contains($full, 'Something went wrong'), 'populated status page never falls through to the 500 page');
 
 // Every value null (the Windows / restricted-host case) must still render.

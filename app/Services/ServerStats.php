@@ -76,12 +76,34 @@ final class ServerStats
     /**
      * Aggregate `cpu  user nice ...` line from /proc/stat.
      *
+     * `/proc/stat` is a multi-row file (`cpu`, `cpu0`, `intr`, `btime`, ...);
+     * the aggregate row is the one that represents the whole host, so it is
+     * preferred and a per-core row is only used when there is no aggregate.
+     *
      * @return array{total:int,idle:int}|null
      */
-    public static function parseCpuLine(string $line): ?array
+    public static function parseCpuLine(string $text): ?array
     {
-        $line = trim($line);
-        if ($line === '' || !preg_match('/^cpu\d*\s/', $line . ' ')) {
+        $line = '';
+        $perCore = '';
+        foreach (explode("\n", $text) as $row) {
+            $row = trim($row);
+            if ($row === '') {
+                continue;
+            }
+            if ($perCore === '' && preg_match('/^cpu\d*\s/', $row)) {
+                $perCore = $row;
+            }
+            if (preg_match('/^cpu\s/', $row)) {
+                $line = $row;
+                break;
+            }
+        }
+        if ($line === '') {
+            $line = $perCore;
+        }
+
+        if ($line === '') {
             return null;
         }
 

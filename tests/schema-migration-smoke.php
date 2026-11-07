@@ -47,6 +47,7 @@ if ((int)$db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND 
 if ((int)$db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='cdr_import_log'") !== 1) throw new RuntimeException('CDR import ledger table missing');
 if ((int)$db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='trunk_status_history'") !== 1) throw new RuntimeException('Trunk status history table missing');
 if ((int)$db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='extension_status_history'") !== 1) throw new RuntimeException('Extension status history table missing');
+if ((int)$db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='server_stats_history'") !== 1) throw new RuntimeException('Server stats history table missing');
 if (!in_array('outbound_route_id', array_column($db->all('PRAGMA table_info(extensions)'), 'name'), true)) throw new RuntimeException('Extension outbound route column missing');
 if (!in_array('time_condition_id', array_column($db->all('PRAGMA table_info(outbound_routes)'), 'name'), true)) throw new RuntimeException('Outbound route time condition column missing');
 if ((int)$db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='announcements'") !== 1) throw new RuntimeException('Announcements table missing');

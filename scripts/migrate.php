@@ -20,6 +20,7 @@ $db->exec($schema['cdr']);
 $db->exec($schema['cdr_import_log']);
 $db->exec($schema['trunk_status_history']);
 $db->exec($schema['extension_status_history']);
+$db->exec($schema['server_stats_history']);
 $db->exec($schema['announcements']);
 $db->exec($schema['outbound_route_schedules']);
 

@@ -37,7 +37,7 @@ supervisor extension) or **Browser Listen** (WebRTC over HTTPS/WSS). See
 | **Call center** | Queues with ring strategies, wrap-up, penalties, agent assignment, live status |
 | **Conferences** | ConfBridge rooms, participant/admin PINs, max members, recording |
 | **Call history** | Automatic CDR import, filters, stats, tenant-scoped WAV recording downloads |
-| **System** | Live status with host CPU/memory/disk/network, automatic inbound/outbound/all-call recording, settings, audit log |
+| **System** | Live status with realtime host CPU/memory/disk/network + 24-hour resource graph, automatic inbound/outbound/all-call recording, settings, audit log |
 
 ---
 

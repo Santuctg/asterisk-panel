@@ -396,6 +396,103 @@ if (!function_exists('usage_level')) {
     }
 }
 
+if (!function_exists('server_resource_chart')) {
+    /**
+     * SVG line chart of the last 24 hours of CPU / memory / disk percentage.
+     *
+     * @param array<int, array{t:int,cpu?:float|null,mem?:float|null,disk?:float|null}> $series
+     * @return string '' when there is not enough data to draw anything.
+     */
+    function server_resource_chart(array $series, int $width = 900, int $height = 250): string
+    {
+        $series = array_values(array_filter($series, 'is_array'));
+        if (count($series) < 2) {
+            return '';
+        }
+
+        $padL = 48;
+        $padR = 14;
+        $padT = 16;
+        $padB = 30;
+        $x0 = $padL;
+        $x1 = $width - $padR;
+        $y0 = $padT;
+        $y1 = $height - $padB;
+
+        $t0 = (int) ($series[0]['t'] ?? 0);
+        $t1 = (int) ($series[count($series) - 1]['t'] ?? 0);
+        if ($t1 <= $t0) {
+            $t1 = $t0 + 1;
+        }
+        $span = $t1 - $t0;
+
+        $px = static fn (int $t): float => $x0 + ($t - $t0) / $span * ($x1 - $x0);
+        $py = static fn (float $p): float => $y1 - (max(0.0, min(100.0, $p)) / 100) * ($y1 - $y0);
+
+        $parts = [];
+
+        // Horizontal grid + percentage axis.
+        foreach ([0, 25, 50, 75, 100] as $pct) {
+            $y = round($py((float) $pct), 1);
+            $parts[] = '<line x1="' . $x0 . '" y1="' . $y . '" x2="' . $x1 . '" y2="' . $y . '" stroke="currentColor" stroke-opacity=".16" stroke-width="1"/>';
+            $parts[] = '<text x="' . ($x0 - 9) . '" y="' . round($y + 3.5, 1) . '" text-anchor="end" class="chart-axis">' . $pct . '%</text>';
+        }
+
+        // Time axis: five ticks from "24h ago" to "now".
+        foreach ([0.0, 0.25, 0.5, 0.75, 1.0] as $fraction) {
+            $x   = round($px($t0 + (int) round($fraction * $span)), 1);
+            $ago = $span * (1 - $fraction);
+            $label = $fraction >= 1.0
+                ? 'now'
+                : ($ago >= 3600 ? '-' . (int) round($ago / 3600) . 'h' : '-' . (int) round($ago / 60) . 'm');
+            $anchor = $fraction <= 0.0 ? 'start' : ($fraction >= 1.0 ? 'end' : 'middle');
+            $parts[] = '<text x="' . $x . '" y="' . ($y1 + 19) . '" text-anchor="' . $anchor . '" class="chart-axis">' . $label . '</text>';
+        }
+
+        $lines = [
+            ['key' => 'cpu',  'color' => '#3b66f5'],
+            ['key' => 'mem',  'color' => '#7c5cff'],
+            ['key' => 'disk', 'color' => '#d97706'],
+        ];
+
+        $plotted = 0;
+        foreach ($lines as $line) {
+            $path  = '';
+            $open  = false;
+            $point = 0;
+
+            foreach ($series as $sample) {
+                $value = $sample[$line['key']] ?? null;
+                if ($value === null || !is_numeric($value)) {
+                    $open = false;
+                    continue;
+                }
+                $path .= ($open ? 'L' : 'M')
+                    . round($px((int) $sample['t']), 1) . ' '
+                    . round($py((float) $value), 1) . ' ';
+                $open = true;
+                $point++;
+            }
+
+            $path = trim($path);
+            if ($point < 2 || $path === '') {
+                continue;
+            }
+            $parts[] = '<path d="' . $path . '" fill="none" stroke="' . $line['color']
+                . '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+            $plotted++;
+        }
+
+        if ($plotted === 0) {
+            return ''; // nothing was actually plotted
+        }
+
+        return '<svg class="chart" viewBox="0 0 ' . $width . ' ' . $height
+            . '" role="img" aria-label="CPU, memory and disk usage over the last 24 hours">'
+            . implode('', $parts) . '</svg>';
+    }
+}
+
 if (!function_exists('human_mac')) {
     function human_mac(string $mac): string
     {

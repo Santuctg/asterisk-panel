@@ -77,6 +77,26 @@ final class SystemController extends BaseController
             \App\Core\Logger::info('Status page: server stats unavailable', ['error' => $e->getMessage()]);
         }
 
+        // Feed the 24-hour graph from the page load too, so history grows
+        // even when JavaScript is disabled. Capped at one row a minute.
+        try {
+            $history = new \App\Services\ServerStatsHistory();
+            $history->record($serverStats);
+            $history->prune();
+        } catch (\Throwable $e) {
+            \App\Core\Logger::info('Status page: server history unavailable', ['error' => $e->getMessage()]);
+        }
+
+        // 24-hour history behind the resource graph. The table is created by
+        // scripts/migrate.php; a panel that has not migrated yet just shows
+        // the empty state.
+        $serverSeries = [];
+        try {
+            $serverSeries = (new \App\Services\ServerStatsHistory())->series(24, 168);
+        } catch (\Throwable $e) {
+            \App\Core\Logger::info('Status page: server history unavailable', ['error' => $e->getMessage()]);
+        }
+
         return $this->view('system/status', [
             'online'     => $online,
             'version'    => $version,
@@ -88,6 +108,42 @@ final class SystemController extends BaseController
             'configDir'  => $configDir,
             'extIps'     => $extIps,
             'serverStats'=> $serverStats,
+            'serverSeries'=> $serverSeries,
+        ]);
+    }
+
+    /**
+     * GET /system/server-stats — polled by the status page so the resource
+     * tiles and the 24-hour graph update without a full page reload.
+     */
+    public function serverStats(Request $request): Response
+    {
+        $stats = ['cpu' => null, 'memory' => null, 'disk' => null, 'network' => null];
+        try {
+            $stats = (new \App\Services\ServerStats())->sample();
+        } catch (\Throwable $e) {
+            \App\Core\Logger::info('Server stats: sample unavailable', ['error' => $e->getMessage()]);
+        }
+
+        $history = new \App\Services\ServerStatsHistory();
+        try {
+            // Capped at one row a minute, and anything past 48h is dropped.
+            $history->record($stats);
+            $history->prune();
+        } catch (\Throwable $e) {
+            \App\Core\Logger::info('Server stats: history unavailable', ['error' => $e->getMessage()]);
+        }
+
+        try {
+            $series = $history->series(24, 168);
+        } catch (\Throwable $e) {
+            $series = [];
+        }
+
+        return $this->json([
+            'current'      => $stats,
+            'series'       => $series,
+            'generated_at' => date('c'),
         ]);
     }
 

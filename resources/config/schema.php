@@ -155,6 +155,19 @@ return [
             last_checked_at DATETIME NOT NULL
         )',
 
+    'server_stats_history' => '
+        CREATE TABLE IF NOT EXISTS server_stats_history (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            sampled_at   DATETIME NOT NULL,
+            cpu_percent  REAL,
+            mem_used     INTEGER,
+            mem_total    INTEGER,
+            disk_used    INTEGER,
+            disk_total   INTEGER,
+            net_rx       REAL,
+            net_tx       REAL
+        )',
+
     'devices' => '
         CREATE TABLE IF NOT EXISTS devices (
             id             INTEGER PRIMARY KEY AUTOINCREMENT,

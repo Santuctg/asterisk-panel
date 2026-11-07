@@ -20,6 +20,17 @@ $renderStatus = static function (array $data): string {
     return App\Core\View::getInstance()->render('system/status', $data);
 };
 
+/** Server-rendered contents of the chart host only (the poller script has the same fallback text). */
+$chartHost = static function (string $html): string {
+    $at = strpos($html, 'id="srvChart"');
+    if ($at === false) {
+        return '';
+    }
+    $start = strpos($html, '>', $at);
+    $end = strpos($html, '</div>', $start);
+    return $end === false ? '' : substr($html, $start, $end - $start);
+};
+
 // 1) Asterisk offline: every variable must still exist.
 $offline = $renderStatus([
     'online'      => false,
@@ -99,9 +110,41 @@ $resources = $renderStatus([
 ]);
 $check(str_contains($resources, 'Server resources') && str_contains($resources, '64.2%'),
     'server resources card renders with live stats');
-$check(str_contains($resources, 'meter"><span class="warn"'), 'a 75% memory load renders an amber meter');
+$check(str_contains($resources, 'id="srvMemBar" class="warn"'), 'a 75% memory load renders an amber meter');
 $check(str_contains($resources, 'Sending 2 kB/s'), 'network tile reports the transmit rate');
+$check(str_contains($chartHost($resources), 'Not enough samples yet'),
+    'a status page with no history shows the graph empty state');
+$check(str_contains($resources, '/system/server-stats') && str_contains($resources, 'visibilitychange'),
+    'the status page polls for realtime updates and pauses when the tab is hidden');
 $check(!str_contains($resources, 'Something went wrong'), 'server resource card never breaks the status page');
+
+// 3c) A populated 24-hour series renders the graph itself.
+$graphed = $renderStatus([
+    'online'      => true,
+    'version'     => ['version' => '20.5.0', 'raw' => 'Asterisk 20.5.0'],
+    'uptime'      => '',
+    'channels'    => [],
+    'contacts'    => [],
+    'conferences' => [],
+    'queues'      => [],
+    'configDir'   => '/etc/asterisk/asterisk_panel',
+    'extIps'      => [],
+    'serverStats' => ['cpu' => null, 'memory' => null, 'disk' => null, 'network' => null],
+    'serverSeries' => [
+        ['t' => time() - 7200, 'cpu' => 15.0, 'mem' => 40.0, 'disk' => 62.0],
+        ['t' => time() - 3600, 'cpu' => 45.0, 'mem' => 55.0, 'disk' => 62.0],
+        ['t' => time(), 'cpu' => 25.0, 'mem' => 48.0, 'disk' => 62.5],
+    ],
+]);
+$check(str_contains($graphed, '<svg class="chart"') && !str_contains($chartHost($graphed), 'Not enough samples yet'),
+    'a populated history renders the 24-hour graph');
+$chartHtml = '';
+$chartAt = strpos($graphed, '<svg class="chart"');
+if ($chartAt !== false) {
+    $chartEnd = strpos($graphed, '</svg>', $chartAt);
+    $chartHtml = substr($graphed, $chartAt, $chartEnd === false ? 4000 : $chartEnd - $chartAt + 6);
+}
+$check(substr_count($chartHtml, '<path ') === 3, 'the graph plots one path per metric');
 
 // 4) Every icon referenced anywhere in the theme must exist on disk.
 $missing = [];
