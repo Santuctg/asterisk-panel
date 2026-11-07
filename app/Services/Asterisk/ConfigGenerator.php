@@ -1409,7 +1409,8 @@ final class ConfigGenerator
 
     private function dialPattern(string $value): string
     {
-        return substr(preg_replace('/[^A-Za-z0-9_*#+.!\[\]+-]/', '', $this->line($value)) ?? '', 0, 120);
+        $pattern = preg_replace('/[^A-Za-z0-9_*#+.!\[\]+-]/', '', $this->line($value)) ?? '';
+        return substr(strtr($pattern, ['x' => 'X', 'n' => 'N', 'z' => 'Z']), 0, 120);
     }
 
     private function outboundPrefix(string $value): string

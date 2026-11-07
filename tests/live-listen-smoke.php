@@ -163,7 +163,7 @@ $db->insert('inbound_routes', [
     'dest_type' => 'hangup', 'dest_id' => null, 'enabled' => 1,
 ]);
 $outboundRoute = $db->insert('outbound_routes', [
-    'tenant_id' => $tid, 'name' => 'Outside via 9', 'prefix' => '9', 'match_pattern' => "_X.\n_00X.",
+    'tenant_id' => $tid, 'name' => 'Outside via 9', 'prefix' => '9', 'match_pattern' => "_X.\n_00X.\n_+x.",
     'trunk_id' => $trackedTrunk, 'time_condition_id' => $outboundTime, 'priority' => 0, 'enabled' => 1,
 ]);
 $db->insert('outbound_route_schedules', [
@@ -182,6 +182,7 @@ $check(str_contains($outboundDialplan, '[tenant_a-outbound]')
     && str_contains($outboundDialplan, 'Gosub(tenant_a-timecond-' . $outboundTime . ',s,1 )')
     && str_contains($outboundDialplan, 'exten => _9X.,1,NoOp(Outbound: Outside via 9)')
     && str_contains($outboundDialplan, 'exten => _900X.,1,NoOp(Outbound: Outside via 9)')
+    && str_contains($outboundDialplan, 'exten => _9+X.,1,NoOp(Outbound: Outside via 9)')
     && str_contains($outboundDialplan, 'Dial(PJSIP/${EXTEN:1}@trunk-' . $trackedTrunk . ',30,Tt)')
     && str_contains($outboundPjsip, 'set_var = PANEL_OUTBOUND_ROUTE_ID=' . $outboundRoute), 'assigned outbound route, schedule, and prefix stripping are enforced');
 $check(str_contains($outboundDialplan, "[panel-inbound-shared-{$sharedSuffix}]")

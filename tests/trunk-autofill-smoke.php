@@ -69,9 +69,9 @@ if (!str_contains($outboundHtml, "var scheduleDays = ['sun','mon','tue','wed','t
 echo "PASS: outbound schedules support individual weekday selection\n";
 $routeController = new App\Controllers\RouteController();
 $patternParser = new ReflectionMethod($routeController, 'outboundPatterns');
-$parsedPatterns = $patternParser->invoke($routeController, "_01XXXXXXXXX\n_8801XXXXXXXXX\n_01XXXXXXXXX");
+$parsedPatterns = $patternParser->invoke($routeController, "_01xxxxxxxxx\n_8801XXXXXXXXX\n_01XXXXXXXXX\n_+x.");
 $invalidPatterns = $patternParser->invoke($routeController, "_X.\ninvalid pattern");
-if ($parsedPatterns !== ['_01XXXXXXXXX', '_8801XXXXXXXXX'] || $invalidPatterns !== null) {
+if ($parsedPatterns !== ['_01XXXXXXXXX', '_8801XXXXXXXXX', '_+X.'] || $invalidPatterns !== null) {
     throw new RuntimeException('FAIL: multiple outbound patterns normalize and validate correctly');
 }
 echo "PASS: multiple outbound patterns normalize and validate correctly\n";

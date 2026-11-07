@@ -626,6 +626,9 @@ final class RouteController extends BaseController
             if (mb_strlen($pattern) > 60 || !preg_match('/^_?[A-Za-z0-9*#+.!\[\]+-]+$/', $pattern)) {
                 return null;
             }
+            // Asterisk wildcard tokens are case-sensitive. Accept the common
+            // lowercase spelling but persist the functional X/N/Z tokens.
+            $pattern = strtr($pattern, ['x' => 'X', 'n' => 'N', 'z' => 'Z']);
             $patterns[$pattern] = true;
         }
         if (!$patterns || count($patterns) > 20) return null;
