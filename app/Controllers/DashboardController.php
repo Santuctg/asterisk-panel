@@ -195,12 +195,20 @@ final class DashboardController extends BaseController
     private function labelTrunkChannels(array $channels, int $tenantId): array
     {
         $trunks = [];
-        foreach ($this->db()->all('SELECT id, name FROM trunks WHERE tenant_id = ?', [$tenantId]) as $trunk) {
+        $sharedTrunks = [];
+        foreach ($this->db()->all('SELECT id, name, host FROM trunks WHERE tenant_id = ?', [$tenantId]) as $trunk) {
             $trunks[(int) $trunk['id']] = (string) $trunk['name'];
+            $host = strtolower(rtrim(preg_replace('/\s+/', '', (string) $trunk['host']) ?? '', '.'));
+            if ($host !== '') {
+                $sharedTrunks[substr(hash('sha256', $host), 0, 12)][] = (string) $trunk['name'];
+            }
         }
         foreach ($channels as &$channel) {
             if (preg_match('#^PJSIP/trunk-(\d+)-#', (string) ($channel['name'] ?? ''), $match)) {
                 $channel['trunk_name'] = $trunks[(int) $match[1]] ?? '';
+            } elseif (preg_match('#^PJSIP/trunk-shared-([a-f0-9]{12})-#i', (string) ($channel['name'] ?? ''), $match)) {
+                $names = array_values(array_unique($sharedTrunks[strtolower($match[1])] ?? []));
+                $channel['trunk_name'] = count($names) === 1 ? $names[0] : implode(' / ', $names);
             }
         }
         unset($channel);

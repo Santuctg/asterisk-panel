@@ -594,6 +594,7 @@ final class ConfigGenerator
                 $route = array_values($targets)[0];
                 $ctx = $tenantContexts[(int) $route['tenant_id']];
                 $out .= "exten => {$pattern},1,NoOp(Shared-provider {$route['source']} dispatch to {$ctx})\n";
+                $out .= " same => n,Set(__PANEL_INBOUND_CALLER=\${CALLERID(num)})\n";
                 $out .= " same => n,Goto({$ctx}-inbound,{$route['target']},1)\n";
             }
             $out .= "exten => _X.,1,NoOp(Unmatched shared-provider DID; refusing default-tenant fallback)\n";

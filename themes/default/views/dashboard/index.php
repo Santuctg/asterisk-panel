@@ -194,7 +194,9 @@ $tile = function (string $icon, string $tone, int|string $value, string $label, 
             var peer = channel.bridged && byName[channel.bridged] ? byName[channel.bridged]
                 : linked.find(function (leg) { return leg !== channel; }) || null;
             if (inbound) {
-                var incomingNumber = validNumber(inbound.caller)
+                var incomingNumber = validNumber(inbound.inbound_caller)
+                    || validNumber(trunk && trunk.inbound_caller)
+                    || validNumber(inbound.caller)
                     || validNumber(trunk && trunk.caller)
                     || validNumber(local && local.caller)
                     || validNumber(inbound.connected)

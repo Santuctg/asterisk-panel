@@ -293,8 +293,25 @@ final class AsteriskManager
     {
         $events = $this->ami->actionEvents('CoreShowChannels');
         $rows = self::parseCoreShowChannelEvents($events);
-        if ($rows) return $rows;
-        return self::parseConciseChannels($this->ami->command('core show channels concise'));
+        if (!$rows) {
+            $rows = self::parseConciseChannels($this->ami->command('core show channels concise'));
+        }
+        // CallerIDNum can change to the local extension after a bridge. The
+        // shared inbound dispatcher preserves the provider-side caller before
+        // routing, so retrieve it only for those few synthetic trunk legs.
+        foreach ($rows as $name => &$row) {
+            if (!preg_match('#^PJSIP/trunk-shared-[a-f0-9]{12}-#i', (string) $name)) continue;
+            $response = $this->ami->action('Getvar', [
+                'Channel' => $name,
+                'Variable' => 'PANEL_INBOUND_CALLER',
+            ]);
+            $caller = trim((string) ($response['Value'] ?? ''));
+            if ($caller !== '' && strcasecmp($caller, '(null)') !== 0) {
+                $row['inbound_caller'] = $caller;
+            }
+        }
+        unset($row);
+        return $rows;
     }
 
     /** Normalize named AMI channel events; unlike concise output, positions never drift. */

@@ -83,11 +83,13 @@ $liveFeed = (new App\Controllers\DashboardController())->liveCalls(new App\Core\
 $liveData = json_decode($liveFeed->body(), true);
 $check($liveFeed->status() === 200 && isset($liveData['online'], $liveData['count'], $liveData['channels'], $liveData['recent_calls']), 'live calls and recent CDR polling feed responds');
 $dashboard = (new App\Controllers\DashboardController())->index(new App\Core\Request('GET', '/dashboard'));
+$managerSource = file_get_contents(BASE_PATH . '/app/Services/Asterisk/AsteriskManager.php');
 $check(str_contains($dashboard->body(), '/dashboard/live-calls') && str_contains($dashboard->body(), 'setTimeout(poll')
     && str_contains($dashboard->body(), 'active-call-grid') && str_contains($dashboard->body(), 'renderRecent')
-    && str_contains($dashboard->body(), 'inbound.caller')
+    && str_contains($dashboard->body(), 'inbound.inbound_caller')
+    && str_contains($managerSource, "'Variable' => 'PANEL_INBOUND_CALLER'")
     && str_contains($dashboard->body(), 'trunk.uniqueid === trunk.linkedid'),
-    'dashboard detects inbound direction from the oldest trunk leg and renders its caller number');
+    'dashboard detects inbound direction and restores the original shared-trunk caller number');
 $check(!str_contains($dashboard->body(), 'action="/system/apply"'),
     'tenant dashboard does not expose the global Asterisk apply action');
 $check(App\Controllers\DashboardController::activeCallCount([
@@ -133,8 +135,11 @@ $check(str_contains($sharedTrunkConfig, "line = yes\nendpoint = trunk-{$trackedT
 $trunkLabelMethod = new ReflectionMethod(App\Controllers\DashboardController::class, 'labelTrunkChannels');
 $labeledChannels = $trunkLabelMethod->invoke(new App\Controllers\DashboardController(), [
     ['name' => 'PJSIP/trunk-' . $trackedTrunk . '-00000001'],
+    ['name' => 'PJSIP/trunk-shared-' . $sharedSuffix . '-00000002'],
 ], $tid);
-$check(($labeledChannels[0]['trunk_name'] ?? '') === 'Tracked', 'active calls show the configured tenant trunk name');
+$check(($labeledChannels[0]['trunk_name'] ?? '') === 'Tracked'
+    && ($labeledChannels[1]['trunk_name'] ?? '') === 'Tracked',
+    'active calls show the configured tenant trunk name for direct and shared-provider channels');
 $settingsFiles = $gen->generateFor('settings');
 $check(in_array('pjsip_port.conf', $settingsFiles, true) && in_array('dialplan.conf', $settingsFiles, true), 'system settings regenerate SIP and tenant dialplan configuration');
 $tracker = new App\Services\Asterisk\TrunkStatusTracker();
@@ -194,6 +199,7 @@ $check(str_contains($outboundDialplan, "[panel-inbound-shared-{$sharedSuffix}]")
     && str_contains($outboundDialplan, 'exten => _16661230000,1,NoOp(Shared-provider DID dispatch to tenant_b)')
     && str_contains($outboundDialplan, 'Goto(tenant_b-inbound,${EXTEN},1)')
     && str_contains($outboundDialplan, 'exten => _09642359359,1,NoOp(Shared-provider registration dispatch to tenant_a)')
+    && str_contains($outboundDialplan, 'Set(__PANEL_INBOUND_CALLER=${CALLERID(num)})')
     && str_contains($outboundDialplan, 'Goto(tenant_a-inbound,${EXTEN},1)')
     && str_contains($outboundDialplan, 'exten => _09642105105,1,NoOp(Shared-provider registration dispatch to tenant_b)')
     && str_contains($outboundDialplan, 'Goto(tenant_b-inbound,${EXTEN},1)')
