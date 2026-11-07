@@ -23,7 +23,7 @@ $appUrl = (string) $env('APP_URL', 'http://localhost:8080');
 
 return [
     'name'    => $env('APP_NAME', 'Asterisk Panel'),
-    'version' => '1.3.73',
+    'version' => '1.3.74',
     'github_repo' => $env('APP_GITHUB_REPO', 'https://github.com/Santuctg/asterisk-panel'),
 
     // Absolute, externally reachable URL of this panel. Used to build

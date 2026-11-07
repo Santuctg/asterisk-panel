@@ -574,7 +574,10 @@ final class ConfigGenerator
                 }
                 $patterns[$pattern][] = [
                     'tenant_id' => $tenantId,
-                    'target' => '0',
+                    // Preserve a numeric registration DID so the tenant's
+                    // catch-all _X. route matches (it requires 2+ digits).
+                    // Non-numeric account IDs use a safe two-digit surrogate.
+                    'target' => preg_match('/^[0-9]{2,}$/', $contactUser) ? '${EXTEN}' : '00',
                     'source' => 'registration',
                 ];
             }

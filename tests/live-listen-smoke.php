@@ -194,9 +194,9 @@ $check(str_contains($outboundDialplan, "[panel-inbound-shared-{$sharedSuffix}]")
     && str_contains($outboundDialplan, 'exten => _16661230000,1,NoOp(Shared-provider DID dispatch to tenant_b)')
     && str_contains($outboundDialplan, 'Goto(tenant_b-inbound,${EXTEN},1)')
     && str_contains($outboundDialplan, 'exten => _09642359359,1,NoOp(Shared-provider registration dispatch to tenant_a)')
-    && str_contains($outboundDialplan, 'Goto(tenant_a-inbound,0,1)')
+    && str_contains($outboundDialplan, 'Goto(tenant_a-inbound,${EXTEN},1)')
     && str_contains($outboundDialplan, 'exten => _09642105105,1,NoOp(Shared-provider registration dispatch to tenant_b)')
-    && str_contains($outboundDialplan, 'Goto(tenant_b-inbound,0,1)')
+    && str_contains($outboundDialplan, 'Goto(tenant_b-inbound,${EXTEN},1)')
     && str_contains($outboundDialplan, 'Unmatched shared-provider DID; refusing default-tenant fallback'),
     'shared-host calls without line tokens dispatch by DID without using another tenant default route');
 $check(substr_count($outboundPjsip, 'set_var = PANEL_OUTBOUND_ROUTE_ID=' . $outboundRoute) === 2,
