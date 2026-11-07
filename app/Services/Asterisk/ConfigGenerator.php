@@ -175,23 +175,24 @@ final class ConfigGenerator
 
         foreach ($extensions as $ext) {
             $realm = $this->tenantRealm((string) ($ext['tenant_domain'] ?? ''), (string) $ext['ctx']);
-            $name = $ext['extension'] . '@' . $realm;
+            $extension = $this->dialToken((string) $ext['extension']);
+            $name = $extension . '@' . $realm;
             $webBase = $this->endpointName($ext['ctx'], $ext['extension']);
-            $ctx  = $ext['ctx'];
+            $ctx  = $this->contextName((string) $ext['ctx']);
 
-            $out .= "; ---- {$ext['extension']} ({$ext['name']}) context={$ctx} ----\n";
+            $out .= "; ---- {$extension} ({$this->esc((string) $ext['name'])}) context={$ctx} ----\n";
             $out .= "[{$name}](endpoint_basic)\n";
             $out .= "context = {$ctx}\n";
             $out .= "auth = {$name}\n";
             $out .= "aors = {$name}\n";
             $out .= "identify_by = username,auth_username\n";
             if (!empty($ext['outbound_route_id'])) {
-                $out .= "set_var = PANEL_OUTBOUND_ROUTE_ID={$ext['outbound_route_id']}\n";
+                $out .= "set_var = PANEL_OUTBOUND_ROUTE_ID=" . (int) $ext['outbound_route_id'] . "\n";
             }
             // Always emit a callerid so the display name comes from the
             // caller's configured name, never the called extension's number.
             $cidName = $this->esc((string) ($ext['cid_name'] ?: $ext['name'] ?: $ext['extension']));
-            $cidNum  = ($ext['cid_number'] ?? '') !== '' ? $ext['cid_number'] : $ext['extension'];
+            $cidNum  = $this->callerNumber((string) (($ext['cid_number'] ?? '') !== '' ? $ext['cid_number'] : $extension));
             $out .= "callerid = \"{$cidName}\" <{$cidNum}>\n";
             $out .= "\n";
 
@@ -200,13 +201,13 @@ final class ConfigGenerator
             $out .= "auth_type = userpass\n";
             // FusionPBX-style multi-domain identity: the user remains "201"
             // while the endpoint/AOR is qualified as "201@tenant-domain".
-            $out .= "username = {$ext['extension']}\n";
+            $out .= "username = {$extension}\n";
             $out .= "password = {$this->esc($ext['secret'])}\n";
             $out .= "realm = {$realm}\n\n";
 
             $out .= "[{$name}]\n";
             $out .= "type = aor\n";
-            $out .= "max_contacts = {$ext['max_registrations']}\n";
+            $out .= "max_contacts = " . max(1, (int) $ext['max_registrations']) . "\n";
             $out .= "remove_existing = yes\n";
             // OPTIONS keepalive gives each phone a live latency (RTT) reading.
             $out .= "qualify_frequency = 60\n";
@@ -219,7 +220,7 @@ final class ConfigGenerator
             $out .= "type = endpoint\ntransport = panel-transport-ws\n";
             $out .= "context = {$ctx}\nauth = {$phone}\naors = {$phone}\n";
             if (!empty($ext['outbound_route_id'])) {
-                $out .= "set_var = PANEL_OUTBOUND_ROUTE_ID={$ext['outbound_route_id']}\n";
+                $out .= "set_var = PANEL_OUTBOUND_ROUTE_ID=" . (int) $ext['outbound_route_id'] . "\n";
             }
             $out .= "callerid = \"{$cidName}\" <{$cidNum}>\n";
             $out .= "webrtc = yes\ndtls_auto_generate_cert = yes\ndirect_media = no\n";
@@ -244,42 +245,45 @@ final class ConfigGenerator
         );
 
         foreach ($trunks as $t) {
-            $out .= "; ---- {$t['name']} ({$t['host']}) ----\n";
+            $trunkName = $this->esc((string) $t['name']);
+            $host = $this->sipValue((string) $t['host']);
+            $username = $this->sipValue((string) $t['username']);
+            $out .= "; ---- {$trunkName} ({$host}) ----\n";
 
             // Registration (outbound auth) block.
             $out .= "[trunk-{$t['id']}](registration)\n";
             $out .= "outbound_auth = trunk-{$t['id']}-auth\n";
-            $out .= "client_uri = sip:{$t['username']}@{$t['host']}\n";
-            $out .= "server_uri = sip:{$t['host']}\n";
+            $out .= "client_uri = sip:{$username}@{$host}\n";
+            $out .= "server_uri = sip:{$host}\n";
             if (!empty($t['register'])) {
-                $out .= "retry_interval = {$t['register']}\n";
+                $out .= "retry_interval = " . max(1, (int) $t['register']) . "\n";
             }
             $out .= "\n";
 
             $out .= "[trunk-{$t['id']}-auth]\n";
             $out .= "type = auth\n";
             $out .= "auth_type = userpass\n";
-            $out .= "username = {$t['username']}\n";
+            $out .= "username = {$username}\n";
             $out .= "password = {$this->esc($t['secret'])}\n\n";
 
             // AoR pointing at the provider.
             $out .= "[trunk-{$t['id']}-aor]\n";
             $out .= "type = aor\n";
-            $out .= "contact = sip:{$t['host']}\n";
+            $out .= "contact = sip:{$host}\n";
             // Qualify the provider so RTT/latency and reachability are visible.
             $out .= "qualify_frequency = 60\n";
             $out .= "qualify_timeout = 3\n\n";
 
             // The endpoint itself.
             $out .= "[trunk-{$t['id']}](trunk-basic)\n";
-            $fromDomain = $t['from_domain'] ?: $t['host'];
+            $fromDomain = $this->sipValue((string) ($t['from_domain'] ?: $host));
             $out .= "from_domain = {$fromDomain}\n";
-            $out .= "context = {$t['ctx']}-inbound\n";
+            $out .= "context = {$this->contextName((string) $t['ctx'])}-inbound\n";
             $out .= "trust_id_inbound = yes\n";
             $out .= "aors = trunk-{$t['id']}-aor\n";
             $out .= "outbound_auth = trunk-{$t['id']}-auth\n";
             if (!empty($t['cid'])) {
-                $out .= "callerid = {$t['cid']}\n";
+                $out .= "callerid = {$this->line((string) $t['cid'])}\n";
             }
             $out .= "\n";
 
@@ -288,7 +292,7 @@ final class ConfigGenerator
             $out .= "[trunk-{$t['id']}-identify]\n";
             $out .= "type = identify\n";
             $out .= "endpoint = trunk-{$t['id']}\n";
-            $out .= "match = {$t['host']}\n\n";
+            $out .= "match = {$host}\n\n";
         }
 
         return $out;
@@ -303,9 +307,9 @@ final class ConfigGenerator
         $out  = ";; Generated by Asterisk Panel - do not edit by hand.\n\n";
         $out .= "[general]\n";
         $out .= "format = wav49|wav|mp3\n";
-        $out .= "serveremail = " . (Config::get('asterisk.voicemail.serveremail', 'asterisk@localhost')) . "\n";
-        $out .= "mailcmd = " . (Config::get('asterisk.voicemail.mailcmd', '/usr/bin/php ' . BASE_PATH . '/scripts/asterisk-mail.php')) . "\n";
-        $out .= "attach = " . (Config::get('asterisk.voicemail.attach', 'yes')) . "\n";
+        $out .= "serveremail = " . $this->line((string) Config::get('asterisk.voicemail.serveremail', 'asterisk@localhost')) . "\n";
+        $out .= "mailcmd = " . $this->line((string) Config::get('asterisk.voicemail.mailcmd', '/usr/bin/php ' . BASE_PATH . '/scripts/asterisk-mail.php')) . "\n";
+        $out .= "attach = " . $this->line((string) Config::get('asterisk.voicemail.attach', 'yes')) . "\n";
         $out .= "maxmessage = 180\n";
         $out .= "minmessage = 3\n";
         $out .= "maxgreet = 60\n";
@@ -338,6 +342,7 @@ final class ConfigGenerator
         $tenants = $this->db->all('SELECT id, context, name FROM tenants ORDER BY id');
 
         foreach ($tenants as $t) {
+            $context = $this->contextName((string) $t['context']);
             $boxes = $this->db->all(
                 'SELECT v.*, e.extension AS ext FROM voicemail v
                  JOIN extensions e ON e.id = v.extension_id
@@ -349,8 +354,8 @@ final class ConfigGenerator
                 continue;
             }
 
-            $out .= "; ---- Tenant: {$t['name']} ({$t['context']}) ----\n";
-            $out .= "[{$t['context']}]\n";
+            $out .= "; ---- Tenant: {$this->esc((string) $t['name'])} ({$context}) ----\n";
+            $out .= "[{$context}]\n";
 
             foreach ($boxes as $b) {
                 // mailbox => password,name,email,attachment,pageremail,pager,options,timezone
@@ -359,20 +364,20 @@ final class ConfigGenerator
                 $opts[] = 'saycid=' . ($b['say_cid'] ? 'yes' : 'no');
                 $opts[] = 'envelope=' . ($b['envelope'] ? 'yes' : 'no');
                 $opts[] = 'skipinstructions=' . ($b['skip_instructions'] ? 'yes' : 'no');
-                $opts[] = 'vm-mailto=' . $b['email'];
+                $opts[] = 'vm-mailto=' . $this->line((string) $b['email']);
                 if ($b['vm_password'] !== '') {
-                    $opts[] = 'vm-secret=' . $b['vm_password'];
+                    $opts[] = 'vm-secret=' . $this->line((string) $b['vm_password']);
                 }
                 $zone = \normalize_timezone((string) ($b['timezone'] ?? ''), 'UTC');
                 $opts[] = 'tz=' . ($zones[$zone] ?? ('iana_' . substr(hash('sha256', $zone), 0, 16)));
 
                 $out .= sprintf(
                     "%s => %s,%s,%s,%s,,,%s\n",
-                    $b['ext'],
-                    $b['pin'],
+                    $this->dialToken((string) $b['ext']),
+                    $this->line((string) $b['pin']),
                     $this->esc($b['name']),
                     $this->esc($b['email']),
-                    $b['pager_email'] ?: '""',
+                    $b['pager_email'] ? $this->line((string) $b['pager_email']) : '""',
                     implode(',', $opts)
                 );
             }
@@ -397,14 +402,14 @@ final class ConfigGenerator
         $tenants = $this->db->all('SELECT * FROM tenants ORDER BY id');
 
         foreach ($tenants as $t) {
-            $ctx  = $t['context'];
+            $ctx  = $this->contextName((string) $t['context']);
             $tid  = $t['id'];
             $recordingMode = $this->tenantSetting((int) $tid, 'recording_mode', 'off');
             $recordInbound = in_array($recordingMode, ['all', 'inbound'], true);
             $recordOutbound = in_array($recordingMode, ['all', 'outbound'], true);
             $recordInternal = $recordingMode === 'all';
             $out .= "; ============================================================\n";
-            $out .= "; TENANT: {$t['name']}  (context {$ctx})\n";
+            $out .= "; TENANT: {$this->esc((string) $t['name'])}  (context {$ctx})\n";
             $out .= "; ============================================================\n\n";
 
             $out .= $this->dialplanInboundRoutes($tid, $ctx, $recordInbound);
@@ -452,8 +457,9 @@ final class ConfigGenerator
 
         foreach ($routes as $r) {
             $pattern = $this->didToPattern($r['did_pattern']);
-            $out .= "; {$r['name']}\n";
-            $out .= "exten => {$pattern},1,NoOp(Inbound: {$r['name']})\n";
+            $routeName = $this->esc((string) $r['name']);
+            $out .= "; {$routeName}\n";
+            $out .= "exten => {$pattern},1,NoOp(Inbound: {$routeName})\n";
             if ($this->shouldRecord((int) ($r['record'] ?? 0), $record)) {
                 $out .= $this->recordingGosub('inbound', $ctx);
             }
@@ -485,9 +491,9 @@ final class ConfigGenerator
         $out .= "\n";
 
         foreach ($routes as $r) {
-            $prefix  = $r['prefix'] ?? '';
+            $prefix  = $this->outboundPrefix((string) ($r['prefix'] ?? ''));
             $pattern = $this->outboundPattern((string) $prefix, (string) $r['match_pattern']);
-            $trunk   = $this->trunkEndpoint((int) $r['trunk_id']);
+            $trunk   = $this->trunkEndpoint((int) $r['trunk_id'], $tid);
             $dialed  = $prefix !== '' ? '${EXTEN:' . strlen((string) $prefix) . '}' : '${EXTEN}';
             $condition = null;
             $schedules = $this->db->all(
@@ -503,8 +509,9 @@ final class ConfigGenerator
             }
 
             $out .= "[{$ctx}-outbound-{$r['id']}]\n";
-            $out .= "; {$r['name']}\n";
-            $out .= "exten => {$pattern},1,NoOp(Outbound: {$r['name']})\n";
+            $routeName = $this->esc((string) $r['name']);
+            $out .= "; {$routeName}\n";
+            $out .= "exten => {$pattern},1,NoOp(Outbound: {$routeName})\n";
             if ($schedules) {
                 foreach ($schedules as $schedule) {
                     $start = preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', (string) $schedule['start_time']) ? $schedule['start_time'] : '00:00';
@@ -529,7 +536,8 @@ final class ConfigGenerator
             if ($this->shouldRecord((int) ($r['record'] ?? 0), $record)) {
                 $out .= $this->recordingGosub('outbound', $ctx);
             }
-            $out .= " same => n,Set(CALLERID(num)=" . ($r['cid_override'] ?: '${CALLERID(num)}') . ")\n";
+            $callerId = $r['cid_override'] ? $this->callerNumber((string) $r['cid_override']) : '${CALLERID(num)}';
+            $out .= " same => n,Set(CALLERID(num)={$callerId})\n";
             $out .= " same => n,Dial(PJSIP/{$dialed}@{$trunk},30,Tt)\n";
             $out .= " same => n,Hangup()\n\n";
         }
@@ -547,18 +555,19 @@ final class ConfigGenerator
         $out = '';
 
         foreach ($exts as $e) {
-            $ep    = $e['extension'] . '@' . $realm;
+            $extension = $this->dialToken((string) $e['extension']);
+            $ep    = $extension . '@' . $realm;
             $label = $this->esc($e['name']);
 
-            $out .= "; {$e['extension']} {$label}\n";
-            $out .= "exten => {$e['extension']},1,NoOp(Ext {$e['extension']} {$label})\n";
+            $out .= "; {$extension} {$label}\n";
+            $out .= "exten => {$extension},1,NoOp(Ext {$extension} {$label})\n";
             if ($this->shouldRecord((int) ($e['record'] ?? 0), $record)) {
                 $out .= $this->recordingGosub('internal', $ctx);
             }
-            $out .= " same => n,Dial(PJSIP/{$ep},{$e['ring_timeout']},Tt" . ($e['follow_me'] ? 'm' : '') . ")\n";
+            $out .= " same => n,Dial(PJSIP/{$ep}," . (int) $e['ring_timeout'] . ',Tt' . ($e['follow_me'] ? 'm' : '') . ")\n";
 
             if (!empty($e['vm_on_busy']) || !empty($e['vm_on_noanswer'])) {
-                $out .= " same => n(voicemail),Voicemail({$e['extension']}@{$ctx}," .
+                $out .= " same => n(voicemail),Voicemail({$extension}@{$ctx}," .
                     (!empty($e['vm_on_busy']) ? 'u' : 'b') . ")\n";
             }
             $out .= " same => n,Hangup()\n\n";
@@ -576,11 +585,12 @@ final class ConfigGenerator
 
         $out = '';
         foreach ($groups as $g) {
+            $extension = $this->dialToken((string) $g['extension']);
             $members = $this->memberEndpoints((int) $g['id'], $realm);
             $strategy = $this->ringStrategy($g['strategy']);
 
-            $out .= "; Ring group {$g['extension']} {$this->esc($g['name'])}\n";
-            $out .= "exten => {$g['extension']},1,NoOp(Ring group: {$this->esc($g['name'])})\n";
+            $out .= "; Ring group {$extension} {$this->esc($g['name'])}\n";
+            $out .= "exten => {$extension},1,NoOp(Ring group: {$this->esc($g['name'])})\n";
             if ($this->shouldRecord((int) ($g['record'] ?? 0), $record)) {
                 $out .= $this->recordingGosub('internal', $ctx);
             }
@@ -594,7 +604,7 @@ final class ConfigGenerator
 
             $out .= " same => n,Set(__RINGSTRATEGY={$strategy})\n";
             $dialOptions = 'TtH';
-            $out .= " same => n,Dial({$members},{$g['timeout']},{$dialOptions})\n";
+            $out .= " same => n,Dial({$members}," . (int) $g['timeout'] . ",{$dialOptions})\n";
             $out .= " same => n,Hangup()\n\n";
         }
 
@@ -610,13 +620,14 @@ final class ConfigGenerator
 
         $out = '';
         foreach ($queues as $q) {
-            $out .= "; Queue {$q['extension']} {$this->esc($q['name'])}\n";
-            $out .= "exten => {$q['extension']},1,NoOp(Queue: {$this->esc($q['name'])})\n";
+            $extension = $this->dialToken((string) $q['extension']);
+            $out .= "; Queue {$extension} {$this->esc($q['name'])}\n";
+            $out .= "exten => {$extension},1,NoOp(Queue: {$this->esc($q['name'])})\n";
             if ($this->shouldRecord((int) ($q['record'] ?? 0), $record)) {
                 $out .= $this->recordingGosub('internal', $ctx);
             }
             $out .= $this->announcementGosub((int) ($q['announcement_id'] ?? 0), $tid);
-            $out .= " same => n,Queue({$q['extension']},tT,,,{$q['max_wait']})\n";
+            $out .= " same => n,Queue({$extension},tT,,," . (int) $q['max_wait'] . ")\n";
             $out .= " same => n,Hangup()\n\n";
         }
         return $out;
@@ -631,22 +642,23 @@ final class ConfigGenerator
 
         $out = '';
         foreach ($ivrs as $ivr) {
-            $out .= "; IVR {$ivr['extension']} {$this->esc($ivr['name'])}\n";
-            $out .= "exten => {$ivr['extension']},1,NoOp(IVR: {$this->esc($ivr['name'])})\n";
+            $extension = $this->dialToken((string) $ivr['extension']);
+            $out .= "; IVR {$extension} {$this->esc($ivr['name'])}\n";
+            $out .= "exten => {$extension},1,NoOp(IVR: {$this->esc($ivr['name'])})\n";
             if ($this->shouldRecord((int) ($ivr['record'] ?? 0), $record)) {
                 $out .= $this->recordingGosub('internal', $ctx);
             }
             $out .= " same => n,Answer()\n";
-            $out .= " same => n,Set(TIMEOUT(digit)={$ivr['timeout']})\n";
-            $out .= " same => n,Set(TIMEOUT(response)={$ivr['response_timeout']})\n";
+            $out .= " same => n,Set(TIMEOUT(digit)=" . (int) $ivr['timeout'] . ")\n";
+            $out .= " same => n,Set(TIMEOUT(response)=" . (int) $ivr['response_timeout'] . ")\n";
 
             if (!empty($ivr['greeting'])) {
-                $out .= " same => n,Background({$ivr['greeting']})\n";
+                $out .= " same => n,Background({$this->soundPath((string) $ivr['greeting'])})\n";
             } else {
                 $out .= " same => n,Background(silence/1)\n";
             }
 
-            $out .= " same => n,Goto({$ctx}-ivr-{$ivr['extension']},s,1)\n\n";
+            $out .= " same => n,Goto({$ctx}-ivr-{$extension},s,1)\n\n";
         }
 
         return $out;
@@ -661,13 +673,15 @@ final class ConfigGenerator
 
         $out = '';
         foreach ($ivrs as $ivr) {
-            $out .= "[{$ctx}-ivr-{$ivr['extension']}]\n";
-            $out .= "exten => s,1,Set(__IVR_MENU={$ivr['extension']})\n";
+            $extension = $this->dialToken((string) $ivr['extension']);
+            $out .= "[{$ctx}-ivr-{$extension}]\n";
+            $out .= "exten => s,1,Set(__IVR_MENU={$extension})\n";
             $out .= " same => n,Background(silence/1)\n";
             $out .= " same => n,Hangup()\n\n";
 
             $keys = json_decode((string) $ivr['keys'], true) ?: [];
             foreach ($keys as $key => $dest) {
+                $key = $this->dialToken((string) $key);
                 $out .= "exten => {$key},1,Gosub({$this->destinationGosub($dest['type'], $dest['id'], $ctx)})\n";
                 $out .= " same => n,Hangup()\n";
             }
@@ -676,10 +690,10 @@ final class ConfigGenerator
             if (!empty($ivr['timeout_action'])) {
                 $out .= "exten => t,1,Gosub({$this->destinationGosub($ivr['timeout_action'], $ivr['timeout_dest_id'], $ctx)})\n";
             } else {
-                $out .= "exten => t,1,Goto({$ctx}-ivr-{$ivr['extension']},s,1)\n";
+                $out .= "exten => t,1,Goto({$ctx}-ivr-{$extension},s,1)\n";
             }
             $out .= "exten => i,1,Playback(pbx-invalid)\n";
-            $out .= " same => n,Goto({$ctx}-ivr-{$ivr['extension']},s,1)\n\n";
+            $out .= " same => n,Goto({$ctx}-ivr-{$extension},s,1)\n\n";
         }
 
         return $out;
@@ -724,8 +738,9 @@ final class ConfigGenerator
             if (empty($c['extension'])) {
                 continue;
             }
+            $extension = $this->dialToken((string) $c['extension']);
             $out .= "; Time condition {$this->esc($c['name'])}\n";
-            $out .= "exten => {$c['extension']},1,NoOp(Time condition: {$this->esc($c['name'])})\n";
+            $out .= "exten => {$extension},1,NoOp(Time condition: {$this->esc($c['name'])})\n";
             if ($this->shouldRecord((int) ($c['record'] ?? 0), $record)) {
                 $out .= $this->recordingGosub('internal', $ctx);
             }
@@ -769,14 +784,15 @@ final class ConfigGenerator
 
         $out = '';
         foreach ($rooms as $r) {
-            $profile = $r['profile'] ?: 'default';
-            $out .= "; Conference {$r['extension']} {$this->esc($r['name'])}\n";
-            $out .= "exten => {$r['extension']},1,NoOp(Conference: {$this->esc($r['name'])})\n";
+            $extension = $this->dialToken((string) $r['extension']);
+            $profile = $this->contextName((string) ($r['profile'] ?: 'default'));
+            $out .= "; Conference {$extension} {$this->esc($r['name'])}\n";
+            $out .= "exten => {$extension},1,NoOp(Conference: {$this->esc($r['name'])})\n";
             if ($this->shouldRecord((int) ($r['record'] ?? 0), $record)) {
                 $out .= $this->recordingGosub('internal', $ctx);
             }
             $out .= " same => n,Answer()\n";
-            $out .= " same => n,ConfBridge({$r['pin']}@{$ctx},{$ctx}-{$profile},{$ctx}-users)\n";
+            $out .= " same => n,ConfBridge({$this->dialToken((string) $r['pin'])}@{$ctx},{$ctx}-{$profile},{$ctx}-users)\n";
             $out .= " same => n,Hangup()\n\n";
         }
 
@@ -792,12 +808,15 @@ final class ConfigGenerator
 
         $out = '';
         foreach ($lots as $l) {
-            $out .= "; Park lot {$this->esc($l['name'])} (ext {$l['extension']})\n";
-            $out .= "exten => {$l['extension']},1,NoOp(Park lot: {$this->esc($l['name'])})\n";
+            $extension = $this->dialToken((string) $l['extension']);
+            $out .= "; Park lot {$this->esc($l['name'])} (ext {$extension})\n";
+            $out .= "exten => {$extension},1,NoOp(Park lot: {$this->esc($l['name'])})\n";
             if ($this->shouldRecord((int) ($l['record'] ?? 0), $record)) {
                 $out .= $this->recordingGosub('internal', $ctx);
             }
-            $out .= " same => n,Park({$l['parked_range']},{$ctx}-{$l['id']},{$ctx}-{$l['id']},{$l['return_extension']})\n";
+            $range = preg_replace('/[^0-9-]/', '', $this->line((string) $l['parked_range'])) ?: '701-750';
+            $returnExtension = $this->dialToken((string) $l['return_extension']);
+            $out .= " same => n,Park({$range},{$ctx}-{$l['id']},{$ctx}-{$l['id']},{$returnExtension})\n";
             $out .= " same => n,Hangup()\n\n";
         }
 
@@ -825,20 +844,22 @@ final class ConfigGenerator
             }
 
             foreach ($queues as $q) {
-                $ctx = $t['context'];
+                $tid = (int) $t['id'];
+                $ctx = $this->contextName((string) $t['context']);
                 $realm = $this->tenantRealm((string) ($t['domain'] ?? ''), (string) $ctx);
-                $out .= "; {$q['name']} ({$q['extension']})\n";
-                $out .= "[{$q['extension']}]\n";
+                $extension = $this->dialToken((string) $q['extension']);
+                $out .= "; {$this->esc((string) $q['name'])} ({$extension})\n";
+                $out .= "[{$extension}]\n";
                 $out .= "context = {$ctx}\n";
                 $out .= "musicclass = " . $this->mohClassName($tid, (string) ($q['moh_class'] ?: 'default')) . "\n";
-                $out .= "timeout = {$q['timeout']}\n";
-                $out .= "maxlen = {$q['max_wait']}\n";
-                $out .= "servicelevel = {$q['service_level']}\n";
+                $out .= "timeout = " . (int) $q['timeout'] . "\n";
+                $out .= "maxlen = " . (int) $q['max_wait'] . "\n";
+                $out .= "servicelevel = " . (int) $q['service_level'] . "\n";
                 $out .= "strategy = " . $this->queueStrategy($q['strategy']) . "\n";
-                $out .= "wrapuptime = {$q['wrapup']}\n";
-                $out .= "retry = {$q['retry']}\n";
-                $out .= "agentannounce = " . ($q['agent_announce'] ?: 'none') . "\n";
-                $out .= "memberdelay = {$q['member_delay']}\n";
+                $out .= "wrapuptime = " . (int) $q['wrapup'] . "\n";
+                $out .= "retry = " . (int) $q['retry'] . "\n";
+                $out .= "agentannounce = " . $this->soundPath((string) ($q['agent_announce'] ?: 'none')) . "\n";
+                $out .= "memberdelay = " . (int) $q['member_delay'] . "\n";
                 $out .= "timeoutrestart = yes\n";
                 $out .= "dynamic_members = yes\n";
                 $out .= "EventMemberStatus = yes\n\n";
@@ -853,7 +874,8 @@ final class ConfigGenerator
                 );
 
                 foreach ($agents as $ag) {
-                    $out .= "member => PJSIP/{$ag['extension']}@{$realm},{$ag['penalty']},{$ag['name']}" .
+                    $agentExtension = $this->dialToken((string) $ag['extension']);
+                    $out .= "member => PJSIP/{$agentExtension}@{$realm}," . (int) $ag['penalty'] . ',' . $this->esc((string) $ag['name']) .
                         ($ag['paused'] ? ',paused' : '') . "\n";
                 }
                 $out .= "\n";
@@ -875,19 +897,19 @@ final class ConfigGenerator
         $lots = $this->db->all('SELECT * FROM parking_lots WHERE enabled = 1 ORDER BY id');
 
         foreach ($lots as $l) {
-            $ctx = $this->db->scalar('SELECT context FROM tenants WHERE id = ?', [$l['tenant_id']]);
-            $out .= "; {$l['name']}\n";
+            $ctx = $this->contextName((string) $this->db->scalar('SELECT context FROM tenants WHERE id = ?', [$l['tenant_id']]));
+            $out .= "; {$this->esc((string) $l['name'])}\n";
             $out .= "[parkinglot-{$l['id']}]\n";
             $out .= "context = {$ctx}-{$l['id']}\n";
-            $out .= "parkext = {$l['extension']}\n";
+            $out .= "parkext = {$this->dialToken((string) $l['extension'])}\n";
             $out .= "parkextsounds = " . ($l['play_sounds'] ? 'yes' : 'no') . "\n";
-            $out .= "parktime = {$l['timeout']}\n";
+            $out .= "parktime = " . (int) $l['timeout'] . "\n";
             $out .= "parkedcalltransfers = " . ($l['allow_transfer'] ? 'yes' : 'no') . "\n";
             $out .= "parkedcallreparking = " . ($l['allow_repark'] ? 'yes' : 'no') . "\n";
             $out .= "parkedcallhangup = " . ($l['allow_hangup'] ? 'yes' : 'no') . "\n";
             $out .= "parkedcallrecording = " . ($l['record'] ? 'yes' : 'no') . "\n";
-            $out .= "parkingtime = {$l['timeout']}\n";
-            $out .= "courtesytone = " . ($l['courtesy_tone'] ?: 'beep') . "\n\n";
+            $out .= "parkingtime = " . (int) $l['timeout'] . "\n";
+            $out .= "courtesytone = " . $this->soundPath((string) ($l['courtesy_tone'] ?: 'beep')) . "\n\n";
         }
 
         return $out;
@@ -910,12 +932,13 @@ final class ConfigGenerator
 
         foreach ($classes as $c) {
             $dir = trim((string) ($c['directory'] ?? ''));
-            if ($dir === '') {
+            if ($dir === '' || !preg_match('#^/[A-Za-z0-9_./ -]+$#', $this->line($dir))) {
                 $dir = rtrim((string) Config::get('asterisk.moh_path', '/var/lib/asterisk/moh'), '/')
                     . '/' . $this->mohPathPart((string) $c['tenant_context']) . '/' . $this->mohPathPart((string) $c['name']);
             }
+            $dir = $this->line($dir);
             $className = $this->mohClassName((int) $c['tenant_id'], (string) $c['name']);
-            $out .= "; {$c['tenant_context']} / {$c['name']}\n";
+            $out .= "; {$this->esc((string) $c['tenant_context'])} / {$this->esc((string) $c['name'])}\n";
             $out .= "[{$className}]\n";
             $out .= "mode = files\n";
             $out .= "directory = {$dir}\n";
@@ -944,7 +967,7 @@ final class ConfigGenerator
         $ctxs  = $this->db->all('SELECT id, context FROM tenants');
 
         foreach ($ctxs as $ctxRow) {
-            $ctx = $ctxRow['context'];
+            $ctx = $this->contextName((string) $ctxRow['context']);
             $tid = (int) $ctxRow['id'];
 
             // Asterisk's ACO parser rejects the whole file when any option is
@@ -964,10 +987,10 @@ final class ConfigGenerator
                 if ((int) $r['tenant_id'] !== $tid) {
                     continue;
                 }
-                $out .= "; {$r['name']}\n";
-                $out .= "[{$r['pin']}]\n";
+                $out .= "; {$this->esc((string) $r['name'])}\n";
+                $out .= "[{$this->dialToken((string) $r['pin'])}]\n";
                 $out .= "type = bridge\n";
-                $out .= "max_members = " . ($r['max_members'] ?: '0') . "\n";
+                $out .= "max_members = " . max(0, (int) $r['max_members']) . "\n";
                 $out .= "record_conference = " . ($r['record'] ? 'yes' : 'no') . "\n\n";
             }
         }
@@ -1084,7 +1107,7 @@ final class ConfigGenerator
             'parking'    => $this->parkingGosub((int) $id, $ctx),
             'timecond'   => $this->timeCondGosub((int) $id, $ctx),
             'announcement' => "{$ctx}-announcement-" . (int) $id . ',s,1',
-            'external'   => 'app-dial,1,Dial(SIP/' . $this->esc((string) $id) . ')',
+            'external'   => 'app-dial,1,Dial(SIP/' . $this->callerNumber((string) $id) . ')',
             'hangup'     => 'app-dial,1,Hangup()',
             'voicemail'  => $this->voicemailGosub((int) $id, $ctx),
             default      => 'app-dial,1,Hangup()',
@@ -1094,37 +1117,37 @@ final class ConfigGenerator
     private function extenGosub(int $id, string $ctx): string
     {
         $e = $this->db->one('SELECT extension FROM extensions WHERE id = ?', [$id]);
-        return $e ? "{$ctx},{$e['extension']},1" : "{$ctx},s,1";
+        return $e ? "{$ctx},{$this->dialToken((string) $e['extension'])},1" : "{$ctx},s,1";
     }
 
     private function ringGroupGosub(int $id, string $ctx): string
     {
         $g = $this->db->one('SELECT extension FROM ring_groups WHERE id = ?', [$id]);
-        return $g ? "{$ctx},{$g['extension']},1" : "{$ctx},s,1";
+        return $g ? "{$ctx},{$this->dialToken((string) $g['extension'])},1" : "{$ctx},s,1";
     }
 
     private function ivrGosub(int $id, string $ctx): string
     {
         $i = $this->db->one('SELECT extension FROM ivr_menus WHERE id = ?', [$id]);
-        return $i ? "{$ctx},{$i['extension']},1" : "{$ctx},s,1";
+        return $i ? "{$ctx},{$this->dialToken((string) $i['extension'])},1" : "{$ctx},s,1";
     }
 
     private function conferenceGosub(int $id, string $ctx): string
     {
         $c = $this->db->one('SELECT extension FROM conferences WHERE id = ?', [$id]);
-        return $c ? "{$ctx},{$c['extension']},1" : "{$ctx},s,1";
+        return $c ? "{$ctx},{$this->dialToken((string) $c['extension'])},1" : "{$ctx},s,1";
     }
 
     private function queueGosub(int $id, string $ctx): string
     {
         $q = $this->db->one('SELECT extension FROM queues WHERE id = ?', [$id]);
-        return $q ? "{$ctx},{$q['extension']},1" : "{$ctx},s,1";
+        return $q ? "{$ctx},{$this->dialToken((string) $q['extension'])},1" : "{$ctx},s,1";
     }
 
     private function parkingGosub(int $id, string $ctx): string
     {
         $p = $this->db->one('SELECT extension FROM parking_lots WHERE id = ?', [$id]);
-        return $p ? "{$ctx},{$p['extension']},1" : "{$ctx},s,1";
+        return $p ? "{$ctx},{$this->dialToken((string) $p['extension'])},1" : "{$ctx},s,1";
     }
 
     private function timeCondGosub(int $id, string $ctx): string
@@ -1136,7 +1159,7 @@ final class ConfigGenerator
     private function voicemailGosub(int $id, string $ctx): string
     {
         $v = $this->db->one('SELECT e.extension FROM voicemail v JOIN extensions e ON e.id = v.extension_id WHERE v.id = ?', [$id]);
-        return $v ? "app-voicemail,1,Voicemail({$v['extension']}@{$ctx},u)" : "{$ctx},s,1";
+        return $v ? "app-voicemail,1,Voicemail({$this->dialToken((string) $v['extension'])}@{$ctx},u)" : "{$ctx},s,1";
     }
 
     /** Ampersand-delimited PJSIP dial string for simultaneous ring-group legs. */
@@ -1151,21 +1174,23 @@ final class ConfigGenerator
 
         $eps = [];
         foreach ($members as $m) {
-            $eps[] = 'PJSIP/' . $m['extension'] . '@' . $realm;
+            $eps[] = 'PJSIP/' . $this->dialToken((string) $m['extension']) . '@' . $realm;
         }
 
         return implode('&', $eps);
     }
 
-    private function trunkEndpoint(int $trunkId): string
+    private function trunkEndpoint(int $trunkId, int $tenantId): string
     {
-        $t = $this->db->one('SELECT id FROM trunks WHERE id = ?', [$trunkId]);
+        $t = $this->db->one('SELECT id FROM trunks WHERE id = ? AND tenant_id = ? AND enabled = 1', [$trunkId, $tenantId]);
         return $t ? 'trunk-' . $trunkId : 'invalid';
     }
 
     /** Add an optional dial prefix without corrupting Asterisk's leading _. */
     private function outboundPattern(string $prefix, string $match): string
     {
+        $prefix = $this->outboundPrefix($prefix);
+        $match = $this->dialPattern($match);
         if ($prefix === '') {
             return $match;
         }
@@ -1200,7 +1225,7 @@ final class ConfigGenerator
     /** Translate a DID pattern like "+15551234" or "_+1555XXXX" to exten pattern. */
     private function didToPattern(string $pattern): string
     {
-        $pattern = trim($pattern);
+        $pattern = $this->dialPattern($pattern);
         if ($pattern === '') {
             return '_X.';
         }
@@ -1208,7 +1233,7 @@ final class ConfigGenerator
             return $pattern;
         }
         // Literal number -> exact match with _ prefix.
-        return '_' . preg_replace('/[^0-9X*+.]/', '', $pattern);
+        return '_' . (preg_replace('/[^0-9X*+.]/', '', $pattern) ?: 'X.');
     }
 
     /** Build a GotoIfTime() match expression from a time condition row. */
@@ -1216,13 +1241,13 @@ final class ConfigGenerator
     {
         $timezone = \is_valid_timezone($timezone) ? $timezone : 'UTC';
         if (!empty($c['time_match'])) {
-            $match = trim((string) $c['time_match']);
+            $match = preg_replace('/[^A-Za-z0-9:*&,\/_.+\-]/', '', $this->line((string) $c['time_match'])) ?? '';
             return substr_count($match, ',') >= 4 ? $match : $match . ',' . $timezone;
         }
         // Asterisk order: times,weekdays,month-days,months.
-        $dows = $c['days_of_week'] ?: '*';
-        $dom  = $c['day_of_month'] ?: '*';
-        $mon  = $c['month'] ?: '*';
+        $dows = preg_replace('/[^A-Za-z0-9*&\-]/', '', $this->line((string) ($c['days_of_week'] ?: '*'))) ?: '*';
+        $dom  = preg_replace('/[^0-9*&\-]/', '', $this->line((string) ($c['day_of_month'] ?: '*'))) ?: '*';
+        $mon  = preg_replace('/[^A-Za-z0-9*&\-]/', '', $this->line((string) ($c['month'] ?: '*'))) ?: '*';
         $hasRange = $c['start_hour'] !== null && $c['start_hour'] !== ''
             && $c['end_hour'] !== null && $c['end_hour'] !== '';
         $times = $hasRange
@@ -1242,8 +1267,7 @@ final class ConfigGenerator
     private function endpointName(string $ctx, string $extension): string
     {
         // PJSIP section names cannot contain '@', so flatten ctx -> label.
-        $safeCtx = preg_replace('/[^a-zA-Z0-9_]/', '_', $ctx) ?? $ctx;
-        return $safeCtx . '_' . $extension;
+        return $this->contextName($ctx) . '_' . $this->dialToken($extension);
     }
 
     /** SIP realm used to distinguish the same username across tenants. */
@@ -1251,13 +1275,55 @@ final class ConfigGenerator
     {
         $realm = strtolower(rtrim(trim($domain), '.'));
         if ($realm === '') {
-            $realm = preg_replace('/[^a-zA-Z0-9_.-]/', '_', $ctx) ?? $ctx;
+            $realm = $ctx;
         }
-        return $realm;
+        $realm = preg_replace('/[^a-zA-Z0-9_.-]/', '_', $this->line($realm)) ?: $this->contextName($ctx);
+        return substr($realm, 0, 253);
     }
 
     private function esc(string $s): string
     {
-        return str_replace(['"', "\n", "\r", '\\'], ['', '', '', '\\\\'], $s);
+        return str_replace(['"', '\\'], ['', '\\\\'], $this->line($s));
+    }
+
+    /** Keep every database/config value on one generated config line. */
+    private function line(string $value): string
+    {
+        return trim(preg_replace('/[\x00-\x1F\x7F]/', '', $value) ?? '');
+    }
+
+    private function contextName(string $value): string
+    {
+        return substr(preg_replace('/[^A-Za-z0-9_-]/', '_', $this->line($value)) ?: 'invalid', 0, 80);
+    }
+
+    private function dialToken(string $value): string
+    {
+        return substr(preg_replace('/[^A-Za-z0-9*#+_.@-]/', '', $this->line($value)) ?: 'invalid', 0, 120);
+    }
+
+    private function dialPattern(string $value): string
+    {
+        return substr(preg_replace('/[^A-Za-z0-9_*#+.!\[\]+-]/', '', $this->line($value)) ?? '', 0, 120);
+    }
+
+    private function outboundPrefix(string $value): string
+    {
+        return substr(preg_replace('/[^A-Za-z0-9*#+]/', '', $this->line($value)) ?? '', 0, 40);
+    }
+
+    private function callerNumber(string $value): string
+    {
+        return substr(preg_replace('/[^A-Za-z0-9+*#_.@-]/', '', $this->line($value)) ?: 'anonymous', 0, 120);
+    }
+
+    private function sipValue(string $value): string
+    {
+        return substr(preg_replace('/\s+/', '', $this->line($value)) ?? '', 0, 255);
+    }
+
+    private function soundPath(string $value): string
+    {
+        return substr(preg_replace('#[^A-Za-z0-9_./-]#', '', $this->line($value)) ?: 'none', 0, 255);
     }
 }

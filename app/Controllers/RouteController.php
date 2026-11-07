@@ -278,6 +278,10 @@ final class RouteController extends BaseController
             Flash::error($v->firstError());
             return Response::redirect('/routes?tab=outbound');
         }
+        if (!$this->validTrunkId((int) $data['trunk_id'], $tid)) {
+            Flash::error('Choose a trunk from this tenant.');
+            return Response::redirect('/routes?tab=outbound');
+        }
 
         $id = $this->db()->insert('outbound_routes', $data);
         $this->syncOutboundSchedules($id, $tid, $schedules);
@@ -319,6 +323,10 @@ final class RouteController extends BaseController
         ]);
         if ($v->fails()) {
             Flash::error($v->firstError());
+            return Response::redirect('/routes?tab=outbound');
+        }
+        if (!$this->validTrunkId((int) $data['trunk_id'], (int) $row['tenant_id'])) {
+            Flash::error('Choose a trunk from this tenant.');
             return Response::redirect('/routes?tab=outbound');
         }
 
@@ -633,6 +641,14 @@ final class RouteController extends BaseController
             'SELECT id FROM announcements WHERE id = ? AND tenant_id = ? AND enabled = 1',
             [$announcementId, $tid]
         ) ? $announcementId : null;
+    }
+
+    private function validTrunkId(int $trunkId, int $tenantId): bool
+    {
+        return $trunkId > 0 && (bool) $this->db()->scalar(
+            'SELECT COUNT(*) FROM trunks WHERE id = ? AND tenant_id = ? AND enabled = 1',
+            [$trunkId, $tenantId]
+        );
     }
 
     private function validDestination(string $type, mixed $id, int $tenantId): bool

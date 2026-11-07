@@ -62,6 +62,12 @@ final class VoicemailController extends BaseController
 
         $data = $this->collect($request, $tid);
 
+        if (!$this->extensionBelongsToTenant((int) $data['extension_id'], $tid)) {
+            $this->stashOld($request);
+            Flash::error('Choose an extension from this tenant.');
+            return Response::redirect('/voicemail/create');
+        }
+
         $v = Validator::make($data, [
             'extension_id' => 'required|integer|exists:extensions,id',
             'pin'          => 'required|digits_between:4,10',
@@ -196,5 +202,13 @@ final class VoicemailController extends BaseController
             return $this->db()->one('SELECT * FROM voicemail WHERE id = ?', [$id]);
         }
         return $this->db()->one('SELECT * FROM voicemail WHERE id = ? AND tenant_id = ?', [$id, $tid]);
+    }
+
+    private function extensionBelongsToTenant(int $extensionId, int $tenantId): bool
+    {
+        return $extensionId > 0 && (bool) $this->db()->scalar(
+            'SELECT COUNT(*) FROM extensions WHERE id = ? AND tenant_id = ? AND enabled = 1',
+            [$extensionId, $tenantId]
+        );
     }
 }

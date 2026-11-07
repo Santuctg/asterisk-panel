@@ -62,6 +62,12 @@ final class DeviceController extends BaseController
 
         $data = $this->collect($request, $tid);
 
+        if ($request->int('extension_id') > 0 && $data['extension_id'] === null) {
+            $this->stashOld($request);
+            Flash::error('Choose an extension from this tenant.');
+            return Response::redirect('/devices/create');
+        }
+
         $v = Validator::make($data, [
             'mac'           => 'required|mac',
             'vendor'        => 'required',
@@ -123,6 +129,12 @@ final class DeviceController extends BaseController
 
         $data = $this->collect($request, (int) $row['tenant_id']);
         $data['mac'] = Str::macCompact($data['mac']);
+
+        if ($request->int('extension_id') > 0 && $data['extension_id'] === null) {
+            $this->stashOld($request);
+            Flash::error('Choose an extension from this tenant.');
+            return Response::redirect("/devices/{$row['id']}/edit");
+        }
 
         $v = Validator::make($data, [
             'mac'          => 'required|mac',
@@ -193,9 +205,13 @@ final class DeviceController extends BaseController
     private function collect(Request $request, int $tid): array
     {
         $extId = $request->int('extension_id');
+        $extId = $extId > 0 && $this->db()->scalar(
+            'SELECT COUNT(*) FROM extensions WHERE id = ? AND tenant_id = ? AND enabled = 1',
+            [$extId, $tid]
+        ) ? $extId : null;
 
         return [
-            'extension_id'  => $extId ?: null,
+            'extension_id'  => $extId,
             'mac'           => $request->str('mac'),
             'vendor'        => $request->str('vendor', 'generic'),
             'model'         => $request->str('model'),

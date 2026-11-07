@@ -212,8 +212,8 @@ $series = $history->series(24, 24);
 $check($series !== [] && count($series) <= 24, 'series() buckets a day of samples into a bounded list');
 $check($series !== [] && abs($series[count($series) - 1]['t'] - ($baseTs + 58 * 60)) <= 60,
     'series() timestamps follow the recorded samples');
-$check($series !== [] && $series[0]['mem'] === 87.5 && $series[0]['disk'] === 75.0,
-    'series() converts stored byte counters into percentages');
+$check($series !== [] && $series[0]['mem'] === 12.5 && $series[0]['disk'] === 25.0,
+    'series() converts stored byte counters into used percentages');
 $check($series !== [] && is_float($series[0]['cpu']), 'series() averages CPU per bucket');
 
 $check($history->rows(24) !== [] && $history->rows(0) === [], 'rows() honours the look-back window');

@@ -115,13 +115,13 @@ final class ServerStatsHistory
 
             $memTotal = (int) ($row['mem_total'] ?? 0);
             if ($memTotal > 0 && is_numeric($row['mem_used'])) {
-                $acc[$index]['mem'] += ($memTotal - (int) $row['mem_used']) / $memTotal * 100;
+                $acc[$index]['mem'] += (int) $row['mem_used'] / $memTotal * 100;
                 $acc[$index]['memN']++;
             }
 
             $diskTotal = (int) ($row['disk_total'] ?? 0);
             if ($diskTotal > 0 && is_numeric($row['disk_used'])) {
-                $acc[$index]['disk'] += ($diskTotal - (int) $row['disk_used']) / $diskTotal * 100;
+                $acc[$index]['disk'] += (int) $row['disk_used'] / $diskTotal * 100;
                 $acc[$index]['diskN']++;
             }
         }
