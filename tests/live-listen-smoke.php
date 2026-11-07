@@ -113,9 +113,21 @@ $trackedTrunk = $db->insert('trunks', [
     'username' => 'provider-user', 'secret' => 'provider-secret', 'enabled' => 1,
 ]);
 $trunkConfig = $gen->renderPjsipTrunks();
-$check(str_contains($trunkConfig, "context = tenant_a-inbound\ntrust_id_inbound = yes")
+$check(str_contains($trunkConfig, "line = yes\nendpoint = trunk-{$trackedTrunk}\n")
+    && str_contains($trunkConfig, "context = tenant_a-inbound\ntrust_id_inbound = yes")
     && str_contains($trunkConfig, "[trunk-{$trackedTrunk}-identify]\ntype = identify\nendpoint = trunk-{$trackedTrunk}\nmatch = sip.example.test"),
-    'provider host identifies inbound traffic and trusts its asserted caller ID');
+    'registration line and unique provider host identify inbound traffic for its tenant');
+$sharedTrunk = $db->insert('trunks', [
+    'tenant_id' => $other, 'name' => 'Shared provider tenant B', 'host' => 'sip.example.test',
+    'username' => 'provider-user-b', 'secret' => 'provider-secret-b', 'enabled' => 1,
+]);
+$sharedTrunkConfig = $gen->renderPjsipTrunks();
+$check(str_contains($sharedTrunkConfig, "line = yes\nendpoint = trunk-{$trackedTrunk}\n")
+    && str_contains($sharedTrunkConfig, "line = yes\nendpoint = trunk-{$sharedTrunk}\n")
+    && !str_contains($sharedTrunkConfig, "[trunk-{$trackedTrunk}-identify]")
+    && !str_contains($sharedTrunkConfig, "[trunk-{$sharedTrunk}-identify]")
+    && str_contains($sharedTrunkConfig, 'Shared provider host: line binding is required'),
+    'shared provider hosts cannot fall back to another tenant endpoint');
 $trunkLabelMethod = new ReflectionMethod(App\Controllers\DashboardController::class, 'labelTrunkChannels');
 $labeledChannels = $trunkLabelMethod->invoke(new App\Controllers\DashboardController(), [
     ['name' => 'PJSIP/trunk-' . $trackedTrunk . '-00000001'],

@@ -244,6 +244,14 @@ final class ConfigGenerator
              JOIN tenants t ON t.id = g.tenant_id WHERE g.enabled = 1 ORDER BY g.name'
         );
 
+        $hostUseCounts = [];
+        foreach ($trunks as $trunk) {
+            $matchHost = strtolower(rtrim($this->sipValue((string) $trunk['host']), '.'));
+            if ($matchHost !== '') {
+                $hostUseCounts[$matchHost] = ($hostUseCounts[$matchHost] ?? 0) + 1;
+            }
+        }
+
         foreach ($trunks as $t) {
             $trunkName = $this->esc((string) $t['name']);
             $host = $this->sipValue((string) $t['host']);
@@ -255,6 +263,11 @@ final class ConfigGenerator
             $out .= "outbound_auth = trunk-{$t['id']}-auth\n";
             $out .= "client_uri = sip:{$username}@{$host}\n";
             $out .= "server_uri = sip:{$host}\n";
+            // The registrar returns this opaque line token on inbound calls,
+            // binding the request to this exact endpoint before IP matching.
+            // This is essential when multiple tenants use the same provider.
+            $out .= "line = yes\n";
+            $out .= "endpoint = trunk-{$t['id']}\n";
             if (!empty($t['register'])) {
                 $out .= "retry_interval = " . max(1, (int) $t['register']) . "\n";
             }
@@ -287,12 +300,18 @@ final class ConfigGenerator
             }
             $out .= "\n";
 
-            // Match provider-originated INVITEs by signalling IP/host. An
-            // outbound registration alone does not identify inbound traffic.
-            $out .= "[trunk-{$t['id']}-identify]\n";
-            $out .= "type = identify\n";
-            $out .= "endpoint = trunk-{$t['id']}\n";
-            $out .= "match = {$host}\n\n";
+            // Keep IP/host matching only as a compatibility fallback when the
+            // provider host is unique. Duplicate identify matches can select
+            // another tenant's endpoint when an ITSP host is shared.
+            $matchHost = strtolower(rtrim($host, '.'));
+            if (($hostUseCounts[$matchHost] ?? 0) === 1) {
+                $out .= "[trunk-{$t['id']}-identify]\n";
+                $out .= "type = identify\n";
+                $out .= "endpoint = trunk-{$t['id']}\n";
+                $out .= "match = {$host}\n\n";
+            } else {
+                $out .= "; Shared provider host: line binding is required for tenant-safe inbound identification.\n\n";
+            }
         }
 
         return $out;
