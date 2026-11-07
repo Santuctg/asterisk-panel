@@ -263,6 +263,12 @@ final class ConfigGenerator
             $out .= "outbound_auth = trunk-{$t['id']}-auth\n";
             $out .= "client_uri = sip:{$username}@{$host}\n";
             $out .= "server_uri = sip:{$host}\n";
+            if ($username !== '') {
+                // Registrars that strip the opaque line parameter still route
+                // calls to this Contact user, giving the shared DID dispatcher
+                // a stable, tenant-specific registration identity.
+                $out .= "contact_user = {$username}\n";
+            }
             // The registrar returns this opaque line token on inbound calls,
             // binding the request to this exact endpoint before IP matching.
             // This is essential when multiple tenants use the same provider.
@@ -511,7 +517,7 @@ final class ConfigGenerator
     private function dialplanSharedProviderInbound(): string
     {
         $trunks = $this->db->all(
-            'SELECT g.host, g.tenant_id, t.context AS ctx FROM trunks g
+            'SELECT g.host, g.username, g.tenant_id, t.context AS ctx FROM trunks g
              JOIN tenants t ON t.id = g.tenant_id WHERE g.enabled = 1 AND t.enabled = 1'
         );
         $groups = [];
@@ -537,22 +543,55 @@ final class ConfigGenerator
                 array_keys($tenantContexts)
             );
             $patterns = [];
+            $catchAllTenants = [];
             foreach ($routes as $route) {
                 $pattern = $this->didToPattern((string) $route['did_pattern']);
                 // A catch-all cannot prove tenant ownership on a shared host.
-                if ($pattern === '_X.') continue;
-                $patterns[$pattern][] = $route;
+                if ($pattern === '_X.') {
+                    $catchAllTenants[(int) $route['tenant_id']] = true;
+                    continue;
+                }
+                $patterns[$pattern][] = [
+                    'tenant_id' => (int) $route['tenant_id'],
+                    'target' => '${EXTEN}',
+                    'source' => 'DID',
+                ];
+            }
+            // A Contact user is tied to one outbound registration. It can
+            // therefore select that tenant's catch-all route without allowing
+            // another tenant's generic _X. route to capture the call.
+            foreach ($members as $member) {
+                $tenantId = (int) $member['tenant_id'];
+                $contactUser = trim((string) ($member['username'] ?? ''));
+                if ($contactUser === '' || empty($catchAllTenants[$tenantId])) continue;
+                $pattern = $this->didToPattern($contactUser);
+                if (isset($patterns[$pattern])) {
+                    $existingTenants = array_unique(array_column($patterns[$pattern], 'tenant_id'));
+                    // An explicit DID for this same tenant is more precise than
+                    // its registration-user fallback. A different tenant must
+                    // remain ambiguous and fail closed below.
+                    if (count($existingTenants) === 1 && (int) $existingTenants[0] === $tenantId) continue;
+                }
+                $patterns[$pattern][] = [
+                    'tenant_id' => $tenantId,
+                    'target' => '0',
+                    'source' => 'registration',
+                ];
             }
             foreach ($patterns as $pattern => $matchingRoutes) {
-                if (count($matchingRoutes) !== 1) {
+                $targets = [];
+                foreach ($matchingRoutes as $matchingRoute) {
+                    $targets[$matchingRoute['tenant_id'] . '|' . $matchingRoute['target']] = $matchingRoute;
+                }
+                if (count($targets) !== 1) {
                     $out .= "exten => {$pattern},1,NoOp(Ambiguous shared-provider DID; refusing cross-tenant routing)\n";
                     $out .= " same => n,Hangup(21)\n";
                     continue;
                 }
-                $route = $matchingRoutes[0];
+                $route = array_values($targets)[0];
                 $ctx = $tenantContexts[(int) $route['tenant_id']];
-                $out .= "exten => {$pattern},1,NoOp(Shared-provider DID dispatch to {$ctx})\n";
-                $out .= " same => n,Goto({$ctx}-inbound,\${EXTEN},1)\n";
+                $out .= "exten => {$pattern},1,NoOp(Shared-provider {$route['source']} dispatch to {$ctx})\n";
+                $out .= " same => n,Goto({$ctx}-inbound,{$route['target']},1)\n";
             }
             $out .= "exten => _X.,1,NoOp(Unmatched shared-provider DID; refusing default-tenant fallback)\n";
             $out .= " same => n,Hangup(21)\n\n";

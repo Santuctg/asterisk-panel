@@ -110,16 +110,16 @@ $registrations = App\Services\Asterisk\AsteriskManager::parseOutboundRegistratio
 $check(($registrations['trunk-1'] ?? '') === 'Registered' && ($registrations['trunk-2'] ?? '') === 'Rejected', 'outbound trunk registration parsing');
 $trackedTrunk = $db->insert('trunks', [
     'tenant_id' => $tid, 'name' => 'Tracked', 'host' => 'sip.example.test',
-    'username' => 'provider-user', 'secret' => 'provider-secret', 'enabled' => 1,
+    'username' => '09642359359', 'secret' => 'provider-secret', 'enabled' => 1,
 ]);
 $trunkConfig = $gen->renderPjsipTrunks();
-$check(str_contains($trunkConfig, "line = yes\nendpoint = trunk-{$trackedTrunk}\n")
+$check(str_contains($trunkConfig, "contact_user = 09642359359\nline = yes\nendpoint = trunk-{$trackedTrunk}\n")
     && str_contains($trunkConfig, "context = tenant_a-inbound\ntrust_id_inbound = yes")
     && str_contains($trunkConfig, "[trunk-{$trackedTrunk}-identify]\ntype = identify\nendpoint = trunk-{$trackedTrunk}\nmatch = sip.example.test"),
     'registration line and unique provider host identify inbound traffic for its tenant');
 $sharedTrunk = $db->insert('trunks', [
     'tenant_id' => $other, 'name' => 'Shared provider tenant B', 'host' => 'sip.example.test',
-    'username' => 'provider-user-b', 'secret' => 'provider-secret-b', 'enabled' => 1,
+    'username' => '09642105105', 'secret' => 'provider-secret-b', 'enabled' => 1,
 ]);
 $sharedTrunkConfig = $gen->renderPjsipTrunks();
 $sharedSuffix = substr(hash('sha256', 'sip.example.test'), 0, 12);
@@ -162,6 +162,10 @@ $db->insert('inbound_routes', [
     'tenant_id' => $tid, 'name' => 'Tenant A default inbound', 'did_pattern' => '_X.',
     'dest_type' => 'hangup', 'dest_id' => null, 'enabled' => 1,
 ]);
+$db->insert('inbound_routes', [
+    'tenant_id' => $other, 'name' => 'Tenant B default inbound', 'did_pattern' => '_X.',
+    'dest_type' => 'hangup', 'dest_id' => null, 'enabled' => 1,
+]);
 $outboundRoute = $db->insert('outbound_routes', [
     'tenant_id' => $tid, 'name' => 'Outside via 9', 'prefix' => '9', 'match_pattern' => "_X.\n_00X.\n_+x.",
     'trunk_id' => $trackedTrunk, 'time_condition_id' => $outboundTime, 'priority' => 0, 'enabled' => 1,
@@ -189,6 +193,10 @@ $check(str_contains($outboundDialplan, '[tenant_a-outbound]')
 $check(str_contains($outboundDialplan, "[panel-inbound-shared-{$sharedSuffix}]")
     && str_contains($outboundDialplan, 'exten => _16661230000,1,NoOp(Shared-provider DID dispatch to tenant_b)')
     && str_contains($outboundDialplan, 'Goto(tenant_b-inbound,${EXTEN},1)')
+    && str_contains($outboundDialplan, 'exten => _09642359359,1,NoOp(Shared-provider registration dispatch to tenant_a)')
+    && str_contains($outboundDialplan, 'Goto(tenant_a-inbound,0,1)')
+    && str_contains($outboundDialplan, 'exten => _09642105105,1,NoOp(Shared-provider registration dispatch to tenant_b)')
+    && str_contains($outboundDialplan, 'Goto(tenant_b-inbound,0,1)')
     && str_contains($outboundDialplan, 'Unmatched shared-provider DID; refusing default-tenant fallback'),
     'shared-host calls without line tokens dispatch by DID without using another tenant default route');
 $check(substr_count($outboundPjsip, 'set_var = PANEL_OUTBOUND_ROUTE_ID=' . $outboundRoute) === 2,
