@@ -289,7 +289,7 @@ return [
             tenant_id     INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
             name          VARCHAR(120) NOT NULL,
             prefix        VARCHAR(20),
-            match_pattern VARCHAR(60) NOT NULL,
+            match_pattern TEXT NOT NULL,
             trunk_id      INTEGER REFERENCES trunks(id) ON DELETE SET NULL,
             time_condition_id INTEGER,
             cid_override  VARCHAR(60),

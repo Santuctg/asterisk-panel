@@ -253,6 +253,11 @@ final class RouteController extends BaseController
     public function storeOutbound(Request $request): Response
     {
         $tid = $this->requireTenant();
+        $patterns = $this->outboundPatterns($request->str('match_pattern'));
+        if ($patterns === null) {
+            Flash::error('Add 1 to 20 valid dial patterns, one per line (maximum 60 characters each).');
+            return Response::redirect('/routes?tab=outbound');
+        }
         $schedules = $this->outboundSchedules($request);
         if ($schedules === null) {
             Flash::error('Check the outbound calling schedule names, days and times.');
@@ -263,7 +268,7 @@ final class RouteController extends BaseController
             'tenant_id'     => $tid,
             'name'          => $request->str('name'),
             'prefix'        => $request->str('prefix'),
-            'match_pattern' => $request->str('match_pattern'),
+            'match_pattern' => implode("\n", $patterns),
             'trunk_id'      => $request->int('trunk_id') ?: null,
             'time_condition_id' => null,
             'cid_override'  => $request->str('cid_override'),
@@ -274,7 +279,7 @@ final class RouteController extends BaseController
 
         $v = Validator::make($data, [
             'name'          => 'required|max:120',
-            'match_pattern' => 'required|max:60',
+            'match_pattern' => 'required|max:1219',
             'trunk_id'      => 'required|integer',
         ]);
 
@@ -302,6 +307,11 @@ final class RouteController extends BaseController
         if (!$row) {
             return Response::redirect('/routes?tab=outbound');
         }
+        $patterns = $this->outboundPatterns($request->str('match_pattern'));
+        if ($patterns === null) {
+            Flash::error('Add 1 to 20 valid dial patterns, one per line (maximum 60 characters each).');
+            return Response::redirect('/routes?tab=outbound');
+        }
         $schedules = $this->outboundSchedules($request);
         if ($schedules === null) {
             Flash::error('Check the outbound calling schedule names, days and times.');
@@ -311,7 +321,7 @@ final class RouteController extends BaseController
         $data = [
             'name'          => $request->str('name'),
             'prefix'        => $request->str('prefix'),
-            'match_pattern' => $request->str('match_pattern'),
+            'match_pattern' => implode("\n", $patterns),
             'trunk_id'      => $request->int('trunk_id') ?: null,
             'time_condition_id' => null,
             'cid_override'  => $request->str('cid_override'),
@@ -322,7 +332,7 @@ final class RouteController extends BaseController
 
         $v = Validator::make($data, [
             'name'          => 'required|max:120',
-            'match_pattern' => 'required|max:60',
+            'match_pattern' => 'required|max:1219',
             'trunk_id'      => 'required|integer',
         ]);
         if ($v->fails()) {
@@ -603,6 +613,23 @@ final class RouteController extends BaseController
             'SELECT id FROM time_conditions WHERE id = ? AND tenant_id = ? AND enabled = 1',
             [$conditionId, $tid]
         ) ? $conditionId : null;
+    }
+
+    /** @return list<string>|null */
+    private function outboundPatterns(string $raw): ?array
+    {
+        $rows = preg_split('/[\r\n,]+/', $raw) ?: [];
+        $patterns = [];
+        foreach ($rows as $row) {
+            $pattern = trim($row);
+            if ($pattern === '') continue;
+            if (mb_strlen($pattern) > 60 || !preg_match('/^_?[A-Za-z0-9*#+.!\[\]+-]+$/', $pattern)) {
+                return null;
+            }
+            $patterns[$pattern] = true;
+        }
+        if (!$patterns || count($patterns) > 20) return null;
+        return array_keys($patterns);
     }
 
     /** @return list<array{name:string,days_of_week:string,start_time:string,end_time:string}>|null */

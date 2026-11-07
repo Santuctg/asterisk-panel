@@ -310,8 +310,24 @@ final class ConfigGenerator
                 $out .= "endpoint = trunk-{$t['id']}\n";
                 $out .= "match = {$host}\n\n";
             } else {
-                $out .= "; Shared provider host: line binding is required for tenant-safe inbound identification.\n\n";
+                $out .= "; Shared provider host: using line binding with DID-dispatch fallback.\n\n";
             }
+        }
+
+        // A provider that does not return registration line parameters cannot
+        // safely identify one of several tenant endpoints by IP alone. Route
+        // that shared IP to a DID dispatcher instead of an arbitrary tenant.
+        foreach ($hostUseCounts as $matchHost => $count) {
+            if ($count < 2) continue;
+            $suffix = substr(hash('sha256', $matchHost), 0, 12);
+            $sharedEndpoint = 'trunk-shared-' . $suffix;
+            $out .= "[{$sharedEndpoint}](trunk-basic)\n";
+            $out .= "context = panel-inbound-shared-{$suffix}\n";
+            $out .= "trust_id_inbound = yes\n\n";
+            $out .= "[{$sharedEndpoint}-identify]\n";
+            $out .= "type = identify\n";
+            $out .= "endpoint = {$sharedEndpoint}\n";
+            $out .= "match = {$matchHost}\n\n";
         }
 
         return $out;
@@ -417,6 +433,7 @@ final class ConfigGenerator
         $out .= ";; Contexts: one per tenant, plus shared [globals]-style helpers.\n\n";
         $out .= $this->recordingHelperContext();
         $out .= $this->announcementHelperContext();
+        $out .= $this->dialplanSharedProviderInbound();
 
         $tenants = $this->db->all('SELECT * FROM tenants ORDER BY id');
 
@@ -490,6 +507,59 @@ final class ConfigGenerator
         return $out;
     }
 
+    /** DID fallback for ITSPs that strip PJSIP registration line parameters. */
+    private function dialplanSharedProviderInbound(): string
+    {
+        $trunks = $this->db->all(
+            'SELECT g.host, g.tenant_id, t.context AS ctx FROM trunks g
+             JOIN tenants t ON t.id = g.tenant_id WHERE g.enabled = 1 AND t.enabled = 1'
+        );
+        $groups = [];
+        foreach ($trunks as $trunk) {
+            $host = strtolower(rtrim($this->sipValue((string) $trunk['host']), '.'));
+            if ($host === '') continue;
+            $groups[$host][] = $trunk;
+        }
+
+        $out = '';
+        foreach ($groups as $host => $members) {
+            if (count($members) < 2) continue;
+            $suffix = substr(hash('sha256', $host), 0, 12);
+            $out .= "[panel-inbound-shared-{$suffix}]\n";
+            $tenantContexts = [];
+            foreach ($members as $member) {
+                $tenantContexts[(int) $member['tenant_id']] = $this->contextName((string) $member['ctx']);
+            }
+            $placeholders = implode(',', array_fill(0, count($tenantContexts), '?'));
+            $routes = $this->db->all(
+                "SELECT tenant_id, did_pattern FROM inbound_routes
+                 WHERE enabled = 1 AND tenant_id IN ({$placeholders}) ORDER BY priority, id",
+                array_keys($tenantContexts)
+            );
+            $patterns = [];
+            foreach ($routes as $route) {
+                $pattern = $this->didToPattern((string) $route['did_pattern']);
+                // A catch-all cannot prove tenant ownership on a shared host.
+                if ($pattern === '_X.') continue;
+                $patterns[$pattern][] = $route;
+            }
+            foreach ($patterns as $pattern => $matchingRoutes) {
+                if (count($matchingRoutes) !== 1) {
+                    $out .= "exten => {$pattern},1,NoOp(Ambiguous shared-provider DID; refusing cross-tenant routing)\n";
+                    $out .= " same => n,Hangup(21)\n";
+                    continue;
+                }
+                $route = $matchingRoutes[0];
+                $ctx = $tenantContexts[(int) $route['tenant_id']];
+                $out .= "exten => {$pattern},1,NoOp(Shared-provider DID dispatch to {$ctx})\n";
+                $out .= " same => n,Goto({$ctx}-inbound,\${EXTEN},1)\n";
+            }
+            $out .= "exten => _X.,1,NoOp(Unmatched shared-provider DID; refusing default-tenant fallback)\n";
+            $out .= " same => n,Hangup(21)\n\n";
+        }
+        return $out;
+    }
+
     private function dialplanOutboundRoutes(int $tid, string $ctx, bool $record = false): string
     {
         $routes = $this->db->all(
@@ -511,7 +581,7 @@ final class ConfigGenerator
 
         foreach ($routes as $r) {
             $prefix  = $this->outboundPrefix((string) ($r['prefix'] ?? ''));
-            $pattern = $this->outboundPattern((string) $prefix, (string) $r['match_pattern']);
+            $patterns = $this->outboundRoutePatterns((string) $r['match_pattern']);
             $trunk   = $this->trunkEndpoint((int) $r['trunk_id'], $tid);
             $dialed  = $prefix !== '' ? '${EXTEN:' . strlen((string) $prefix) . '}' : '${EXTEN}';
             $condition = null;
@@ -530,35 +600,39 @@ final class ConfigGenerator
             $out .= "[{$ctx}-outbound-{$r['id']}]\n";
             $routeName = $this->esc((string) $r['name']);
             $out .= "; {$routeName}\n";
-            $out .= "exten => {$pattern},1,NoOp(Outbound: {$routeName})\n";
+            $steps = '';
             if ($schedules) {
                 foreach ($schedules as $schedule) {
                     $start = preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', (string) $schedule['start_time']) ? $schedule['start_time'] : '00:00';
                     $end = preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', (string) $schedule['end_time']) ? $schedule['end_time'] : '23:59';
                     $days = preg_match('/^[a-z*&\-]+$/', (string) $schedule['days_of_week']) ? $schedule['days_of_week'] : '*';
-                    $out .= " same => n,GotoIfTime({$start}-{$end},{$days},*,*,{$this->tenantTimezone($tid)}?time-allowed)\n";
+                    $steps .= " same => n,GotoIfTime({$start}-{$end},{$days},*,*,{$this->tenantTimezone($tid)}?time-allowed)\n";
                 }
-                $out .= " same => n,NoOp(Outbound blocked: no route calling schedule matched)\n";
-                $out .= " same => n,Hangup(21)\n";
-                $out .= " same => n(time-allowed),NoOp(Outbound calling schedule matched)\n";
+                $steps .= " same => n,NoOp(Outbound blocked: no route calling schedule matched)\n";
+                $steps .= " same => n,Hangup(21)\n";
+                $steps .= " same => n(time-allowed),NoOp(Outbound calling schedule matched)\n";
             } elseif (!empty($r['time_condition_id'])) {
                 if ($condition) {
-                    $out .= " same => n,GotoIfTime(" . $this->timeMatch($condition, $this->tenantTimezone($tid)) . "?time-allowed)\n";
-                    $out .= " same => n,NoOp(Outbound blocked by time condition: {$this->esc($condition['name'])})\n";
-                    $out .= " same => n,Hangup(21)\n";
-                    $out .= " same => n(time-allowed),NoOp(Outbound time condition matched)\n";
+                    $steps .= " same => n,GotoIfTime(" . $this->timeMatch($condition, $this->tenantTimezone($tid)) . "?time-allowed)\n";
+                    $steps .= " same => n,NoOp(Outbound blocked by time condition: {$this->esc($condition['name'])})\n";
+                    $steps .= " same => n,Hangup(21)\n";
+                    $steps .= " same => n(time-allowed),NoOp(Outbound time condition matched)\n";
                 } else {
-                    $out .= " same => n,NoOp(Outbound blocked: assigned time condition is unavailable)\n";
-                    $out .= " same => n,Hangup(21)\n";
+                    $steps .= " same => n,NoOp(Outbound blocked: assigned time condition is unavailable)\n";
+                    $steps .= " same => n,Hangup(21)\n";
                 }
             }
             if ($this->shouldRecord((int) ($r['record'] ?? 0), $record)) {
-                $out .= $this->recordingGosub('outbound', $ctx);
+                $steps .= $this->recordingGosub('outbound', $ctx);
             }
             $callerId = $r['cid_override'] ? $this->callerNumber((string) $r['cid_override']) : '${CALLERID(num)}';
-            $out .= " same => n,Set(CALLERID(num)={$callerId})\n";
-            $out .= " same => n,Dial(PJSIP/{$dialed}@{$trunk},30,Tt)\n";
-            $out .= " same => n,Hangup()\n\n";
+            $steps .= " same => n,Set(CALLERID(num)={$callerId})\n";
+            $steps .= " same => n,Dial(PJSIP/{$dialed}@{$trunk},30,Tt)\n";
+            $steps .= " same => n,Hangup()\n\n";
+            foreach ($patterns as $pattern) {
+                $out .= "exten => {$this->outboundPattern((string) $prefix, $pattern)},1,NoOp(Outbound: {$routeName})\n";
+                $out .= $steps;
+            }
         }
 
         return $out;
@@ -1214,6 +1288,18 @@ final class ConfigGenerator
             return $match;
         }
         return str_starts_with($match, '_') ? '_' . $prefix . substr($match, 1) : $prefix . $match;
+    }
+
+    /** @return list<string> */
+    private function outboundRoutePatterns(string $stored): array
+    {
+        $patterns = preg_split('/[\r\n,]+/', $stored) ?: [];
+        $safe = [];
+        foreach ($patterns as $pattern) {
+            $pattern = $this->dialPattern(trim($pattern));
+            if ($pattern !== '') $safe[$pattern] = true;
+        }
+        return array_keys($safe) ?: ['_X.'];
     }
 
     private function ringStrategy(string $s): string

@@ -50,6 +50,11 @@ if (!str_contains($outboundHtml, '<option value="1">Test trunk</option>')) {
     throw new RuntimeException('FAIL: outbound route selector renders trunk names and IDs');
 }
 echo "PASS: outbound route selector renders trunk names and IDs\n";
+if (!str_contains($outboundHtml, '<textarea id="match_pattern" name="match_pattern"')
+    || !str_contains($outboundHtml, 'Add up to 20 Asterisk patterns, one per line.')) {
+    throw new RuntimeException('FAIL: outbound route supports multiple dial patterns');
+}
+echo "PASS: outbound route supports multiple dial patterns\n";
 if (!str_contains($outboundHtml, 'id="addOutboundSchedule"')
     || !str_contains($outboundHtml, 'name="schedules"')
     || !str_contains($outboundHtml, 'Always allowed — no schedule restrictions.')) {
@@ -63,6 +68,13 @@ if (!str_contains($outboundHtml, "var scheduleDays = ['sun','mon','tue','wed','t
 }
 echo "PASS: outbound schedules support individual weekday selection\n";
 $routeController = new App\Controllers\RouteController();
+$patternParser = new ReflectionMethod($routeController, 'outboundPatterns');
+$parsedPatterns = $patternParser->invoke($routeController, "_01XXXXXXXXX\n_8801XXXXXXXXX\n_01XXXXXXXXX");
+$invalidPatterns = $patternParser->invoke($routeController, "_X.\ninvalid pattern");
+if ($parsedPatterns !== ['_01XXXXXXXXX', '_8801XXXXXXXXX'] || $invalidPatterns !== null) {
+    throw new RuntimeException('FAIL: multiple outbound patterns normalize and validate correctly');
+}
+echo "PASS: multiple outbound patterns normalize and validate correctly\n";
 $scheduleParser = new ReflectionMethod($routeController, 'outboundSchedules');
 $selectedSchedule = new App\Core\Request('POST', '/routes/outbound', [], [
     'schedules' => json_encode([[

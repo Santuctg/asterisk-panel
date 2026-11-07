@@ -153,7 +153,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                                 <tr>
                                     <td><strong><?= e($r['name']) ?></strong></td>
                                     <td><code class="mono"><?= e($r['prefix'] ?: '—') ?></code></td>
-                                    <td><code class="mono"><?= e($r['match_pattern']) ?></code></td>
+                                    <td><?php foreach (preg_split('/[\r\n,]+/', (string) $r['match_pattern']) ?: [] as $pattern): ?><?php if (trim($pattern) !== ''): ?><code class="mono" style="display:block"><?= e(trim($pattern)) ?></code><?php endif; ?><?php endforeach; ?></td>
                                     <td><?= e($r['trunk_name'] ?? '—') ?></td>
                                     <td>
                                         <?php if (!empty($r['schedules'])): ?>
@@ -198,10 +198,11 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                             <?php echo field_text('prefix', 'Dial prefix (optional)', '', [
                                 'hint' => 'Digits users dial before the number. This prefix is matched, then stripped before the trunk.',
                             ]); ?>
-                            <?php echo field_text('match_pattern', 'Match pattern', '', [
-                                'required' => true, 'placeholder' => 'e.g. _9X. or _1NXXNXXXXXX',
-                                'hint' => 'Asterisk pattern: _ = wildcard prefix, X = digit, N 2-9, etc.',
-                            ]); ?>
+                            <div class="field">
+                                <label for="match_pattern">Dial patterns</label>
+                                <textarea id="match_pattern" name="match_pattern" rows="5" required placeholder="_01XXXXXXXXX&#10;_8801XXXXXXXXX"></textarea>
+                                <span class="hint">Add up to 20 Asterisk patterns, one per line. X = any digit, N = 2–9.</span>
+                            </div>
                             <?php
                             $trunkOpts = [];
                             foreach ($trunks as $t) { $trunkOpts[(int) $t['id']] = $t['name']; }

@@ -122,12 +122,14 @@ $sharedTrunk = $db->insert('trunks', [
     'username' => 'provider-user-b', 'secret' => 'provider-secret-b', 'enabled' => 1,
 ]);
 $sharedTrunkConfig = $gen->renderPjsipTrunks();
+$sharedSuffix = substr(hash('sha256', 'sip.example.test'), 0, 12);
 $check(str_contains($sharedTrunkConfig, "line = yes\nendpoint = trunk-{$trackedTrunk}\n")
     && str_contains($sharedTrunkConfig, "line = yes\nendpoint = trunk-{$sharedTrunk}\n")
     && !str_contains($sharedTrunkConfig, "[trunk-{$trackedTrunk}-identify]")
     && !str_contains($sharedTrunkConfig, "[trunk-{$sharedTrunk}-identify]")
-    && str_contains($sharedTrunkConfig, 'Shared provider host: line binding is required'),
-    'shared provider hosts cannot fall back to another tenant endpoint');
+    && str_contains($sharedTrunkConfig, "[trunk-shared-{$sharedSuffix}](trunk-basic)\ncontext = panel-inbound-shared-{$sharedSuffix}")
+    && str_contains($sharedTrunkConfig, "endpoint = trunk-shared-{$sharedSuffix}\nmatch = sip.example.test"),
+    'shared provider hosts use one DID-dispatch endpoint instead of an arbitrary tenant endpoint');
 $trunkLabelMethod = new ReflectionMethod(App\Controllers\DashboardController::class, 'labelTrunkChannels');
 $labeledChannels = $trunkLabelMethod->invoke(new App\Controllers\DashboardController(), [
     ['name' => 'PJSIP/trunk-' . $trackedTrunk . '-00000001'],
@@ -152,8 +154,16 @@ $db->insert('inbound_routes', [
     'tenant_id' => $tid, 'name' => 'Scheduled inbound', 'did_pattern' => '15551230000',
     'dest_type' => 'timecond', 'dest_id' => $outboundTime, 'enabled' => 1,
 ]);
+$db->insert('inbound_routes', [
+    'tenant_id' => $other, 'name' => 'Tenant B direct DID', 'did_pattern' => '16661230000',
+    'dest_type' => 'hangup', 'dest_id' => null, 'enabled' => 1,
+]);
+$db->insert('inbound_routes', [
+    'tenant_id' => $tid, 'name' => 'Tenant A default inbound', 'did_pattern' => '_X.',
+    'dest_type' => 'hangup', 'dest_id' => null, 'enabled' => 1,
+]);
 $outboundRoute = $db->insert('outbound_routes', [
-    'tenant_id' => $tid, 'name' => 'Outside via 9', 'prefix' => '9', 'match_pattern' => '_X.',
+    'tenant_id' => $tid, 'name' => 'Outside via 9', 'prefix' => '9', 'match_pattern' => "_X.\n_00X.",
     'trunk_id' => $trackedTrunk, 'time_condition_id' => $outboundTime, 'priority' => 0, 'enabled' => 1,
 ]);
 $db->insert('outbound_route_schedules', [
@@ -171,8 +181,14 @@ $check(str_contains($outboundDialplan, '[tenant_a-outbound]')
     && str_contains($outboundDialplan, '[tenant_a-timecond-' . $outboundTime . ']')
     && str_contains($outboundDialplan, 'Gosub(tenant_a-timecond-' . $outboundTime . ',s,1 )')
     && str_contains($outboundDialplan, 'exten => _9X.,1,NoOp(Outbound: Outside via 9)')
+    && str_contains($outboundDialplan, 'exten => _900X.,1,NoOp(Outbound: Outside via 9)')
     && str_contains($outboundDialplan, 'Dial(PJSIP/${EXTEN:1}@trunk-' . $trackedTrunk . ',30,Tt)')
     && str_contains($outboundPjsip, 'set_var = PANEL_OUTBOUND_ROUTE_ID=' . $outboundRoute), 'assigned outbound route, schedule, and prefix stripping are enforced');
+$check(str_contains($outboundDialplan, "[panel-inbound-shared-{$sharedSuffix}]")
+    && str_contains($outboundDialplan, 'exten => _16661230000,1,NoOp(Shared-provider DID dispatch to tenant_b)')
+    && str_contains($outboundDialplan, 'Goto(tenant_b-inbound,${EXTEN},1)')
+    && str_contains($outboundDialplan, 'Unmatched shared-provider DID; refusing default-tenant fallback'),
+    'shared-host calls without line tokens dispatch by DID without using another tenant default route');
 $check(substr_count($outboundPjsip, 'set_var = PANEL_OUTBOUND_ROUTE_ID=' . $outboundRoute) === 2,
     'outbound permission applies to the desk phone and calling web endpoint only');
 

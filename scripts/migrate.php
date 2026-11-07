@@ -223,6 +223,18 @@ if ($driver === 'sqlite') {
     }
 }
 
+// Outbound routes may contain up to twenty newline-separated dial patterns.
+if ($driver === 'mysql') {
+    $matchPatternType = strtolower((string) $db->scalar(
+        'SELECT DATA_TYPE FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+        ['outbound_routes', 'match_pattern']
+    ));
+    if ($matchPatternType !== '' && $matchPatternType !== 'text') {
+        $pdo->exec('ALTER TABLE outbound_routes MODIFY match_pattern TEXT NOT NULL');
+    }
+}
+
 // Existing tenant-user actions can be safely assigned to their account's
 // tenant. Global/superadmin actions remain NULL and are visible only globally.
 $db->run('UPDATE audit_log SET tenant_id = (SELECT u.tenant_id FROM users u WHERE u.id = audit_log.user_id)
