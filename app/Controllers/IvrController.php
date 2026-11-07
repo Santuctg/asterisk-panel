@@ -15,6 +15,10 @@ use App\Core\Validator;
  */
 final class IvrController extends BaseController
 {
+    private const DEST_TYPES = [
+        'extension', 'ringgroup', 'ivr', 'queue', 'conference',
+        'parking', 'timecond', 'announcement', 'external', 'hangup',
+    ];
     /** GET /ivr */
     public function index(Request $request): Response
     {
@@ -70,6 +74,11 @@ final class IvrController extends BaseController
             Flash::error('That extension number is already used by an IVR.');
             return Response::redirect('/ivr/create');
         }
+        if (!$this->destinationsValid($data, $tid)) {
+            $this->stashOld($request);
+            Flash::error('Choose valid keys and tenant-owned destinations for every IVR action.');
+            return Response::redirect('/ivr/create');
+        }
 
         $id = $this->db()->insert('ivr_menus', $data);
 
@@ -122,6 +131,11 @@ final class IvrController extends BaseController
         if (!$this->dialplanNumberAvailable((int) $row['tenant_id'], $data['extension'], 'ivr_menus', (int) $row['id'])) {
             $this->stashOld($request);
             Flash::error('That dialplan number is already used by another tenant feature.');
+            return Response::redirect("/ivr/{$row['id']}/edit");
+        }
+        if (!$this->destinationsValid($data, (int) $row['tenant_id'])) {
+            $this->stashOld($request);
+            Flash::error('Choose valid keys and tenant-owned destinations for every IVR action.');
             return Response::redirect("/ivr/{$row['id']}/edit");
         }
 
@@ -254,11 +268,46 @@ final class IvrController extends BaseController
         }
 
         if ($type === 'announcement') {
-            $r = $this->db()->one('SELECT name FROM announcements WHERE id = ?', [$id]);
+            $r = $this->db()->one('SELECT name FROM announcements WHERE id = ? AND tenant_id = ?', [$id, $this->tenantId()]);
             return $r ? (string) $r['name'] : '—';
         }
-        $r = $this->db()->one("SELECT extension, name FROM {$table} WHERE id = ?", [$id]);
+        $r = $this->db()->one("SELECT extension, name FROM {$table} WHERE id = ? AND tenant_id = ?", [$id, $this->tenantId()]);
         return $r ? trim((string) ($r['extension'] ?? '') . ' — ' . $r['name'], ' —') : '—';
+    }
+
+    private function destinationsValid(array $data, int $tenantId): bool
+    {
+        $keys = json_decode((string) ($data['keys'] ?? ''), true);
+        if (!is_array($keys)) return false;
+        foreach ($keys as $key => $destination) {
+            if (!preg_match('/^[0-9*#]$/', (string) $key) || !is_array($destination)
+                || !$this->destinationBelongsToTenant((string) ($destination['type'] ?? ''), (int) ($destination['id'] ?? 0), $tenantId)) {
+                return false;
+            }
+        }
+        $timeoutAction = (string) ($data['timeout_action'] ?? '');
+        if ($timeoutAction === '') return true; // Repeat the menu.
+        return $this->destinationBelongsToTenant(
+            $timeoutAction,
+            (int) ($data['timeout_dest_id'] ?? 0),
+            $tenantId
+        );
+    }
+
+    private function destinationBelongsToTenant(string $type, int $id, int $tenantId): bool
+    {
+        if (!in_array($type, self::DEST_TYPES, true)) return false;
+        if ($type === 'hangup') return true;
+        if ($type === 'external') return $id > 0;
+        $table = match ($type) {
+            'extension' => 'extensions', 'ringgroup' => 'ring_groups', 'ivr' => 'ivr_menus',
+            'queue' => 'queues', 'conference' => 'conferences', 'parking' => 'parking_lots',
+            'timecond' => 'time_conditions', 'announcement' => 'announcements',
+        };
+        return $id > 0 && (bool) $this->db()->scalar(
+            "SELECT COUNT(*) FROM {$table} WHERE id = ? AND tenant_id = ? AND enabled = 1",
+            [$id, $tenantId]
+        );
     }
 
     private function suggestNext(): array

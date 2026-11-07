@@ -50,6 +50,10 @@ final class RoleController extends BaseController
             return Response::redirect('/roles');
         }
         $permissions = $this->permissions($request);
+        if ($permissions === null) {
+            Flash::error('You cannot grant permissions that your own account does not have.');
+            return Response::redirect('/roles');
+        }
         $id = $this->db()->insert('roles', [
             'tenant_id' => $tid, 'name' => $name, 'slug' => $slug,
             'permissions' => json_encode($permissions, JSON_THROW_ON_ERROR),
@@ -75,6 +79,10 @@ final class RoleController extends BaseController
             return Response::redirect('/roles');
         }
         $permissions = $this->permissions($request);
+        if ($permissions === null) {
+            Flash::error('You cannot grant permissions that your own account does not have.');
+            return Response::redirect('/roles');
+        }
         $this->db()->update('roles', (int) $row['id'], [
             'name' => $name, 'permissions' => json_encode($permissions, JSON_THROW_ON_ERROR),
             'updated_at' => date('Y-m-d H:i:s'),
@@ -101,11 +109,18 @@ final class RoleController extends BaseController
         return Response::redirect('/roles');
     }
 
-    private function permissions(Request $request): array
+    private function permissions(Request $request): ?array
     {
         $requested = $request->input('permissions', []);
         if (!is_array($requested)) { return []; }
-        return array_values(array_intersect(array_keys(Auth::assignableAbilities()), array_map('strval', $requested)));
+        $allowed = array_keys(Auth::assignableAbilities());
+        $permissions = array_values(array_unique(array_intersect($allowed, array_map('strval', $requested))));
+        if (!auth()->isSuperAdmin() && auth()->role() !== 'admin') {
+            foreach ($permissions as $permission) {
+                if (!auth()->can($permission)) return null;
+            }
+        }
+        return $permissions;
     }
 
     private function findScoped(int $id): ?array

@@ -25,6 +25,7 @@ $db->exec($schema['announcements']);
 $db->exec($schema['outbound_route_schedules']);
 $db->exec($schema['audit_log']);
 $db->exec($schema['webphone_login_throttles']);
+$db->exec($schema['settings']);
 
 // Outbound calling is denied by default and enabled per extension by assigning
 // one tenant-scoped outbound route.
@@ -229,6 +230,41 @@ if ($driver === 'sqlite') {
 // tenant. Global/superadmin actions remain NULL and are visible only globally.
 $db->run('UPDATE audit_log SET tenant_id = (SELECT u.tenant_id FROM users u WHERE u.id = audit_log.user_id)
           WHERE tenant_id IS NULL AND user_id IS NOT NULL');
+
+// Keep the newest setting in each scope and enforce deterministic uniqueness.
+// Global NULL scope is covered by a partial index on SQLite and a generated
+// COALESCE scope column on MySQL (where UNIQUE otherwise permits many NULLs).
+if ($driver === 'sqlite') {
+    $db->run('DELETE FROM settings WHERE id NOT IN (
+        SELECT MAX(id) FROM settings GROUP BY COALESCE(tenant_id, -1), key
+    )');
+    $pdo->exec('CREATE UNIQUE INDEX IF NOT EXISTS settings_tenant_key_unique
+                ON settings(tenant_id, key) WHERE tenant_id IS NOT NULL');
+    $pdo->exec('CREATE UNIQUE INDEX IF NOT EXISTS settings_global_key_unique
+                ON settings(key) WHERE tenant_id IS NULL');
+} else {
+    $db->run('DELETE older FROM settings older
+              JOIN settings newer ON newer.key = older.key
+               AND ((newer.tenant_id = older.tenant_id) OR (newer.tenant_id IS NULL AND older.tenant_id IS NULL))
+               AND newer.id > older.id');
+    $hasSettingsScope = (int) $db->scalar(
+        'SELECT COUNT(*) FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+        ['settings', 'scope_tenant_id']
+    );
+    if (!$hasSettingsScope) {
+        $pdo->exec('ALTER TABLE settings ADD COLUMN scope_tenant_id BIGINT
+                    GENERATED ALWAYS AS (IFNULL(tenant_id, 0)) STORED');
+    }
+    $hasSettingsUnique = (int) $db->scalar(
+        'SELECT COUNT(*) FROM information_schema.STATISTICS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?',
+        ['settings', 'settings_scope_key_unique']
+    );
+    if (!$hasSettingsUnique) {
+        $pdo->exec('CREATE UNIQUE INDEX settings_scope_key_unique ON settings(scope_tenant_id, `key`)');
+    }
+}
 
 // Every tenant starts with a private default playlist. Existing global MOH
 // rows were assigned to the first tenant above; this fills the remaining ones.

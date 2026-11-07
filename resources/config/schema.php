@@ -411,7 +411,8 @@ return [
             key        VARCHAR(80) NOT NULL,
             value      TEXT,
             created_at DATETIME,
-            updated_at DATETIME
+            updated_at DATETIME,
+            UNIQUE(tenant_id, key)
         )',
 
     'audit_log' => '

@@ -84,7 +84,19 @@ abstract class BaseController
     /** Persist old input so forms can repopulate after a validation failure. */
     protected function stashOld(Request $request): void
     {
-        $_SESSION['__old'] = $request->all();
+        $filter = static function (array $values) use (&$filter): array {
+            $safe = [];
+            foreach ($values as $key => $value) {
+                // Never persist credentials, capability tokens, PINs, or the
+                // CSRF token in session-backed old input.
+                if (is_string($key) && preg_match('/(?:password|secret|token|pin)$/i', $key)) {
+                    continue;
+                }
+                $safe[$key] = is_array($value) ? $filter($value) : $value;
+            }
+            return $safe;
+        };
+        $_SESSION['__old'] = $filter($request->all());
     }
 
     protected function clearOld(): void
@@ -95,6 +107,12 @@ abstract class BaseController
     protected function dialplanNumberAvailable(int $tenantId, string $number, string $table, ?int $id = null): bool
     {
         return (new \App\Services\DialplanNumberRegistry())->available($tenantId, $number, $table, $id);
+    }
+
+    /** Literal contains-search pattern; user %, _ and ! are not wildcards. */
+    protected function likePattern(string $value): string
+    {
+        return '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $value) . '%';
     }
 
     /** Record an audit-log entry for the current user + action. */

@@ -40,9 +40,24 @@ final class Csrf
                 return Response::json(['error' => 'Invalid CSRF token'], 419);
             }
             Flash::add('error', 'Your session expired. Please try again.');
-            return Response::redirect($request->header('Referer') ?: '/dashboard');
+            return Response::redirect(self::safeReturnPath($request));
         }
 
         return $next($request);
+    }
+
+    private static function safeReturnPath(Request $request): string
+    {
+        $referer = trim((string) $request->header('Referer', ''));
+        if ($referer === '' || preg_match('/\\\\|[\x00-\x1F\x7F]/', $referer)) return '/dashboard';
+        if (str_starts_with($referer, '/') && !str_starts_with($referer, '//')) return $referer;
+
+        $parts = parse_url($referer);
+        if (!is_array($parts) || empty($parts['host'])) return '/dashboard';
+        $requestHost = strtolower(preg_replace('/:\d+$/', '', (string) $request->header('Host', '')) ?? '');
+        if ($requestHost === '' || !hash_equals($requestHost, strtolower((string) $parts['host']))) return '/dashboard';
+        $path = (string) ($parts['path'] ?? '/dashboard');
+        if ($path === '' || !str_starts_with($path, '/') || str_starts_with($path, '//')) return '/dashboard';
+        return $path . (isset($parts['query']) ? '?' . $parts['query'] : '');
     }
 }

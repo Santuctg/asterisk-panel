@@ -103,6 +103,10 @@ final class RouteController extends BaseController
                  ORDER BY started_at DESC, id DESC LIMIT 50',
                 [$tid, (int) $trunk['id']]
             );
+            // Never serialize the stored SIP credential into an edit button's
+            // data attribute. Blank on edit means "keep existing".
+            $trunk['has_secret'] = (string) ($trunk['secret'] ?? '') !== '';
+            unset($trunk['secret']);
         }
         unset($trunk);
 

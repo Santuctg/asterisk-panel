@@ -5,16 +5,39 @@ REPO=/root/asterisk-panel
 APP=/opt/asterisk-panel
 BRANCH=main
 BACKUPS=/root/asterisk-panel-update-backups
+BACKUP_RETENTION=5
 
 version_from_file() {
     sed -n "s/.*'version'[[:space:]]*=>[[:space:]]*'\([^']*\)'.*/\1/p" "$1" | head -n 1
+}
+
+verify_release_head() {
+    local version="$1" expected_head="$2" tag
+    [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] \
+        || { echo "Invalid release version: $version" >&2; return 1; }
+    tag="v$version"
+    git -C "$REPO" fetch --quiet --force origin "refs/tags/$tag:refs/tags/$tag" \
+        || { echo "Release tag $tag was not found on origin." >&2; return 1; }
+    local tag_head
+    tag_head="$(git -C "$REPO" rev-list -n 1 "$tag")"
+    [[ -n "$tag_head" && "$tag_head" == "$expected_head" ]] \
+        || { echo "origin/$BRANCH does not match verified release tag $tag; refusing." >&2; return 1; }
+}
+
+prune_backups() {
+    local keep="${1:-$BACKUP_RETENTION}" dir count=0
+    [[ -d "$BACKUPS" ]] || return 0
+    while IFS= read -r dir; do
+        ((count += 1))
+        if (( count > keep )); then rm -rf -- "$dir"; fi
+    done < <(find "$BACKUPS" -mindepth 1 -maxdepth 1 -type d -name '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]' -print | sort -r)
 }
 
 status() {
     local current latest
     exec 9>/run/asterisk-panel-update.lock
     flock 9
-    git -C "$REPO" fetch --quiet --prune origin "$BRANCH"
+    git -C "$REPO" fetch --quiet --prune --tags origin "$BRANCH"
     current="$(sed -n "s/.*'version'[[:space:]]*=>[[:space:]]*'\([^']*\)'.*/\1/p" "$APP/resources/config/app.php" | head -n 1)"
     latest="$(git -C "$REPO" show "origin/$BRANCH:resources/config/app.php" 2>/dev/null | sed -n "s/.*'version'[[:space:]]*=>[[:space:]]*'\([^']*\)'.*/\1/p" | head -n 1)"
     printf 'current_version=%s\nlatest_version=%s\n' "${current:-unknown}" "${latest:-unknown}"
@@ -23,23 +46,29 @@ status() {
 update() {
     exec 9>/run/asterisk-panel-update.lock
     flock -n 9 || { echo 'Another update is already running.' >&2; exit 2; }
-    git -C "$REPO" fetch --prune origin "$BRANCH"
+    git -C "$REPO" fetch --prune --tags origin "$BRANCH"
+    git -C "$REPO" fsck --strict --no-progress >/dev/null
+    [[ -z "$(git -C "$REPO" status --porcelain --untracked-files=normal)" ]] \
+        || { echo 'Update repository has local or untracked changes; refusing.' >&2; exit 3; }
     git -C "$REPO" merge-base --is-ancestor HEAD "origin/$BRANCH" || { echo 'Update is not a fast-forward; refusing.' >&2; exit 3; }
     local repo_head remote_head app_version repo_version stamp backup
     repo_head="$(git -C "$REPO" rev-parse HEAD)"
     remote_head="$(git -C "$REPO" rev-parse "origin/$BRANCH")"
     app_version="$(version_from_file "$APP/resources/config/app.php")"
     repo_version="$(git -C "$REPO" show "origin/$BRANCH:resources/config/app.php" | sed -n "s/.*'version'[[:space:]]*=>[[:space:]]*'\([^']*\)'.*/\1/p" | head -n 1)"
+    verify_release_head "$repo_version" "$remote_head"
     if [[ "$repo_head" == "$remote_head" && "$app_version" == "$repo_version" ]]; then
         echo 'Already up to date.'
         exit 0
     fi
     stamp="$(date +%Y%m%d%H%M%S)"
     backup="$BACKUPS/$stamp"
+    prune_backups "$((BACKUP_RETENTION - 1))"
     install -d -m 0700 "$backup"
     tar -czf "$backup/application.tar.gz" -C "$APP" --exclude=storage --exclude=.env .
     cp -a "$APP/storage" "$backup/storage" 2>/dev/null || true
     if [[ "$repo_head" != "$remote_head" ]]; then git -C "$REPO" pull --ff-only origin "$BRANCH"; fi
+    [[ "$(git -C "$REPO" rev-parse HEAD)" == "$remote_head" ]] || { echo 'Checked-out commit failed release verification.' >&2; exit 4; }
     find "$REPO" -type f -name '*.php' -print0 | xargs -0 -n1 php -l >/dev/null
     rsync -a --delete --exclude=storage/ --exclude=.env "$REPO/" "$APP/"
     install -d -o www-data -g asterisk -m 2775 /var/lib/asterisk/sounds/asterisk-panel /var/lib/asterisk/moh
@@ -167,6 +196,7 @@ EOF
     systemctl restart asterisk-panel-cdr.timer
     systemctl restart asterisk-panel-cdr.path
     systemctl restart asterisk-panel-trunk-monitor.timer
+    prune_backups "$BACKUP_RETENTION"
     printf 'updated=%s\nbackup=%s\n' "$(git -C "$REPO" rev-parse --short HEAD)" "$backup"
     # Restarting FPM synchronously kills the detached PHP update worker because
     # it inherits the php-fpm systemd cgroup. Schedule the restart only after

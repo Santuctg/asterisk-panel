@@ -28,8 +28,9 @@ final class CdrController extends BaseController
         $params = [$tid];
 
         if ($q !== '') {
-            $where .= ' AND (src LIKE :q OR dst LIKE :q OR uniqueid LIKE :q)';
-            $params[] = $q;
+            $where .= " AND (src LIKE ? ESCAPE '!' OR dst LIKE ? ESCAPE '!' OR uniqueid LIKE ? ESCAPE '!')";
+            $pattern = $this->likePattern($q);
+            array_push($params, $pattern, $pattern, $pattern);
         }
 
         if ($disp !== '' && in_array($disp, ['ANSWERED', 'NO ANSWER', 'BUSY', 'FAILED', 'CONGESTION'], true)) {

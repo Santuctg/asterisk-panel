@@ -14,6 +14,13 @@ final class Response
         private int $status = 200,
         private array $headers = []
     ) {
+        $this->headers = array_merge([
+            'X-Content-Type-Options' => 'nosniff',
+            'X-Frame-Options' => 'DENY',
+            'Referrer-Policy' => 'strict-origin-when-cross-origin',
+            'Permissions-Policy' => 'camera=(), microphone=(self), geolocation=()',
+            'Content-Security-Policy' => "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' wss:; media-src 'self' blob:",
+        ], $this->headers);
     }
 
     public static function html(string $body, int $status = 200): self

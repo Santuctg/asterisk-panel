@@ -187,13 +187,9 @@ final class UserController extends BaseController
         }
 
         $tid = $this->tenantId();
-        if (auth()->role() !== 'admin') {
-            return $this->db()->one(
-                "SELECT * FROM users WHERE id = ? AND tenant_id = ? AND role NOT IN ('admin', 'superadmin')",
-                [$id, $tid]
-            );
-        }
-        return $this->db()->one('SELECT * FROM users WHERE id = ? AND tenant_id = ?', [$id, $tid]);
+        $row = $this->db()->one('SELECT * FROM users WHERE id = ? AND tenant_id = ?', [$id, $tid]);
+        if (!$row || auth()->role() === 'admin') return $row;
+        return $this->canManageRole((string) $row['role'], $tid) ? $row : null;
     }
 
     private function validTenantId(mixed $tenantId): bool
@@ -209,8 +205,32 @@ final class UserController extends BaseController
             return in_array(auth()->role(), ['admin', 'superadmin'], true) && $this->validTenantId($tenantId);
         }
         if ($role === 'user') { return $this->validTenantId($tenantId); }
-        return $this->validTenantId($tenantId)
-            && (int) $this->db()->scalar('SELECT COUNT(*) FROM roles WHERE tenant_id = ? AND slug = ?', [(int) $tenantId, $role]) === 1;
+        if (!$this->validTenantId($tenantId)) return false;
+        $row = $this->db()->one('SELECT permissions FROM roles WHERE tenant_id = ? AND slug = ?', [(int) $tenantId, $role]);
+        if (!$row) return false;
+        if (auth()->isSuperAdmin() || auth()->role() === 'admin') return true;
+        $permissions = json_decode((string) $row['permissions'], true);
+        if (!is_array($permissions)) return false;
+        foreach ($permissions as $permission) {
+            if (!is_string($permission) || !auth()->can($permission)) return false;
+        }
+        return true;
+    }
+
+    private function canManageRole(string $role, mixed $tenantId): bool
+    {
+        if ($role === 'user') return true;
+        if (in_array($role, ['admin', 'superadmin'], true) || !$this->validTenantId($tenantId)) return false;
+        $permissions = $this->db()->scalar(
+            'SELECT permissions FROM roles WHERE tenant_id = ? AND slug = ?',
+            [(int) $tenantId, $role]
+        );
+        $decoded = is_string($permissions) ? json_decode($permissions, true) : null;
+        if (!is_array($decoded)) return false;
+        foreach ($decoded as $permission) {
+            if (!is_string($permission) || !auth()->can($permission)) return false;
+        }
+        return true;
     }
 
     private function roleOptions(?int $tenantId): array

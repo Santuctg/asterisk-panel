@@ -414,8 +414,8 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                             <?php echo field_text('host', 'SIP host / proxy', '', ['required' => true, 'placeholder' => 'sip.provider.com']); ?>
                             <?php echo field_text('sip_trunk_auth_id', 'Username / auth ID', '', ['autocomplete' => 'off']); ?>
                             <?php echo field_text('sip_trunk_auth_secret', 'SIP trunk password', '', [
-                                'autocomplete' => 'off',
-                                'hint' => 'Use your SIP provider password, not your panel login password.']); ?>
+                                'type' => 'password', 'autocomplete' => 'new-password',
+                                'hint' => 'On edit, leave blank to keep the existing provider password.']); ?>
                             <?php echo field_text('from_domain', 'From domain', '', ['hint' => 'Defaults to the host.']); ?>
                             <?php echo field_text('cid', 'Caller ID', '', ['placeholder' => 'Name <number>']); ?>
                             <?php echo field_text('register', 'Re-register every (seconds)', 300, ['type' => 'number']); ?>
@@ -663,7 +663,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
               if (cfg.modal === 'outboundModal') renderOutboundSchedules(data.schedules || []);
              if (cfg.modal === 'trunkModal') {
                  form.elements.sip_trunk_auth_id.value = data.username || '';
-                  form.elements.sip_trunk_auth_secret.value = data.secret || '';
+                  form.elements.sip_trunk_auth_secret.value = '';
              }
             cfg.checks.forEach(function (pair) {
                 var el = form.elements[pair[0]];

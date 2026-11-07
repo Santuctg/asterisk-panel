@@ -125,6 +125,13 @@ $roles->store(new App\Core\Request('POST', '/roles', [], [
 ]));
 $custom = $db->one("SELECT * FROM roles WHERE tenant_id = ? AND slug = 'call-auditor'", [$tenantA]);
 $check($custom !== null, 'tenant admin may create a tenant-scoped role');
+$roles->store(new App\Core\Request('POST', '/roles', [], [
+    'name' => 'Power operators', 'permissions' => ['extension.manage', 'user.manage'],
+]));
+$powerUser = $db->insert('users', [
+    'tenant_id' => $tenantA, 'username' => 'power-user', 'password' => $password,
+    'role' => 'power-operators', 'active' => 1,
+]);
 $rolePage = $roles->index(new App\Core\Request('GET', '/roles'));
 $check($rolePage->status() === 200 && str_contains($rolePage->body(), 'Call auditor'), 'custom role management page renders');
 $customUser = $db->insert('users', [
@@ -141,6 +148,26 @@ $customUsers->store(new App\Core\Request('POST', '/users', [], [
 ]));
 $check((int)$db->scalar("SELECT COUNT(*) FROM users WHERE username='forged-admin'") === 0,
     'custom user manager cannot create tenant admin');
+$roles->store(new App\Core\Request('POST', '/roles', [], [
+    'name' => 'Escalated role', 'permissions' => ['extension.manage', 'role.manage'],
+]));
+$check((int) $db->scalar("SELECT COUNT(*) FROM roles WHERE tenant_id = ? AND slug = 'escalated-role'", [$tenantA]) === 0,
+    'delegated role manager cannot grant permissions they do not have');
+$customUsers->store(new App\Core\Request('POST', '/users', [], [
+    'username' => 'forged-power', 'role' => 'power-operators', 'password' => 'new-password', 'enabled' => '1',
+]));
+$check((int) $db->scalar("SELECT COUNT(*) FROM users WHERE username = 'forged-power'") === 0,
+    'delegated user manager cannot assign a more privileged custom role');
+$powerUpdate = new App\Core\Request('POST', '/users/' . $powerUser, [], [
+    'email' => 'taken-over@example.test', 'role' => 'power-operators',
+    'password' => 'takeover-password', 'enabled' => '1',
+]);
+$powerUpdate->params = ['id' => $powerUser];
+$customUsers->update($powerUpdate);
+$powerRow = $db->one('SELECT email, password FROM users WHERE id = ?', [$powerUser]);
+$check(($powerRow['email'] ?? '') !== 'taken-over@example.test'
+    && !password_verify('takeover-password', (string) ($powerRow['password'] ?? '')),
+    'delegated user manager cannot reset a more privileged custom user password');
 
 $_SERVER['HTTP_HOST'] = 'a.example.test';
 $security = new App\Controllers\TenantSecurityController();

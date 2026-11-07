@@ -304,7 +304,7 @@ final class SystemController extends BaseController
             $value = $request->str($key);
 
             $existing = $this->db()->one(
-                'SELECT id FROM settings WHERE key = ? AND (tenant_id = ? OR (tenant_id IS NULL AND ? IS NULL))',
+                'SELECT id FROM settings WHERE key = ? AND (tenant_id = ? OR (tenant_id IS NULL AND ? IS NULL)) ORDER BY id DESC LIMIT 1',
                 [$key, $tid, $tid]
             );
 
@@ -380,7 +380,8 @@ final class SystemController extends BaseController
     private function loadSettings(?int $tid): array
     {
         $rows = $this->db()->all(
-            'SELECT key, value FROM settings WHERE tenant_id = ? OR tenant_id IS NULL',
+            'SELECT key, value FROM settings WHERE tenant_id = ? OR tenant_id IS NULL
+             ORDER BY CASE WHEN tenant_id IS NULL THEN 0 ELSE 1 END, id',
             [$tid]
         );
 

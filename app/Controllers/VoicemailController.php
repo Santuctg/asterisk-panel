@@ -131,6 +131,9 @@ final class VoicemailController extends BaseController
         }
 
         $data = $this->collect($request, (int) $row['tenant_id']);
+        if ($data['vm_password'] === '') {
+            $data['vm_password'] = (string) ($row['vm_password'] ?? '');
+        }
 
         $v = Validator::make($data, [
             'pin'   => 'required|digits_between:4,10',

@@ -62,10 +62,13 @@ $val    = static fn (string $key, $default = '') => $row[$key] ?? old($key, $def
         <div class="card-body">
             <div class="form-grid">
                 <?php
-                $secretVal = $isNew ? '' : $row['secret'];
-                echo field_text('secret', 'SIP password', $secretVal, [
-                    'required' => true,
-                    'hint'     => 'Any non-empty password is accepted. The phone must use this exact value.',
+                echo field_text('secret', 'SIP password', '', [
+                    'type' => 'password',
+                    'required' => $isNew,
+                    'autocomplete' => 'new-password',
+                    'hint' => $isNew
+                        ? 'Generate a strong password; the phone must use this exact value.'
+                        : 'Leave blank to keep the current SIP password, or enter a new one to rotate it.',
                 ]);
                 ?>
                 <div class="field">

@@ -80,8 +80,11 @@ $selectedTimezone = normalize_timezone((string) $val('timezone', 'America/New_Yo
                     'hint' => 'Optional short notification address (no audio).',
                 ]); ?>
 
-                <?php echo field_text('vm_password', 'Mailbox password', $val('vm_password'), [
-                    'hint' => 'Optional alternate password used for mailbox access.',
+                <?php echo field_text('vm_password', 'Mailbox password', '', [
+                    'type' => 'password', 'autocomplete' => 'new-password',
+                    'hint' => $isNew
+                        ? 'Optional alternate password used for mailbox access.'
+                        : 'Leave blank to keep the existing mailbox password.',
                 ]); ?>
 
                 <div class="span-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">

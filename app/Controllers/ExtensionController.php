@@ -34,8 +34,9 @@ final class ExtensionController extends BaseController
         $params = [$tid];
 
         if ($q !== '') {
-            $where .= ' AND (e.extension LIKE :q OR e.name LIKE :q OR e.cid_name LIKE :q)';
-            $params[] = $q;
+            $where .= " AND (e.extension LIKE ? ESCAPE '!' OR e.name LIKE ? ESCAPE '!' OR e.cid_name LIKE ? ESCAPE '!')";
+            $pattern = $this->likePattern($q);
+            array_push($params, $pattern, $pattern, $pattern);
         }
 
         $db     = $this->db();
@@ -276,6 +277,11 @@ final class ExtensionController extends BaseController
         }
 
         $data = $this->collect($request, (int) $row['tenant_id']);
+        // Edit forms never receive the stored SIP credential. Leaving the
+        // password blank preserves it; a non-empty value rotates it.
+        if ($data['secret'] === '') {
+            $data['secret'] = (string) $row['secret'];
+        }
 
         $v = Validator::make($data + ['id' => $row['id']], [
             'extension' => 'required|digits_between:2,6',

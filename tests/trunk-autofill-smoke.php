@@ -28,11 +28,13 @@ $app->auth()->login($user);
 $_GET['tab'] = 'trunks';
 $html = (new App\Controllers\RouteController())->index(new App\Core\Request('GET', '/routes'))->body();
 foreach ([
-    [str_contains($html, 'trunk-secret-not-for-html'), 'trunk secret is available to the edit form'],
+    [!str_contains($html, 'trunk-secret-not-for-html'), 'stored trunk secret is excluded from edit HTML'],
     [str_contains($html, 'name="sip_trunk_auth_id"'), 'separate SIP auth ID field'],
     [str_contains($html, 'name="sip_trunk_auth_secret"'), 'separate SIP secret field'],
-    [str_contains($html, 'name="sip_trunk_auth_secret" value="" autocomplete="off"'), 'trunk secret uses a plain text field without login autofill'],
-    [str_contains($html, "form.elements.sip_trunk_auth_secret.value = data.secret || ''"), 'existing trunk secret populates the edit field'],
+    [str_contains($html, 'type="password" id="sip_trunk_auth_secret" name="sip_trunk_auth_secret"')
+        && str_contains($html, 'autocomplete="new-password"'), 'trunk secret uses a blank password field without login autofill'],
+    [str_contains($html, "form.elements.sip_trunk_auth_secret.value = ''")
+        && !str_contains($html, 'data.secret'), 'existing trunk secret never populates the edit field'],
     [str_contains($html, '>Registration<') && str_contains($html, 'Unknown'), 'trunk registration status renders when AMI is unavailable'],
     [str_contains($html, '>Uptime<'), 'trunk uptime column renders'],
     [str_contains($html, 'data-modal-open="trunkMonitor1"') && str_contains($html, 'id="trunkMonitor1"'), 'trunk Monitor action opens its popup'],

@@ -73,6 +73,9 @@ if (!function_exists('old')) {
     /** Re-populate a form field from the previous request, if present. */
     function old(string $key, mixed $default = ''): mixed
     {
+        if (preg_match('/(?:password|secret|token|pin)$/i', $key)) {
+            return $default;
+        }
         $old = $_SESSION['__old'] ?? [];
         return $old[$key] ?? $default;
     }

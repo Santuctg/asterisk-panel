@@ -23,7 +23,7 @@ $appUrl = (string) $env('APP_URL', 'http://localhost:8080');
 
 return [
     'name'    => $env('APP_NAME', 'Asterisk Panel'),
-    'version' => '1.3.66',
+    'version' => '1.3.67',
     'github_repo' => $env('APP_GITHUB_REPO', 'https://github.com/Santuctg/asterisk-panel'),
 
     // Absolute, externally reachable URL of this panel. Used to build
@@ -44,6 +44,7 @@ return [
     // Defaults to secure whenever APP_URL is HTTPS; the environment variable
     // remains available as an explicit override for unusual proxy setups.
     'secure_cookies'    => $envBool('APP_SECURE_COOKIES', str_starts_with(strtolower($appUrl), 'https://')),
+    'session_timeout'   => max(900, (int) $env('APP_SESSION_TIMEOUT', 28800)),
 
     // PBX-wide defaults applied to new tenants unless overridden.
     'defaults' => [

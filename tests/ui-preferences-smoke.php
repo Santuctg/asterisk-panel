@@ -79,6 +79,11 @@ $checks = [
     [str_contains($updateService, 'Progress was recovered after the server restart')
         && str_contains($updateHelper, 'systemd-run --quiet --collect')
         && !str_contains($updateHelper, "    systemctl restart php8.3-fpm\n    nginx -t"), 'update completion survives the PHP-FPM restart'],
+    [str_contains($updateHelper, 'verify_release_head "$repo_version" "$remote_head"')
+        && str_contains($updateHelper, 'refs/tags/$tag:refs/tags/$tag')
+        && str_contains($updateHelper, 'BACKUP_RETENTION=5')
+        && str_contains($updateHelper, 'prune_backups "$BACKUP_RETENTION"'),
+        'updater pins main to its versioned release tag and retains bounded backups'],
 ];
 
 foreach ($checks as [$passed, $description]) {

@@ -67,6 +67,13 @@ $check((int) $db->scalar('SELECT COUNT(*) FROM voicemail') === 0
 $check((int) $db->scalar('SELECT COUNT(*) FROM outbound_routes') === 0,
     'an outbound route cannot reference another tenant trunk');
 
+(new App\Controllers\IvrController())->store(new App\Core\Request('POST', '/ivr', [], [
+    'extension' => '301', 'name' => 'Cross-tenant IVR', 'key' => ['1'],
+    'key_type' => ['extension'], 'key_dest' => [$extensionB], 'timeout_action' => '', 'enabled' => '1',
+]));
+$check((int) $db->scalar('SELECT COUNT(*) FROM ivr_menus WHERE tenant_id = ?', [$tenantA]) === 0,
+    'an IVR key cannot reference another tenant destination');
+
 (new App\Controllers\RingGroupController())->store(new App\Core\Request('POST', '/ring-groups', [], [
     'extension' => '1001', 'name' => 'Colliding group', 'strategy' => 'ringall', 'timeout' => '30', 'enabled' => '1',
 ]));
@@ -175,5 +182,48 @@ $tenantContacts = App\Services\Asterisk\AsteriskManager::filterTenantContacts([
 ], [['extension' => '1001']], 'a.test', 'tenant_a');
 $check(count($tenantContacts) === 1 && str_starts_with($tenantContacts[0]['uri'], '1001@a.test/'),
     'tenant status contact filtering excludes other endpoint and trunk registrations');
+
+$secretMarker = 'SIP-SECRET-DO-NOT-RENDER-7f29';
+$db->update('extensions', $extensionA, ['secret' => $secretMarker]);
+$editRequest = new App\Core\Request('GET', '/extensions/' . $extensionA . '/edit');
+$editRequest->params = ['id' => $extensionA];
+$extensionEdit = (new App\Controllers\ExtensionController())->edit($editRequest);
+$db->update('trunks', $trunkA, ['secret' => $secretMarker]);
+$routesPage = (new App\Controllers\RouteController())->index(new App\Core\Request('GET', '/routes', ['tab' => 'trunks']));
+$check(!str_contains($extensionEdit->body(), $secretMarker) && !str_contains($routesPage->body(), $secretMarker),
+    'stored SIP credentials are never serialized into extension or trunk edit HTML');
+
+$oldInput = new class extends App\Controllers\BaseController {
+    public function capture(App\Core\Request $request): void { $this->stashOld($request); }
+};
+$oldInput->capture(new App\Core\Request('POST', '/example', [], [
+    'name' => 'Safe name', 'password' => 'panel-pass', 'secret' => 'sip-pass',
+    'vm_pin' => '1234', '_token' => 'csrf-value',
+]));
+$check(($_SESSION['__old']['name'] ?? '') === 'Safe name'
+    && !isset($_SESSION['__old']['password'], $_SESSION['__old']['secret'], $_SESSION['__old']['vm_pin'], $_SESSION['__old']['_token']),
+    'validation old-input state excludes passwords, SIP secrets, PINs, and CSRF tokens');
+
+$csrfResponse = App\Core\Csrf::middleware(
+    new App\Core\Request('POST', '/unsafe', [], ['value' => 'x'], [
+        'HTTP_REFERER' => 'https://evil.example/phish', 'HTTP_HOST' => 'a.test',
+    ]),
+    static fn (): App\Core\Response => App\Core\Response::text('unexpected')
+);
+$check(($csrfResponse->headers()['Location'] ?? '') === '/dashboard',
+    'invalid CSRF requests cannot redirect to an external Referer');
+
+$headers = App\Core\Response::html('ok')->headers();
+$check(str_contains((string) ($headers['Content-Security-Policy'] ?? ''), "frame-ancestors 'none'")
+    && ($headers['X-Content-Type-Options'] ?? '') === 'nosniff',
+    'application responses carry CSP and browser hardening headers');
+
+$patternProbe = new class extends App\Controllers\BaseController {
+    public function pattern(string $value): string { return $this->likePattern($value); }
+};
+$literalPattern = $patternProbe->pattern('%_!');
+$check($literalPattern === '%!%!_!!%' && (int) $db->scalar("SELECT CASE WHEN '100%' LIKE ? ESCAPE '!' THEN 1 ELSE 0 END", [$patternProbe->pattern('%')]) === 1
+    && (int) $db->scalar("SELECT CASE WHEN '1000' LIKE ? ESCAPE '!' THEN 1 ELSE 0 END", [$patternProbe->pattern('%')]) === 0,
+    'search treats user wildcard characters literally while retaining contains matching');
 
 echo "All security regression checks passed.\n";
