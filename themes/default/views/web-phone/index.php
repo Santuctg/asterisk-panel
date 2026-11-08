@@ -8,6 +8,7 @@
         <button type="button" class="webphone-rail-item" id="web-phone-settings-open" title="Phone settings"><span>⚙</span><small>Settings</small></button>
         <select id="languageSelect" aria-label="Language"><option value="en">EN</option><option value="bn">বাং</option></select>
         <button type="button" class="webphone-rail-item theme-toggle" id="themeToggle" title="Switch color mode" aria-label="Switch color mode"><span class="theme-icon">☾</span></button>
+        <button type="button" class="webphone-rail-item webphone-logout" id="web-phone-disconnect" title="Log out"><span>↪</span><small>Logout</small></button>
     </aside>
 
     <aside class="webphone-side">
@@ -26,8 +27,8 @@
                 <div class="webphone-login-brand"><span>P</span><div><strong>PBX Web Phone</strong><small>Secure browser calling</small></div></div>
                 <div class="webphone-login-heading"><span>WELCOME BACK</span><h1>Call from anywhere</h1><p>Sign in with your extension to make and receive calls securely in your browser.</p></div>
                 <p class="webphone-permission-note">After your credentials are verified, Web Phone will request microphone and notification permissions.</p>
-                <div class="field"><label for="web-phone-extension">Extension</label><input id="web-phone-extension" name="extension" inputmode="numeric" autocomplete="username" placeholder="Extension" required></div>
-                <div class="field"><label for="web-phone-secret">SIP password</label><div class="webphone-password-wrap"><input id="web-phone-secret" name="secret" type="password" autocomplete="current-password" placeholder="User Password" required><button type="button" id="web-phone-password-toggle" aria-label="Show password" title="Show password">◉</button></div></div>
+                <div class="field"><label for="web-phone-extension">Extension</label><div class="webphone-login-input"><span aria-hidden="true">♙</span><input id="web-phone-extension" name="extension" inputmode="numeric" autocomplete="username" placeholder="Enter your extension" required></div></div>
+                <div class="field"><label for="web-phone-secret">SIP password</label><div class="webphone-password-wrap webphone-login-input"><span aria-hidden="true">◇</span><input id="web-phone-secret" name="secret" type="password" autocomplete="current-password" placeholder="Enter your password" required><button type="button" id="web-phone-password-toggle" aria-label="Show password" title="Show password">◉</button></div></div>
                 <button type="submit" class="btn btn-primary btn-block" id="web-phone-start">Log in</button>
                 <p id="web-phone-login-status" class="webphone-error" role="alert"></p>
                 <div class="webphone-login-trust"><span>🔒 Encrypted connection</span><span>● WebRTC ready</span></div>
@@ -50,7 +51,6 @@
                     <div class="webphone-transfer-box" id="web-phone-transfer-box" hidden><input id="web-phone-transfer-number" inputmode="tel" placeholder="Transfer to extension"><button type="button" class="btn btn-primary btn-sm" id="web-phone-transfer-send">Transfer</button></div>
                     <div class="webphone-call-actions"><button type="button" class="webphone-call-btn" id="web-phone-call" disabled title="Call">☎</button><button type="button" class="webphone-answer-btn" id="web-phone-answer" hidden title="Answer">☎</button><button type="button" class="webphone-hangup-btn" id="web-phone-hangup" hidden disabled title="Reject or hang up">☎</button></div>
                     <p id="web-phone-status" role="status" aria-live="polite">Connecting…</p>
-                    <button type="button" class="btn btn-sm" id="web-phone-disconnect">Sign out</button>
                 </div>
             </div>
             <audio id="web-phone-audio" autoplay playsinline hidden></audio>
