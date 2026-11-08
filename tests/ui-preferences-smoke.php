@@ -93,7 +93,10 @@ $checks = [
     [str_contains($phoneView, 'webphone-login-brand') && str_contains($phoneView, 'webphone-login-trust')
         && str_contains($css, '.webphone-login-heading') && str_contains($css, 'linear-gradient(145deg,#07101f'), 'web phone login uses the redesigned secure-calling card'],
     [str_contains($css, '@media (max-width: 700px)') && str_contains($css, 'position:fixed; inset:auto 0 0')
-        && str_contains($css, 'padding-bottom:68px') && str_contains($css, '@media (max-width: 900px) and (min-width: 701px)'), 'web phone adapts navigation and dialer layout across mobile and tablet widths'],
+        && str_contains($css, 'padding-bottom:68px') && str_contains($css, '@media (max-width: 900px) and (min-width: 701px)')
+        && str_contains($css, '@media (min-width: 1440px)'), 'web phone adapts navigation and dialer layout across mobile, tablet, and wide desktop widths'],
+    [str_contains($css, 'height:100dvh; min-height:0') && str_contains($css, '.webphone-side { min-width:0; min-height:0')
+        && str_contains($css, 'flex-direction:column; overflow:hidden'), 'web phone constrains desktop columns to the viewport and scrolls history independently'],
     [str_contains($phoneJs, 'enumerateDevices()') && str_contains($phoneJs, 'setSinkId')
         && str_contains($phoneJs, 'startRingtone()') && str_contains($phoneJs, 'preferences.autoAnswer')
         && str_contains($phoneJs, 'panel-webphone-preferences'), 'web phone persists device, ringtone, volume, and auto-answer preferences'],
@@ -109,9 +112,12 @@ $checks = [
         && str_contains($updateHelper, 'BACKUP_RETENTION=5')
         && str_contains($updateHelper, 'prune_backups "$BACKUP_RETENTION"'),
         'updater pins main to its versioned release tag and retains bounded backups'],
-    [str_contains($updateHelper, 'Older main-site configs denied microphone access')
+    [str_contains($updateHelper, 'enabled virtual host that serves this application')
+        && str_contains($updateHelper, 'sites-enabled/*') && str_contains($updateHelper, 'grep -Fq "$APP/public"')
         && str_contains($updateHelper, 'microphone=(self), geolocation=()')
         && str_contains($updateHelper, 'nginx -t'), 'updater repairs restrictive Web Phone microphone headers before reloading Nginx'],
+    [str_contains($phoneJs, "allowsFeature('microphone')")
+        && str_contains($phoneJs, 'blocking microphone access through its Permissions-Policy header'), 'web phone distinguishes a server microphone policy block from a browser permission denial'],
 ];
 
 foreach ($checks as [$passed, $description]) {

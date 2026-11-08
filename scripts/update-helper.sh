@@ -84,10 +84,23 @@ update() {
         sed -i '/^php_admin_value\[upload_max_filesize\]/d; /^php_admin_value\[post_max_size\]/d' "$pool"
         printf '\nphp_admin_value[upload_max_filesize] = 25M\nphp_admin_value[post_max_size] = 30M\n' >>"$pool"
     fi
+    local site enabled target
+    local -A panel_sites=()
     for site in /etc/nginx/sites-available/asterisk-panel /etc/nginx/sites-available/asterisk-panel-tenant-*; do
-        [[ -f "$site" ]] || continue
-        # Older main-site configs denied microphone access. That restrictive
-        # header combines with the app header in Chromium and blocks WebRTC.
+        [[ -f "$site" ]] && panel_sites["$(readlink -f "$site")"]=1
+    done
+    # Installations may use the domain as the Nginx filename. Discover every
+    # enabled virtual host that serves this application instead of assuming a
+    # particular sites-available name.
+    for enabled in /etc/nginx/sites-enabled/*; do
+        [[ -e "$enabled" ]] || continue
+        target="$(readlink -f "$enabled")"
+        [[ -f "$target" ]] || continue
+        if grep -Fq "$APP/public" "$target"; then panel_sites["$target"]=1; fi
+    done
+    for site in "${!panel_sites[@]}"; do
+        # Older configs denied microphone access. Chromium combines that
+        # restrictive value with the application's response header.
         if grep -qE '^[[:space:]]*add_header[[:space:]]+Permissions-Policy' "$site"; then
             sed -i 's#^[[:space:]]*add_header[[:space:]]\+Permissions-Policy.*#    add_header Permissions-Policy "camera=(), microphone=(self), geolocation=()" always;#' "$site"
         else

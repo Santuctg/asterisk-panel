@@ -107,6 +107,10 @@ async function getMicrophoneStream() {
     }
 }
 function microphoneErrorMessage(error) {
+    const policy = document.permissionsPolicy || document.featurePolicy;
+    if (policy?.allowsFeature && !policy.allowsFeature('microphone')) {
+        return 'This server is blocking microphone access through its Permissions-Policy header.';
+    }
     if (error?.name === 'NotAllowedError' || error?.name === 'SecurityError') {
         return 'Chrome blocked this site’s microphone. Use Site controls → Reset permissions, reload, and allow Microphone.';
     }
