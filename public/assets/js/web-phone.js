@@ -196,8 +196,7 @@ function playRemoteMedia(peerconnection, stream = null) {
     audio.srcObject = remote;
     audio.muted = false; audio.volume = preferences.volume;
     setAudioOutput(audio);
-    audio.hidden = false;
-    audio.play().catch(() => setStatus('Call connected. Press Play below to hear audio.'));
+    audio.play().catch(() => setStatus('Call connected. Press Speaker to start remote audio.'));
 }
 function bindMedia(peerconnection) {
     if (!peerconnection) return;
@@ -494,13 +493,13 @@ login.addEventListener('submit', async event => {
     const data = new FormData(login); const password = String(data.get('secret') || '');
     submit.disabled = true; submit.textContent = 'Connecting…';
     try {
-        loginStatus.textContent = 'Requesting browser permissions…';
-        await requestPhonePermissions();
         loginStatus.textContent = 'Checking SIP credentials…';
         const response = await fetch('/web-phone/connect', {method: 'POST', body: data, headers: {Accept: 'application/json'}});
         const config = await response.json();
         if (!response.ok) throw new Error(config.error || 'Unable to sign in.');
         login.querySelector('[name="secret"]').value = '';
+        loginStatus.textContent = 'Credentials verified. Requesting browser permissions…';
+        await requestPhonePermissions();
         await startPhone(config, password);
     } catch (error) {
         loginStatus.textContent = error.message;

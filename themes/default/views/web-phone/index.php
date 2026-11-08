@@ -26,7 +26,7 @@
                 <span class="webphone-qr-corner" aria-hidden="true">▦</span>
                 <h1>Welcome to Web Phone</h1>
                 <p>Log in with your extension SIP credentials.</p>
-                <p class="webphone-permission-note">Login will request microphone and notification permissions required for browser calling.</p>
+                <p class="webphone-permission-note">After your credentials are verified, Web Phone will request microphone and notification permissions.</p>
                 <div class="field"><label for="web-phone-extension">Extension</label><input id="web-phone-extension" name="extension" inputmode="numeric" autocomplete="username" placeholder="Extension" required></div>
                 <div class="field"><label for="web-phone-secret">SIP password</label><div class="webphone-password-wrap"><input id="web-phone-secret" name="secret" type="password" autocomplete="current-password" placeholder="User Password" required><button type="button" id="web-phone-password-toggle" aria-label="Show password" title="Show password">◉</button></div></div>
                 <button type="submit" class="btn btn-primary btn-block" id="web-phone-start">Log in</button>
@@ -53,7 +53,7 @@
                     <button type="button" class="btn btn-sm" id="web-phone-disconnect">Sign out</button>
                 </div>
             </div>
-            <audio id="web-phone-audio" autoplay playsinline controls hidden></audio>
+            <audio id="web-phone-audio" autoplay playsinline hidden></audio>
             <div class="webphone-settings-backdrop" id="web-phone-settings" hidden>
                 <section class="webphone-settings" role="dialog" aria-modal="true" aria-labelledby="web-phone-settings-title">
                     <header><div><h2 id="web-phone-settings-title">Phone settings</h2><p>Audio and incoming call preferences are saved in this browser.</p></div><button type="button" id="web-phone-settings-close" aria-label="Close settings">×</button></header>

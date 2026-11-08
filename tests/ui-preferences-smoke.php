@@ -74,9 +74,11 @@ $checks = [
         && str_contains($listenJs, "fetch('/active-calls/browser-session'")
         && str_contains($listenJs, "fetch('/active-calls/hangup'"),
         'Active Calls provides direct restricted browser listening and tenant-safe hangup controls'],
-    [str_contains($phoneJs, 'getReceivers()') && str_contains($phoneJs, 'audio.hidden = false')
+    [str_contains($phoneJs, 'getReceivers()') && !str_contains($phoneJs, 'audio.hidden = false')
         && str_contains($phoneJs, 'mediaSyncTimer') && str_contains($phoneView, 'web-phone-speaker')
-        && str_contains($phoneView, 'playsinline controls hidden'), 'web phone continuously attaches remote media and exposes a speaker fallback'],
+        && str_contains($phoneView, 'playsinline hidden') && !str_contains($phoneView, 'playsinline controls'), 'web phone continuously attaches remote media without exposing native audio controls'],
+    [strpos($phoneJs, "fetch('/web-phone/connect'") < strpos($phoneJs, 'await requestPhonePermissions()')
+        && str_contains($phoneJs, 'Credentials verified. Requesting browser permissions'), 'web phone requests browser permissions only after credential validation'],
     [str_contains($phoneView, 'web-phone-settings-open') && str_contains($phoneView, 'web-phone-microphone')
         && str_contains($phoneView, 'web-phone-speaker-device') && str_contains($phoneView, 'web-phone-ringtone')
         && str_contains($phoneView, 'web-phone-auto-answer'), 'web phone exposes Wave-style audio and incoming-call settings'],
