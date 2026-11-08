@@ -804,13 +804,6 @@ final class ConfigGenerator
             $out .= " same => n,Answer()\n";
             $out .= " same => n,Set(TIMEOUT(digit)=" . (int) $ivr['timeout'] . ")\n";
             $out .= " same => n,Set(TIMEOUT(response)=" . (int) $ivr['response_timeout'] . ")\n";
-
-            if (!empty($ivr['greeting'])) {
-                $out .= " same => n,Background({$this->soundPath((string) $ivr['greeting'])})\n";
-            } else {
-                $out .= " same => n,Background(silence/1)\n";
-            }
-
             $out .= " same => n,Goto({$ctx}-ivr-{$extension},s,1)\n\n";
         }
 
@@ -827,10 +820,17 @@ final class ConfigGenerator
         $out = '';
         foreach ($ivrs as $ivr) {
             $extension = $this->dialToken((string) $ivr['extension']);
+            $greeting = !empty($ivr['greeting'])
+                ? $this->soundPath((string) $ivr['greeting'])
+                : 'silence/1';
+            $maxRetries = max(1, (int) ($ivr['max_retries'] ?? 3));
             $out .= "[{$ctx}-ivr-{$extension}]\n";
             $out .= "exten => s,1,Set(__IVR_MENU={$extension})\n";
-            $out .= " same => n,Background(silence/1)\n";
-            $out .= " same => n,Hangup()\n\n";
+            $out .= " same => n,Set(IVR_RETRIES=0)\n";
+            $out .= " same => n(menu),Set(__PANEL_CALL_STAGE={$this->stageLabel('IVR: ' . (string) $ivr['name'])})\n";
+            $out .= " same => n,Background({$greeting})\n";
+            $out .= " same => n,WaitExten()\n";
+            $out .= " same => n,Goto(t,1)\n\n";
 
             $keys = json_decode((string) $ivr['keys'], true) ?: [];
             foreach ($keys as $key => $dest) {
@@ -842,11 +842,20 @@ final class ConfigGenerator
             // Timeout / invalid fallback.
             if (!empty($ivr['timeout_action'])) {
                 $out .= "exten => t,1,Gosub({$this->destinationGosub($ivr['timeout_action'], $ivr['timeout_dest_id'], $ctx)})\n";
+                $out .= " same => n,Hangup()\n";
             } else {
-                $out .= "exten => t,1,Goto({$ctx}-ivr-{$extension},s,1)\n";
+                $out .= "exten => t,1,Goto(s,menu)\n";
             }
             $out .= "exten => i,1,Playback(pbx-invalid)\n";
-            $out .= " same => n,Goto({$ctx}-ivr-{$extension},s,1)\n\n";
+            $out .= " same => n,Set(IVR_RETRIES=$[\${IVR_RETRIES} + 1])\n";
+            $out .= " same => n,GotoIf($[\${IVR_RETRIES} >= {$maxRetries}]?exhausted:retry)\n";
+            $out .= " same => n(retry),Goto(s,menu)\n";
+            if (!empty($ivr['timeout_action'])) {
+                $out .= " same => n(exhausted),Gosub({$this->destinationGosub($ivr['timeout_action'], $ivr['timeout_dest_id'], $ctx)})\n";
+                $out .= " same => n,Hangup()\n\n";
+            } else {
+                $out .= " same => n(exhausted),Hangup()\n\n";
+            }
         }
 
         return $out;

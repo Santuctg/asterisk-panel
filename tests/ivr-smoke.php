@@ -44,4 +44,21 @@ if ($response->status() !== 302 || (int) $db->scalar('SELECT COUNT(*) FROM ivr_m
     throw new RuntimeException('IVR menu was not created');
 }
 
+$dialplan = (new App\Services\Asterisk\ConfigGenerator())->renderDialplan();
+$ivrContext = '[test-ivr-700]';
+$ivrStart = strpos($dialplan, $ivrContext);
+if ($ivrStart === false) {
+    throw new RuntimeException('IVR helper context was not generated');
+}
+$ivrDialplan = substr($dialplan, $ivrStart, 1200);
+if (!str_contains($dialplan, 'Goto(test-ivr-700,s,1)')
+    || !str_contains($ivrDialplan, 'same => n(menu),Set(__PANEL_CALL_STAGE=IVR: Main Menu)')
+    || !str_contains($ivrDialplan, 'same => n,Background(silence/1)')
+    || !str_contains($ivrDialplan, 'same => n,WaitExten()')
+    || !str_contains($ivrDialplan, 'exten => 1,1,Gosub(test,201,1)')
+    || !str_contains($ivrDialplan, 'same => n,Set(IVR_RETRIES=$[${IVR_RETRIES} + 1])')
+    || !str_contains($ivrDialplan, 'same => n,GotoIf($[${IVR_RETRIES} >= 3]?exhausted:retry)')) {
+    throw new RuntimeException('IVR menu routing, waiting, or retry handling was not generated correctly');
+}
+
 echo "All IVR create checks passed.\n";
