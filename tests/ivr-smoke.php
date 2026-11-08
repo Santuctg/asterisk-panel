@@ -33,6 +33,11 @@ if ($page->status() !== 200 || !str_contains($page->body(), 'New IVR menu')) {
 if (!str_contains($page->body(), '201 — Desk 201')) {
     throw new RuntimeException('IVR destination labels did not render');
 }
+if (!str_contains($page->body(), 'data-repeat-template=')
+    || !str_contains($page->body(), 'class=&quot;ivr-key-destination&quot;')
+    || str_contains($page->body(), 'Destination ID')) {
+    throw new RuntimeException('IVR key mapping controls did not render usable destination selectors');
+}
 
 $response = $controller->store(new App\Core\Request('POST', '/ivr', [], [
     'extension' => '700', 'name' => 'Main Menu', 'greeting' => '',

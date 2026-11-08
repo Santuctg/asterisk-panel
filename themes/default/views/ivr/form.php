@@ -24,6 +24,41 @@ $typeLabels = [
 ];
 
 $keys = $row['keys'] ?? (json_decode((string) old('keys', '[]'), true) ?: []);
+
+$renderKeyTypeOptions = static function (string $selected) use ($typeLabels): string {
+    $html = '';
+    foreach ($typeLabels as $type => $label) {
+        $html .= '<option value="' . e($type) . '"' . ($selected === $type ? ' selected' : '') . '>' . e($label) . '</option>';
+    }
+    return $html;
+};
+$renderKeyDestination = static function (string $type, mixed $selected = '') use ($destinations): string {
+    if ($type === 'external') {
+        return '<input class="ivr-key-destination" type="text" name="key_dest[]" value="' . e((string) $selected)
+            . '" placeholder="External number" pattern="\\+?[0-9]{2,20}" required style="width:240px">';
+    }
+    if ($type === 'hangup') {
+        return '<input class="ivr-key-destination" type="hidden" name="key_dest[]" value="0"><span class="muted">No destination required</span>';
+    }
+    $html = '<select class="ivr-key-destination" name="key_dest[]" required style="width:240px"><option value="">Choose destination</option>';
+    foreach ($destinations[$type] ?? [] as $destination) {
+        $id = $destination['id'] ?? '';
+        $html .= '<option value="' . e((string) $id) . '"' . ((string) $selected === (string) $id ? ' selected' : '') . '>'
+            . e((string) ($destination['label'] ?? '')) . '</option>';
+    }
+    return $html . '</select>';
+};
+$renderKeyRow = static function (string $key, array $destination) use ($renderKeyTypeOptions, $renderKeyDestination): string {
+    $type = (string) ($destination['type'] ?? 'extension');
+    return '<div class="repeat-row ivr-key-row flex gap-2 items-center mb-2">'
+        . '<input type="text" name="key[]" value="' . e($key) . '" placeholder="0-9, *, or #" maxlength="1" pattern="[0-9*#]" required style="width:90px">'
+        . '<select class="ivr-key-type" name="key_type[]" style="width:190px">' . $renderKeyTypeOptions($type) . '</select>'
+        . '<span class="ivr-key-destination-wrap">' . $renderKeyDestination($type, $destination['id'] ?? '') . '</span>'
+        . '<button class="btn btn-sm btn-ghost" type="button" data-repeat-remove style="color:var(--danger-500)" aria-label="Remove key mapping">'
+        . '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>'
+        . '</button></div>';
+};
+$newKeyRow = $renderKeyRow('', ['type' => 'extension', 'id' => '']);
 ?>
 
 <div class="page-head">
@@ -85,47 +120,18 @@ $keys = $row['keys'] ?? (json_decode((string) old('keys', '[]'), true) ?: []);
     <div class="card">
         <div class="card-head">
             <h2>Key mappings</h2>
-            <button class="btn btn-sm" type="button" data-repeat-add="#keyRows"
-                    data-repeat-template='<?= e('<div class="repeat-row flex gap-2 items-center mb-2">
-                        <input type="text" name="key[]" placeholder="0-9, *, or #" maxlength="1" style="width:70px" required>
-                        <select name="key_type[]" style="width:170px">' .
-                        implode('', array_map(
-                            static fn ($t, $l) => '<option value="' . e($t) . '">' . e($l) . '</option>',
-                            array_keys($typeLabels), array_values($typeLabels)
-                        )) . '</select>
-                        <input type="number" name="key_dest[]" placeholder="Destination ID" style="width:150px">
-                        <button class="btn btn-sm btn-ghost" type="button" data-repeat-remove style="color:var(--danger-500)">' .
-                        '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>' .
-                        '</button>
-                    </div>') ?>'>
+            <button class="btn btn-sm" type="button" data-repeat-add="#keyRows">
                 <?= $this->fragment('icons/plus') ?> Add key
             </button>
         </div>
         <div class="card-body">
             <p class="muted text-sm">
-                Map each key a caller can press to a destination. The destination ID is the numeric ID of the
-                target object (extension, ring group, etc.) — see the lists on the Call Routing page.
+                Map each key a caller can press by choosing its destination type and destination.
             </p>
 
-            <div id="keyRows">
+            <div id="keyRows" data-repeat-template="<?= e($newKeyRow) ?>">
                 <?php foreach ($keys as $k => $dest): ?>
-                    <div class="repeat-row flex gap-2 items-center mb-2">
-                        <input type="text" name="key[]" value="<?= e((string) $k) ?>"
-                               placeholder="0-9, *, or #" maxlength="1" style="width:70px" required>
-                        <select name="key_type[]" style="width:170px">
-                            <?php foreach ($typeLabels as $t => $l): ?>
-                                <option value="<?= e($t) ?>" <?= ($dest['type'] ?? '') === $t ? 'selected' : '' ?>>
-                                    <?= e($l) ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                        <input type="number" name="key_dest[]" value="<?= e((string) ($dest['id'] ?? '')) ?>"
-                               placeholder="Destination ID" style="width:150px">
-                        <button class="btn btn-sm btn-ghost" type="button" data-repeat-remove
-                                style="color:var(--danger-500)">
-                            <?= $this->fragment('icons/x') ?>
-                        </button>
-                    </div>
+                    <?= $renderKeyRow((string) $k, $dest) ?>
                 <?php endforeach; ?>
             </div>
         </div>
@@ -141,3 +147,39 @@ $keys = $row['keys'] ?? (json_decode((string) old('keys', '[]'), true) ?: []);
         </div>
     </div>
 </form>
+
+<script>
+(function () {
+    var catalog = <?= json_encode($destinations, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+
+    function destinationControl(type) {
+        if (type === 'external') {
+            var input = document.createElement('input');
+            input.className = 'ivr-key-destination'; input.type = 'text'; input.name = 'key_dest[]';
+            input.placeholder = 'External number'; input.pattern = '\\+?[0-9]{2,20}'; input.required = true; input.style.width = '240px';
+            return input;
+        }
+        if (type === 'hangup') {
+            var fragment = document.createDocumentFragment();
+            var hidden = document.createElement('input');
+            hidden.className = 'ivr-key-destination'; hidden.type = 'hidden'; hidden.name = 'key_dest[]'; hidden.value = '0';
+            var label = document.createElement('span'); label.className = 'muted'; label.textContent = 'No destination required';
+            fragment.appendChild(hidden); fragment.appendChild(label); return fragment;
+        }
+        var select = document.createElement('select');
+        select.className = 'ivr-key-destination'; select.name = 'key_dest[]'; select.required = true; select.style.width = '240px';
+        var placeholder = document.createElement('option'); placeholder.value = ''; placeholder.textContent = 'Choose destination'; select.appendChild(placeholder);
+        (catalog[type] || []).forEach(function (destination) {
+            var option = document.createElement('option'); option.value = destination.id; option.textContent = destination.label; select.appendChild(option);
+        });
+        return select;
+    }
+
+    document.addEventListener('change', function (event) {
+        if (!event.target.matches('.ivr-key-type')) return;
+        var row = event.target.closest('.ivr-key-row');
+        var wrap = row && row.querySelector('.ivr-key-destination-wrap');
+        if (wrap) { wrap.replaceChildren(destinationControl(event.target.value)); }
+    });
+})();
+</script>

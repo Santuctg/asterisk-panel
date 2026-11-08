@@ -31,7 +31,7 @@ final class IvrController extends BaseController
         foreach ($rows as &$r) {
             $r['keys'] = json_decode((string) $r['keys'], true) ?: [];
             foreach ($r['keys'] as $k => $d) {
-                $r['keys'][$k]['label'] = $this->destinationLabel($d['type'], (int) $d['id']);
+                $r['keys'][$k]['label'] = $this->destinationLabel($d['type'], $d['id'] ?? 0);
             }
         }
         unset($r);
@@ -180,7 +180,9 @@ final class IvrController extends BaseController
             }
             $keys[$k] = [
                 'type' => (string) $typeArr[$i],
-                'id'   => (int) ($destArr[$i] ?? 0),
+                'id'   => (string) ($typeArr[$i] ?? '') === 'external'
+                    ? trim((string) ($destArr[$i] ?? ''))
+                    : (int) ($destArr[$i] ?? 0),
             ];
         }
 
@@ -249,7 +251,7 @@ final class IvrController extends BaseController
         return $opts;
     }
 
-    private function destinationLabel(string $type, int $id): string
+    private function destinationLabel(string $type, int|string $id): string
     {
         $table = match ($type) {
             'extension'  => 'extensions',
@@ -264,7 +266,7 @@ final class IvrController extends BaseController
         };
 
         if ($table === '') {
-            return $type === 'hangup' ? 'Hang up' : ($type === 'external' ? 'External number' : '—');
+            return $type === 'hangup' ? 'Hang up' : ($type === 'external' ? 'External: ' . (string) $id : '—');
         }
 
         if ($type === 'announcement') {
@@ -280,8 +282,10 @@ final class IvrController extends BaseController
         $keys = json_decode((string) ($data['keys'] ?? ''), true);
         if (!is_array($keys)) return false;
         foreach ($keys as $key => $destination) {
-            if (!preg_match('/^[0-9*#]$/', (string) $key) || !is_array($destination)
-                || !$this->destinationBelongsToTenant((string) ($destination['type'] ?? ''), (int) ($destination['id'] ?? 0), $tenantId)) {
+            if (!is_array($destination)) return false;
+            $type = (string) ($destination['type'] ?? '');
+            if (!preg_match('/^[0-9*#]$/', (string) $key)
+                || !$this->destinationBelongsToTenant($type, $destination['id'] ?? null, $tenantId)) {
                 return false;
             }
         }
@@ -294,19 +298,20 @@ final class IvrController extends BaseController
         );
     }
 
-    private function destinationBelongsToTenant(string $type, int $id, int $tenantId): bool
+    private function destinationBelongsToTenant(string $type, int|string|null $id, int $tenantId): bool
     {
         if (!in_array($type, self::DEST_TYPES, true)) return false;
         if ($type === 'hangup') return true;
-        if ($type === 'external') return $id > 0;
+        if ($type === 'external') return (bool) preg_match('/^\+?[0-9]{2,20}$/', trim((string) $id));
         $table = match ($type) {
             'extension' => 'extensions', 'ringgroup' => 'ring_groups', 'ivr' => 'ivr_menus',
             'queue' => 'queues', 'conference' => 'conferences', 'parking' => 'parking_lots',
             'timecond' => 'time_conditions', 'announcement' => 'announcements',
         };
-        return $id > 0 && (bool) $this->db()->scalar(
+        $numericId = (int) $id;
+        return $numericId > 0 && (bool) $this->db()->scalar(
             "SELECT COUNT(*) FROM {$table} WHERE id = ? AND tenant_id = ? AND enabled = 1",
-            [$id, $tenantId]
+            [$numericId, $tenantId]
         );
     }
 

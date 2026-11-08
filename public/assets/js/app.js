@@ -452,7 +452,7 @@
         var list = document.querySelector(add.getAttribute('data-repeat-add'));
         if (!list) return;
 
-        var template = list.getAttribute('data-repeat-template');
+        var template = list.getAttribute('data-repeat-template') || add.getAttribute('data-repeat-template');
         if (!template) return;
 
         var count = list.querySelectorAll('.repeat-row').length;
