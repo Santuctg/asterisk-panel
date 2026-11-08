@@ -219,6 +219,7 @@ final class DashboardController extends BaseController
     public function switchTenant(Request $request): Response
     {
         $tid = $request->int('tenant_id');
+        $returnTo = $this->safeTenantSwitchReturn($request->str('return_to'));
 
         // Non-superadmins may only switch to their own tenant.
         if (!auth()->isSuperAdmin()) {
@@ -235,7 +236,25 @@ final class DashboardController extends BaseController
             }
         }
 
-        return Response::redirect('/dashboard');
+        return Response::redirect($returnTo);
+    }
+
+    /** Keep tenant switches on the current same-origin GET page. */
+    private function safeTenantSwitchReturn(string $returnTo): string
+    {
+        if ($returnTo === '' || strlen($returnTo) > 2048
+            || preg_match('/[\x00-\x1F\x7F\\\\]/', $returnTo)
+            || !str_starts_with($returnTo, '/') || str_starts_with($returnTo, '//')) {
+            return '/dashboard';
+        }
+
+        $parts = parse_url($returnTo);
+        if ($parts === false || isset($parts['scheme']) || isset($parts['host']) || isset($parts['user']) || isset($parts['pass'])
+            || (($parts['path'] ?? '/') === '/dashboard/switch-tenant')) {
+            return '/dashboard';
+        }
+
+        return $returnTo;
     }
 
     /** Tenants the current user is allowed to see. */

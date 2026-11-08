@@ -71,6 +71,20 @@ $superPage = $controller->index(new App\Core\Request('GET', '/users'));
 $check(str_contains($superPage->body(), 'admin-a') && substr_count($superPage->body(), 'rootadmin') === 1
     && !str_contains($superPage->body(), 'admin-b') && !str_contains($superPage->body(), 'value="superadmin"'),
     'superadmin user list contains only active tenant users');
+$dashboard = new App\Controllers\DashboardController();
+$switchResponse = $dashboard->switchTenant(new App\Core\Request('POST', '/dashboard/switch-tenant', [], [
+    'tenant_id' => (string) $tenantB,
+    'return_to' => '/extensions?status=enabled&page=2',
+]));
+$check((int) ($_SESSION['active_tenant'] ?? 0) === $tenantB
+    && ($switchResponse->headers()['Location'] ?? '') === '/extensions?status=enabled&page=2',
+    'tenant switch preserves the current page and query string');
+$unsafeSwitch = $dashboard->switchTenant(new App\Core\Request('POST', '/dashboard/switch-tenant', [], [
+    'tenant_id' => (string) $tenantA,
+    'return_to' => '//evil.example/steal',
+]));
+$check(($unsafeSwitch->headers()['Location'] ?? '') === '/dashboard',
+    'tenant switch rejects external redirect destinations');
 $_SERVER['HTTP_HOST'] = 'a.example.test';
 $app->auth()->login($adminA);
 $controller->store(new App\Core\Request('POST', '/users', [], [

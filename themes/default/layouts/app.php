@@ -4,6 +4,7 @@
  * Expects: $content (rendered view), $auth, $flashes
  */
 $currentPage = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+$currentLocation = (string) ($_SERVER['REQUEST_URI'] ?? '/dashboard');
 $user = $auth->user();
 ?>
 <!DOCTYPE html>
@@ -152,6 +153,7 @@ $user = $auth->user();
                 <?php if (count($tenants) > 1): ?>
                     <form method="post" action="/dashboard/switch-tenant" class="tenant-switch">
                         <?= \App\Core\Csrf::field() ?>
+                        <input type="hidden" name="return_to" value="<?= e($currentLocation) ?>">
                         <select name="tenant_id" onchange="this.form.submit()" aria-label="Switch tenant">
                             <?php foreach ($tenants as $t): ?>
                                 <option value="<?= (int) $t['id'] ?>"
