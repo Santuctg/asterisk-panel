@@ -55,14 +55,14 @@ $checks = [
     [str_contains($phoneJs, 'await startPhone(config, password)')
         && str_contains($phoneJs, 'SIP registration timed out')
         && str_contains($phoneJs, 'session !== current'), 'web phone waits for SIP registration and ignores stale session events'],
-    [str_contains($phoneView, 'data-phone-view="dialpad"') && str_contains($phoneView, 'web-phone-backspace')
-        && str_contains($phoneView, 'web-phone-password-toggle')
-        && str_contains($css, '.webphone-app[data-view="calls"] .webphone-side'), 'web phone provides complete desktop and mobile dialer navigation'],
+    [!str_contains($phoneView, 'data-phone-view="dialpad"') && str_contains($phoneView, 'web-phone-backspace')
+        && str_contains($phoneView, 'webphone-view-menu') && str_contains($phoneView, 'webphone-list-workspace')
+        && !str_contains($phoneJs, "switchView('dialpad')"), 'calls and contacts share an integrated compact dialer without a separate dialpad page'],
     [str_contains($css, 'background:linear-gradient(180deg,#111a31,#0b1224)')
-        && str_contains($css, '.webphone-keypad button { width:62px; height:62px')
+        && str_contains($css, '.webphone-side .webphone-keypad button { width:38px; height:38px')
         && str_contains($css, '--phone-accent:#5b8cff')
-        && str_contains($css, '.webphone-dialer { width:min(420px,100%); display:grid; grid-template-columns:minmax(0,1fr)')
-        && str_contains($css, '.webphone-dialer:has(.webphone-call-panel.has-call)'),
+        && str_contains($css, '.webphone-list-workspace')
+        && str_contains($css, '.webphone-side .webphone-dialer'),
         'web phone uses the polished responsive Wave-style visual system'],
     [str_contains($phoneJs, 'ua.call(`sip:${destination}@${realm}`')
         && str_contains($phoneView, 'name="extension"') && !str_contains($phoneView, 'name="tenant_domain"'), 'web phone calls from URL-scoped extension login without a tenant field'],
@@ -98,8 +98,8 @@ $checks = [
         && str_contains($phoneView, 'Enter your password') && str_contains($phoneView, 'inputmode="numeric" autocomplete="off"')
         && str_contains($css, '.webphone-login-input input { width:100%; }')
         && str_contains($css, '.webphone-login-input:focus-within'), 'web phone login fields use equal full-width polished styling without username autofill'],
-    [str_contains($css, '[data-view="dialpad"] .webphone-side { display:none; }')
-        && str_contains($css, 'scrollbar-width:thin') && str_contains($css, '::-webkit-scrollbar-thumb:hover'), 'dialpad hides duplicate call history and long call logs use a styled scrollbar'],
+    [str_contains($css, '.webphone-row-action') && str_contains($css, 'scrollbar-width:thin')
+        && str_contains($css, '::-webkit-scrollbar-thumb:hover'), 'full-width call and contact lists expose call actions and styled scrolling'],
     [str_contains($css, '@media (max-width: 700px)') && str_contains($css, 'position:fixed; inset:auto 0 0')
         && str_contains($css, 'padding-bottom:68px') && str_contains($css, '@media (max-width: 900px) and (min-width: 701px)')
         && str_contains($css, '@media (min-width: 1440px)') && str_contains($css, '@media (max-width: 360px)'), 'web phone adapts navigation and dialer layout across small mobile, tablet, and wide desktop widths'],

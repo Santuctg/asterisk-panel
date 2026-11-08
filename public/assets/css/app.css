@@ -137,8 +137,6 @@ code, .mono { font-family: var(--mono); font-size: 12.5px; }
 .phone-content { width:100%; min-height:100dvh; margin:0; padding:0; }
 .web-phone-login-link { margin-top:10px; gap:7px; }
 .webphone-app { --phone-accent:#5b8cff; --phone-accent-soft:rgba(91,140,255,.13); width:100%; height:100dvh; min-height:0; display:grid; grid-template-columns:68px minmax(280px,320px) minmax(0,1fr); overflow:hidden; background:var(--bg); color:var(--text); }
-.webphone-app:not(.is-locked)[data-view="dialpad"] { grid-template-columns:68px minmax(0,1fr); }
-.webphone-app:not(.is-locked)[data-view="dialpad"] .webphone-side { display:none; }
 .webphone-app.is-locked { grid-template-columns:minmax(0,1fr); background:#080f20; color:#f3f4f6; }
 .webphone-app.is-locked .webphone-rail,.webphone-app.is-locked .webphone-side { display:none; }
 .webphone-app.is-locked .webphone-main { background:radial-gradient(circle at 20% 15%,rgba(72,112,255,.2),transparent 30%),radial-gradient(circle at 84% 82%,rgba(14,165,233,.12),transparent 27%),linear-gradient(145deg,#07101f,#0b1428 52%,#080e1c); }
@@ -156,10 +154,12 @@ code, .mono { font-family: var(--mono); font-size: 12.5px; }
 .webphone-search { display:flex; align-items:center; gap:7px; margin:14px; padding:0 11px; border:1px solid var(--border); border-radius:10px; color:var(--text-muted); background:var(--surface-alt); transition:border-color .18s,box-shadow .18s; }.webphone-search:focus-within { border-color:var(--phone-accent); box-shadow:0 0 0 3px var(--phone-accent-soft); }
 .webphone-search input { padding:9px 2px; border:0; box-shadow:none!important; background:transparent; font-size:12px; }
 .webphone-history,.webphone-contacts { flex:1; overflow:auto; padding:0 9px 12px; scrollbar-width:thin; scrollbar-color:color-mix(in srgb,var(--phone-accent) 60%,transparent) transparent; }.webphone-history::-webkit-scrollbar,.webphone-contacts::-webkit-scrollbar { width:8px; }.webphone-history::-webkit-scrollbar-track,.webphone-contacts::-webkit-scrollbar-track { margin:6px 0; background:transparent; }.webphone-history::-webkit-scrollbar-thumb,.webphone-contacts::-webkit-scrollbar-thumb { border:2px solid transparent; border-radius:999px; background:linear-gradient(180deg,#6f96f7,#456bd0) padding-box; }.webphone-history::-webkit-scrollbar-thumb:hover,.webphone-contacts::-webkit-scrollbar-thumb:hover { background:linear-gradient(180deg,#8aabff,#5d82e5) padding-box; }.webphone-history-empty { height:180px; display:grid; place-items:center; color:var(--text-muted); font-size:12px; }
-.webphone-history-row { width:100%; display:grid; grid-template-columns:40px minmax(0,1fr); align-items:center; gap:10px; padding:10px; border:0; border-radius:10px; background:transparent; color:var(--text); text-align:left; cursor:pointer; transition:background .16s,transform .16s; }
-.webphone-history-row:hover { background:var(--phone-accent-soft); transform:translateX(2px); }.webphone-history-row > span { width:36px; height:36px; display:grid; place-items:center; border-radius:12px; background:var(--phone-accent-soft); color:var(--phone-accent); }
+.webphone-history-row { width:100%; display:grid; grid-template-columns:40px minmax(0,1fr) 36px; align-items:center; gap:12px; padding:10px 14px; border:0; border-bottom:1px solid var(--border); border-radius:0; background:transparent; color:var(--text); text-align:left; cursor:pointer; transition:background .16s,transform .16s; }
+.webphone-history-row:hover { background:var(--phone-accent-soft); }.webphone-history-row > span:not(.webphone-row-action) { width:36px; height:36px; display:grid; place-items:center; border-radius:50%; background:var(--phone-accent-soft); color:var(--phone-accent); }
 .webphone-history-row strong, .webphone-history-row small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }.webphone-history-row strong { font-size:12px; }.webphone-history-row small { margin-top:3px; color:var(--text-muted); font-size:10px; }
+.webphone-row-action { width:32px; height:32px; display:grid; place-items:center; border-radius:50%; color:var(--phone-accent); font-size:16px; }.webphone-history-row:hover .webphone-row-action { background:var(--phone-accent); color:#fff; }
 .webphone-main { min-width:0; min-height:0; display:grid; place-items:center; overflow:auto; padding:clamp(18px,3vw,42px); background:radial-gradient(circle at 50% 20%,rgba(91,140,255,.12),transparent 34%),radial-gradient(circle at 82% 85%,rgba(14,165,233,.06),transparent 30%),var(--bg); }
+.webphone-app:not(.is-locked) .webphone-main { place-items:stretch; padding:0; }
 .webphone-login-card { width:min(440px,100%); padding:34px; border:1px solid var(--border); border-radius:22px; background:var(--surface); box-shadow:var(--shadow-lg); text-align:center; }
 .webphone-login-card h1 { margin:8px 0 7px; font-size:24px; }.webphone-login-card > p { margin:0 0 18px; color:var(--text-muted); font-size:12px; }.webphone-login-card .field { margin-bottom:14px; text-align:left; }.webphone-login-card > a { display:inline-block; margin-top:13px; }
 .webphone-logo { width:50px; height:50px; display:grid; place-items:center; margin:0 auto; border-radius:14px; background:var(--brand-50); color:var(--brand-600); font-size:24px; }.webphone-error { min-height:18px; margin:9px 0 0; color:var(--danger-500); font-size:11px; }
@@ -192,6 +192,9 @@ code, .mono { font-family: var(--mono); font-size: 12.5px; }
 .webphone-setting-line { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; }.webphone-setting-line select { min-width:0; }.webphone-audio-meter { height:5px; margin-top:9px; overflow:hidden; border-radius:99px; background:var(--surface-alt); }.webphone-audio-meter span { display:block; width:0; height:100%; border-radius:inherit; background:linear-gradient(90deg,var(--success-500),var(--warning-500)); transition:width .08s linear; }.webphone-settings-content input[type="range"] { width:100%; accent-color:var(--phone-accent); }
 .webphone-setting-toggle { min-height:72px; display:flex; align-items:center; justify-content:space-between; gap:18px; padding:13px 0; border-bottom:1px solid var(--border); }.webphone-setting-toggle > span { min-width:0; }.webphone-setting-toggle strong,.webphone-setting-toggle small { display:block; }.webphone-setting-toggle strong { margin-bottom:4px; font-size:12px; }.webphone-setting-toggle small { color:var(--text-muted); font-size:10px; line-height:1.45; }.webphone-setting-toggle input[type="checkbox"] { width:18px; height:18px; flex:0 0 auto; accent-color:var(--phone-accent); }
 .webphone-permission-card { width:min(430px,100%); padding:34px; border:1px solid var(--border); border-radius:20px; background:var(--surface); box-shadow:0 28px 80px rgba(0,0,0,.38); text-align:center; }.webphone-permission-icon { width:62px; height:62px; display:grid; place-items:center; margin:0 auto 18px; border-radius:20px; background:var(--phone-accent-soft); color:var(--phone-accent); font-size:28px; }.webphone-permission-card h2 { margin:0 0 9px; font-size:20px; }.webphone-permission-card p { margin:0 auto 24px; color:var(--text-muted); font-size:12px; line-height:1.65; }.webphone-permission-card > div { display:flex; justify-content:center; gap:9px; }.webphone-permission-card > small { display:block; min-height:18px; margin-top:13px; color:var(--danger-500); }
+.webphone-view-menu { display:grid; gap:6px; padding:0 12px 14px; border-bottom:1px solid var(--border); }.webphone-view-menu button { width:100%; display:flex; align-items:center; gap:10px; padding:11px 12px; border:0; border-radius:10px; background:transparent; color:var(--text-muted); text-align:left; cursor:pointer; }.webphone-view-menu button span { width:32px; height:32px; display:grid; place-items:center; border-radius:10px; background:var(--phone-accent-soft); color:var(--phone-accent); }.webphone-view-menu button strong { font-size:12px; }.webphone-view-menu button:hover,.webphone-view-menu button.is-active { background:var(--phone-accent-soft); color:var(--text); }
+.webphone-side .webphone-dialer { width:100%; margin-top:auto; gap:0; overflow:auto; border-top:1px solid var(--border); }.webphone-side .webphone-welcome { display:none; }.webphone-side .webphone-call-panel { padding:14px 18px 12px; border:0; border-radius:0; background:transparent; box-shadow:none; }.webphone-side .webphone-call-panel .webphone-number-wrap input { height:40px; padding-left:12px; background:var(--surface-alt); font-size:12px; text-align:left; }.webphone-side .webphone-keypad { gap:4px 8px; margin:9px 0; }.webphone-side .webphone-keypad button { width:38px; height:38px; border:0; background:transparent; box-shadow:none; }.webphone-side .webphone-keypad button strong { font-size:16px; }.webphone-side .webphone-keypad button small { font-size:6px; }.webphone-side .webphone-call-actions button { width:42px; height:42px; font-size:17px; }.webphone-side .webphone-call-panel #web-phone-status { min-height:15px; margin:6px 0 0; font-size:9px; }.webphone-side .webphone-call-panel.has-call { min-height:0; }.webphone-side .webphone-call-party { margin-bottom:10px; }.webphone-side .webphone-call-party > span { width:48px; height:48px; border-radius:16px; font-size:20px; }.webphone-side .webphone-call-party strong { font-size:15px; }.webphone-side .webphone-in-call-tools { gap:4px; margin:10px 0; }.webphone-side .webphone-in-call-tools button { padding:7px 1px; }.webphone-side .webphone-transfer-box { margin-bottom:8px; }
+.webphone-list-workspace { width:100%; height:100%; min-width:0; min-height:0; align-self:stretch; justify-self:stretch; display:flex; flex-direction:column; overflow:hidden; background:var(--surface); }.webphone-list-workspace > header { min-height:82px; display:flex; align-items:center; justify-content:space-between; gap:20px; padding:18px 24px; border-bottom:1px solid var(--border); }.webphone-list-workspace > header span { color:var(--phone-accent); font-size:9px; font-weight:800; letter-spacing:.16em; }.webphone-list-workspace > header h1 { margin:4px 0 0; font-size:22px; }.webphone-list-workspace > header p { margin:0; color:var(--text-muted); font-size:11px; }.webphone-list-workspace .webphone-history,.webphone-list-workspace .webphone-contacts { min-height:0; padding:0 14px 18px; }
 
 .main {
     flex: 1;
@@ -937,25 +940,16 @@ th.col-check input:indeterminate::after, td.col-check input:indeterminate::after
 }
 @media (min-width: 1440px) {
     .webphone-app:not(.is-locked) { grid-template-columns:76px minmax(320px,360px) minmax(0,1fr); }
-    .webphone-app:not(.is-locked)[data-view="dialpad"] { grid-template-columns:76px minmax(0,1fr); }
-    .webphone-dialer { width:min(480px,100%); }
-    .webphone-welcome h1 { font-size:28px; }
-    .webphone-call-panel { padding:32px 36px; }
-    .webphone-keypad button { width:68px; height:68px; }
-    .webphone-keypad button strong { font-size:19px; }
     .webphone-history-row { padding:11px 12px; }
     .webphone-history-row strong { font-size:13px; }
     .webphone-history-row small { font-size:11px; }
 }
 @media (max-width: 900px) and (min-width: 701px) {
     .webphone-app:not(.is-locked) { grid-template-columns:62px 260px minmax(0,1fr); }
-    .webphone-app:not(.is-locked)[data-view="dialpad"] { grid-template-columns:62px minmax(0,1fr); }
     .webphone-rail-item { width:50px; }
     .webphone-side-head { padding-left:14px; padding-right:14px; }
     .webphone-main { padding:16px; }
-    .webphone-dialer { width:min(370px,100%); }
-    .webphone-call-panel { padding:22px; }
-    .webphone-keypad button { width:56px; height:56px; }
+    .webphone-side .webphone-call-panel { padding-left:12px; padding-right:12px; }
 }
 @media (max-width: 860px) {
     .active-calls-grid { grid-template-columns:1fr; }
@@ -1012,10 +1006,11 @@ th.col-check input:indeterminate::after, td.col-check input:indeterminate::after
     .webphone-call-panel { padding:20px; border-radius:20px; }
     .webphone-login-card { width:min(440px,100%); }
     .webphone-app.is-locked .webphone-main { min-height:100dvh; padding:16px; }
-    .webphone-app[data-view="calls"] .webphone-side,.webphone-app[data-view="contacts"] .webphone-side { display:flex; }
-    .webphone-app[data-view="calls"] .webphone-main,.webphone-app[data-view="contacts"] .webphone-main { display:none; }
-    .webphone-app[data-view="dialpad"] .webphone-side { display:none; }
-    .webphone-app[data-view="dialpad"] .webphone-main { display:grid; }
+    .webphone-app:not(.is-locked) .webphone-side { display:flex; min-height:0; overflow:visible; border-right:0; border-bottom:1px solid var(--border); }
+    .webphone-app:not(.is-locked) .webphone-main { display:block; min-height:calc(100dvh - 68px); padding:0; }
+    .webphone-view-menu,.webphone-side-head { display:none; }
+    .webphone-side .webphone-dialer { margin-top:0; }
+    .webphone-list-workspace { min-height:55dvh; }
 }
 @media (max-width: 560px) {
     :root { --topbar-h:56px; }
@@ -1045,10 +1040,6 @@ th.col-check input:indeterminate::after, td.col-check input:indeterminate::after
     .active-calls-total { min-width:0; }
     .active-calls-listen-bar > div { flex-wrap:wrap; }
     .active-session-actions { flex-direction:column; }
-    .webphone-app[data-view="calls"] .webphone-side,.webphone-app[data-view="contacts"] .webphone-side { display:flex; }
-    .webphone-app[data-view="calls"] .webphone-main,.webphone-app[data-view="contacts"] .webphone-main { display:none; }
-    .webphone-app[data-view="dialpad"] .webphone-side { display:none; }
-    .webphone-app[data-view="dialpad"] .webphone-main { display:grid; }
     .webphone-app.is-locked .webphone-side { display:none; }
     .webphone-app.is-locked .webphone-main { display:grid; }
     .tenant-switch select { max-width:92px; }

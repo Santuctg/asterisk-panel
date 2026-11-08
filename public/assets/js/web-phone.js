@@ -15,8 +15,10 @@ const presence = $('#web-phone-presence');
 const identity = $('#web-phone-identity');
 const historyList = $('#web-phone-history');
 const contactsList = $('#web-phone-contacts');
+const listWorkspace = $('#web-phone-list-workspace');
 const search = $('#web-phone-search');
 const listTitle = $('#web-phone-list-title');
+const listSummary = $('#web-phone-list-summary');
 const clock = $('#web-phone-clock');
 const callPanel = $('#web-phone-call-panel');
 const callParty = $('#web-phone-call-party');
@@ -56,7 +58,7 @@ let realm = '';
 let accountKey = '';
 let contacts = [];
 let history = [];
-let currentView = 'dialpad';
+let currentView = 'calls';
 let currentTarget = '';
 let currentDirection = '';
 let startedAt = null;
@@ -180,10 +182,11 @@ function listRow(primary, secondary, numberValue, icon = '☎') {
     const detail = document.createElement('div');
     const strong = document.createElement('strong'); strong.textContent = primary || numberValue || 'Unknown';
     const small = document.createElement('small'); small.textContent = secondary;
-    detail.append(strong, small); row.append(avatar, detail);
+    const action = document.createElement('span'); action.className = 'webphone-row-action'; action.textContent = '☎';
+    detail.append(strong, small); row.append(avatar, detail, action);
     row.addEventListener('click', () => {
         number.value = numberValue;
-        switchView('dialpad');
+        setStatus(`Ready to call ${numberValue}.`);
         number.focus();
     });
     return row;
@@ -212,12 +215,14 @@ function renderList() {
     }
 }
 function switchView(view) {
+    if (!['calls', 'contacts'].includes(view)) view = 'calls';
     currentView = view;
     $('.webphone-app').dataset.view = view;
     document.querySelectorAll('[data-phone-view]').forEach(button => button.classList.toggle('is-active', button.dataset.phoneView === view));
     historyList.hidden = view === 'contacts';
     contactsList.hidden = view !== 'contacts';
-    listTitle.textContent = view === 'contacts' ? 'Contacts' : 'Calls';
+    listTitle.textContent = view === 'contacts' ? 'All Contacts' : 'Recent Calls';
+    listSummary.textContent = view === 'contacts' ? 'Select a contact to place a call' : 'Your latest incoming and outgoing calls';
     search.placeholder = view === 'contacts' ? 'Search contacts' : 'Search calls';
     search.value = '';
     renderList();
@@ -305,7 +310,7 @@ function setupSession(current, originator) {
         : number.value.trim();
     startedAt = new Date();
     if (originator === 'remote') {
-        switchView('dialpad');
+        switchView('calls');
         document.title = `Incoming: ${currentTarget}`;
         if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
             try { new Notification('Incoming Web Phone call', {body: currentTarget, tag: 'web-phone-incoming'}); } catch (_) {}
@@ -508,8 +513,8 @@ function startPhone(config, password) {
             if (settled) return;
             settled = true; window.clearTimeout(timer);
             callButton.disabled = false; setPresence('Online', true); setStatus('Ready to call.');
-            login.hidden = true; dialer.hidden = false; $('.webphone-app').classList.remove('is-locked');
-            switchView('dialpad');
+            login.hidden = true; dialer.hidden = false; listWorkspace.hidden = false; $('.webphone-app').classList.remove('is-locked');
+            switchView('calls');
             resolve();
         });
         ua.on('unregistered', () => { setPresence('Offline'); callButton.disabled = true; });
@@ -668,7 +673,7 @@ disconnectButton.addEventListener('click', async () => {
         if (current) { try { current.terminate(); } catch (_) { finalizeSession(current, 'Ended'); } }
         if (ua) { ua.stop(); ua = null; }
         stopMicrophoneTest(); stopRingtone(); settingsModal.hidden = true; permissionModal.hidden = true;
-        setPresence('Offline'); dialer.hidden = true; login.hidden = false; number.value = ''; contacts = [];
+        setPresence('Offline'); dialer.hidden = true; listWorkspace.hidden = true; login.hidden = false; number.value = ''; contacts = [];
         login.querySelector('[name="secret"]').value = ''; login.querySelector('[name="secret"]').type = 'password';
         passwordToggle.title = 'Show password'; passwordToggle.setAttribute('aria-label', passwordToggle.title);
         $('.webphone-app').classList.add('is-locked');
