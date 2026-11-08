@@ -349,6 +349,26 @@ $check($phoneResume->status() === 200 && ($resumeConfig['username'] ?? '') === '
     && ($resumeConfig['password'] ?? '') === 'test-secret'
     && ($phoneResume->headers()['Cache-Control'] ?? '') === 'no-store, private',
     'authenticated Web Phone session resumes securely after a page reload');
+$presenceMap = App\Controllers\WebPhoneController::extensionPresence(
+    [['extension' => '2002'], ['extension' => '3003'], ['extension' => '4004']],
+    [
+        '2002@tenant-a.example.test' => 'Avail',
+        'tenant_a_3003-phone-web' => 'Avail',
+        'tenant_b_4004-phone-web' => 'Avail',
+    ],
+    'tenant-a.example.test',
+    'tenant_a'
+);
+$check($presenceMap === ['2002' => true, '3003' => true, '4004' => false],
+    'Web Phone presence maps desk and browser registrations without accepting another tenant AOR');
+$phonePresence = (new App\Controllers\WebPhoneController())->presence(new App\Core\Request(
+    'POST', '/web-phone/presence', [], [], ['REMOTE_ADDR' => '192.0.2.44']
+));
+$presencePayload = json_decode($phonePresence->body(), true);
+$check($phonePresence->status() === 200 && ($phonePresence->headers()['Cache-Control'] ?? '') === 'no-store, private'
+    && count($presencePayload['presence'] ?? []) === 1
+    && array_key_exists('2002', $presencePayload['presence']) && $presencePayload['presence']['2002'] === null,
+    'Web Phone presence feed is tenant-scoped and degrades to unknown when AMI is unavailable');
 $_SERVER['HTTP_HOST'] = 'tenant-b.example.test';
 $tenantUrlPhone = (new App\Controllers\WebPhoneController())->connect(new App\Core\Request(
     'POST', '/web-phone/connect', [], ['extension' => '1001', 'secret' => 'test-secret3'], ['REMOTE_ADDR' => '192.0.2.45']
@@ -378,10 +398,13 @@ $unknownPhoneLogin = (new App\Controllers\WebPhoneController())->connect(new App
 $unknownPhoneResume = (new App\Controllers\WebPhoneController())->session(new App\Core\Request(
     'POST', '/web-phone/session', [], [], ['REMOTE_ADDR' => '192.0.2.46']
 ));
+$unknownPhonePresence = (new App\Controllers\WebPhoneController())->presence(new App\Core\Request(
+    'POST', '/web-phone/presence', [], [], ['REMOTE_ADDR' => '192.0.2.46']
+));
 $check($unknownPhonePage->status() === 421 && $unknownPhoneLogin->status() === 421
-    && $unknownPhoneResume->status() === 421
+    && $unknownPhoneResume->status() === 421 && $unknownPhonePresence->status() === 421
     && ($unknownPhonePage->headers()['Cache-Control'] ?? '') === 'no-store',
-    'Web Phone page, login, and credential-resume endpoints fail closed on unknown hosts');
+    'Web Phone page, login, credential-resume, and presence endpoints fail closed on unknown hosts');
 $_SERVER['HTTP_HOST'] = 'pbx.example.test';
 $failedLogin = null;
 for ($attempt = 1; $attempt <= 2; $attempt++) {

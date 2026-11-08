@@ -70,6 +70,12 @@ $checks = [
         && str_contains($phoneJs, "classList.remove('is-locked')"), 'web phone hides workspace navigation until SIP login succeeds'],
     [str_contains($routes, "post('/web-phone/session'") && str_contains($routes, "post('/web-phone/disconnect'")
         && str_contains($phoneJs, "fetch('/web-phone/session'") && str_contains($phoneJs, 'resumePhoneSession()'), 'web phone resumes its authenticated session after reload and supports explicit sign-out'],
+    [str_contains($routes, "post('/web-phone/presence'")
+        && str_contains($phoneJs, "fetch('/web-phone/presence'")
+        && str_contains($phoneJs, 'startPresencePolling()')
+        && str_contains($phoneJs, "item.online === true ? 'Online'")
+        && str_contains($phoneJs, "'is-unknown'")
+        && str_contains($css, '.webphone-contact-row.is-online'), 'contacts poll tenant-scoped extension presence and render online, offline, or unknown indicators'],
     [str_contains($phoneView, 'id="web-phone-permissions"') && str_contains($phoneJs, 'showPermissionSetup()')
         && strpos($phoneJs, 'await startPhone(config, password)') < strpos($phoneJs, 'showPermissionSetup();'), 'permission setup appears only after successful SIP registration'],
     [str_contains($listenView, 'active-calls-grid') && str_contains($listenView, 'Listen on an extension')

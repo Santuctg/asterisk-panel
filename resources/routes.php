@@ -30,6 +30,7 @@ $router->post('/logout', [AuthController::class, 'logout'], [Csrf::middleware(..
 $router->get('/web-phone', [WebPhoneController::class, 'index']);
 $router->post('/web-phone/connect', [WebPhoneController::class, 'connect'], [Csrf::middleware(...)]);
 $router->post('/web-phone/session', [WebPhoneController::class, 'session'], [Csrf::middleware(...)]);
+$router->post('/web-phone/presence', [WebPhoneController::class, 'presence'], [Csrf::middleware(...)]);
 $router->post('/web-phone/disconnect', [WebPhoneController::class, 'disconnect'], [Csrf::middleware(...)]);
 
 // Phones poll with a per-device random capability token; no panel session.

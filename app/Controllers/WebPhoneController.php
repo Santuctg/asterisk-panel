@@ -123,6 +123,78 @@ final class WebPhoneController extends BaseController
         return $this->json(['ok' => true])->withHeader('Cache-Control', 'no-store');
     }
 
+    /** Tenant-scoped live registration state for Web Phone contacts. */
+    public function presence(Request $request): Response
+    {
+        if (!TenantHost::isKnownRequest()) {
+            return $this->json(['error' => 'Unknown PBX host.'], 421)->withHeader('Cache-Control', 'no-store');
+        }
+        $phoneAuth = Session::get('web_phone_auth');
+        if (!is_array($phoneAuth)) {
+            return $this->json(['error' => 'No active Web Phone session.'], 401)->withHeader('Cache-Control', 'no-store');
+        }
+
+        $tenantId = (int) ($phoneAuth['tenant_id'] ?? 0);
+        $extension = (string) ($phoneAuth['extension'] ?? '');
+        $hostTenant = $this->tenantIdForWebPhoneHost() ?? TenantHost::tenantIdForRequest();
+        if ($tenantId < 1 || $extension === '' || ($hostTenant && $hostTenant !== $tenantId)
+            || (new TenantSecurity())->isBlocked($tenantId, $request->ip())) {
+            Session::forget('web_phone_auth');
+            return $this->json(['error' => 'Web Phone session has expired.'], 401)->withHeader('Cache-Control', 'no-store');
+        }
+
+        $tenant = $this->db()->one(
+            'SELECT t.context, t.domain FROM tenants t
+             JOIN extensions e ON e.tenant_id = t.id
+             WHERE t.id = ? AND t.enabled = 1 AND e.extension = ? AND e.enabled = 1',
+            [$tenantId, $extension]
+        );
+        $extensions = $this->db()->all(
+            'SELECT extension FROM extensions WHERE tenant_id = ? AND enabled = 1 AND extension <> ? ORDER BY extension',
+            [$tenantId, $extension]
+        );
+        if (!$tenant) {
+            Session::forget('web_phone_auth');
+            return $this->json(['error' => 'Web Phone session has expired.'], 401)->withHeader('Cache-Control', 'no-store');
+        }
+
+        $available = false;
+        $states = array_fill_keys(array_column($extensions, 'extension'), null);
+        try {
+            $manager = asterisk();
+            $available = $manager->isOnline();
+            if ($available) {
+                $realm = strtolower(rtrim(trim((string) ($tenant['domain'] ?? '')), '.'))
+                    ?: (string) ($tenant['context'] ?? '');
+                $states = self::extensionPresence(
+                    $extensions,
+                    $manager->contactStatuses(),
+                    $realm,
+                    (string) ($tenant['context'] ?? '')
+                );
+            }
+        } catch (\Throwable $e) {
+            Logger::info('Web Phone presence unavailable', ['error' => $e->getMessage()]);
+        }
+
+        return $this->json(['available' => $available, 'presence' => $states])
+            ->withHeader('Cache-Control', 'no-store, private');
+    }
+
+    /** Map only the supplied tenant extensions; desk or browser AOR means online. */
+    public static function extensionPresence(array $extensions, array $contacts, string $realm, string $context): array
+    {
+        $context = preg_replace('/[^a-zA-Z0-9_]/', '_', $context) ?: '';
+        $states = [];
+        foreach ($extensions as $extension) {
+            $number = (string) ($extension['extension'] ?? '');
+            if ($number === '') continue;
+            $states[$number] = isset($contacts[$number . '@' . $realm])
+                || isset($contacts[$context . '_' . $number . '-phone-web']);
+        }
+        return $states;
+    }
+
     private function phoneConfig(array $row): array
     {
         $tenantId = (int) $row['tenant_id'];

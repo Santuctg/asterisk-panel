@@ -75,6 +75,7 @@ let microphoneTestStream = null;
 let microphoneTestContext = null;
 let microphoneTestTimer = null;
 let settingsReturnFocus = null;
+let presencePollTimer = null;
 let preferences = loadPreferences();
 
 function loadPreferences() {
@@ -175,10 +176,14 @@ function saveHistory(entry) {
     try { localStorage.setItem(historyStorageKey(), JSON.stringify(history)); } catch (_) {}
     renderList();
 }
-function listRow(primary, secondary, numberValue, icon = '☎') {
+function listRow(primary, secondary, numberValue, icon = '☎', online = undefined) {
     const row = document.createElement('button');
     row.type = 'button'; row.className = 'webphone-history-row'; row.dataset.number = numberValue;
     const avatar = document.createElement('span'); avatar.textContent = icon;
+    if (online !== undefined) {
+        row.classList.add('webphone-contact-row', online === true ? 'is-online' : (online === false ? 'is-offline' : 'is-unknown'));
+        avatar.setAttribute('aria-hidden', 'true');
+    }
     const detail = document.createElement('div');
     const strong = document.createElement('strong'); strong.textContent = primary || numberValue || 'Unknown';
     const small = document.createElement('small'); small.textContent = secondary;
@@ -200,7 +205,8 @@ function renderList() {
         : history.filter(item => `${item.number} ${item.result} ${item.direction}`.toLowerCase().includes(query));
     rows.forEach(item => {
         if (currentView === 'contacts') {
-            target.appendChild(listRow(item.name, `Extension ${item.extension}`, item.extension, '♙'));
+            const state = item.online === true ? 'Online' : (item.online === false ? 'Offline' : 'Unknown');
+            target.appendChild(listRow(item.name, `Extension ${item.extension} · ${state}`, item.extension, '♙', item.online ?? null));
         } else {
             const when = new Date(item.time);
             const direction = item.direction === 'incoming' ? 'Incoming' : 'Outgoing';
@@ -229,6 +235,36 @@ function switchView(view) {
 }
 document.querySelectorAll('[data-phone-view]').forEach(button => button.addEventListener('click', () => switchView(button.dataset.phoneView)));
 search.addEventListener('input', renderList);
+
+function stopPresencePolling() {
+    window.clearTimeout(presencePollTimer); presencePollTimer = null;
+}
+function applyContactPresence(states, available) {
+    contacts = contacts.map(contact => ({
+        ...contact,
+        online: available && Object.prototype.hasOwnProperty.call(states, contact.extension)
+            ? states[contact.extension] === true : null,
+    }));
+    if (currentView === 'contacts') renderList();
+}
+async function refreshContactPresence() {
+    if (!ua) return;
+    try {
+        const response = await fetch('/web-phone/presence', {
+            method: 'POST', headers: {'X-CSRF-Token': csrfToken(), Accept: 'application/json'}, cache: 'no-store',
+        });
+        if (!response.ok) throw new Error('Presence unavailable');
+        const data = await response.json();
+        applyContactPresence(data.presence && typeof data.presence === 'object' ? data.presence : {}, data.available === true);
+    } catch (_) {
+        applyContactPresence({}, false);
+    } finally {
+        if (ua) presencePollTimer = window.setTimeout(refreshContactPresence, 10000);
+    }
+}
+function startPresencePolling() {
+    stopPresencePolling(); refreshContactPresence();
+}
 
 function playRemoteMedia(peerconnection, stream = null) {
     if (!peerconnection) return;
@@ -506,7 +542,7 @@ function startPhone(config, password) {
         let settled = false;
         const timer = window.setTimeout(() => {
             if (settled) return;
-            settled = true; ua?.stop(); ua = null;
+            settled = true; stopPresencePolling(); ua?.stop(); ua = null;
             reject(new Error('SIP registration timed out. Check WebRTC/WSS configuration.'));
         }, 15000);
         ua.on('registered', () => {
@@ -515,13 +551,14 @@ function startPhone(config, password) {
             callButton.disabled = false; setPresence('Online', true); setStatus('Ready to call.');
             login.hidden = true; dialer.hidden = false; listWorkspace.hidden = false; $('.webphone-app').classList.remove('is-locked');
             switchView('calls');
+            startPresencePolling();
             resolve();
         });
         ua.on('unregistered', () => { setPresence('Offline'); callButton.disabled = true; });
         ua.on('registrationFailed', event => {
             setPresence('Offline'); callButton.disabled = true;
             if (settled) { setStatus('SIP registration lost. Sign out and log in again.'); return; }
-            settled = true; window.clearTimeout(timer); ua?.stop(); ua = null;
+            settled = true; window.clearTimeout(timer); stopPresencePolling(); ua?.stop(); ua = null;
             reject(new Error(event.cause || 'SIP registration failed. Apply PBX configuration and check the SIP password.'));
         });
         ua.start();
@@ -671,6 +708,7 @@ disconnectButton.addEventListener('click', async () => {
         if (!response.ok) throw new Error('The server did not confirm logout.');
         const current = session;
         if (current) { try { current.terminate(); } catch (_) { finalizeSession(current, 'Ended'); } }
+        stopPresencePolling();
         if (ua) { ua.stop(); ua = null; }
         stopMicrophoneTest(); stopRingtone(); settingsModal.hidden = true; permissionModal.hidden = true;
         setPresence('Offline'); dialer.hidden = true; listWorkspace.hidden = true; login.hidden = false; number.value = ''; contacts = [];
@@ -683,7 +721,7 @@ disconnectButton.addEventListener('click', async () => {
     } finally { disconnectButton.disabled = false; }
 });
 window.addEventListener('pagehide', () => {
-    stopMicrophoneTest(); stopRingtone();
+    stopPresencePolling(); stopMicrophoneTest(); stopRingtone();
     if (session) session.terminate(); if (ua) ua.stop();
 });
 
