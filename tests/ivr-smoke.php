@@ -22,6 +22,11 @@ $user = $db->insert('users', [
 $db->insert('extensions', [
     'tenant_id' => $tenant, 'extension' => '201', 'name' => 'Desk 201', 'secret' => 'test-secret', 'enabled' => 1,
 ]);
+$db->insert('announcements', [
+    'tenant_id' => $tenant, 'name' => 'Welcome prompt', 'filename' => 'welcome.wav',
+    'original_filename' => 'welcome.mp3', 'sound_path' => 'asterisk-panel/test/welcome',
+    'dest_type' => 'hangup', 'enabled' => 1,
+]);
 $_SERVER['HTTP_HOST'] = 'test.example.test';
 $app->auth()->login($user);
 
@@ -32,6 +37,11 @@ if ($page->status() !== 200 || !str_contains($page->body(), 'New IVR menu')) {
 }
 if (!str_contains($page->body(), '201 — Desk 201')) {
     throw new RuntimeException('IVR destination labels did not render');
+}
+if (!str_contains($page->body(), 'Welcome prompt')
+    || !str_contains($page->body(), 'asterisk-panel/test/welcome')
+    || !str_contains($page->body(), 'ivrGreetingPlay')) {
+    throw new RuntimeException('Tenant-owned IVR greeting selector did not render');
 }
 if (!str_contains($page->body(), 'data-repeat-template=')
     || !str_contains($page->body(), 'class=&quot;ivr-key-destination&quot;')

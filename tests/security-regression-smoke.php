@@ -74,6 +74,18 @@ $check((int) $db->scalar('SELECT COUNT(*) FROM outbound_routes') === 0,
 $check((int) $db->scalar('SELECT COUNT(*) FROM ivr_menus WHERE tenant_id = ?', [$tenantA]) === 0,
     'an IVR key cannot reference another tenant destination');
 
+$promptB = 'asterisk-panel/b/private-prompt';
+$db->insert('announcements', [
+    'tenant_id' => $tenantB, 'name' => 'Tenant B prompt', 'filename' => 'private.wav',
+    'original_filename' => 'private.wav', 'sound_path' => $promptB, 'dest_type' => 'hangup', 'enabled' => 1,
+]);
+(new App\Controllers\IvrController())->store(new App\Core\Request('POST', '/ivr', [], [
+    'extension' => '302', 'name' => 'Cross-tenant greeting', 'greeting' => $promptB,
+    'timeout_action' => '', 'enabled' => '1',
+]));
+$check((int) $db->scalar('SELECT COUNT(*) FROM ivr_menus WHERE tenant_id = ?', [$tenantA]) === 0,
+    'an IVR cannot play another tenant uploaded greeting');
+
 (new App\Controllers\RingGroupController())->store(new App\Core\Request('POST', '/ring-groups', [], [
     'extension' => '1001', 'name' => 'Colliding group', 'strategy' => 'ringall', 'timeout' => '30', 'enabled' => '1',
 ]));

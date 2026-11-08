@@ -147,6 +147,12 @@ final class AnnouncementController extends BaseController
             }
         }
         $this->db()->update('announcements', (int) $row['id'], $data);
+        if (isset($data['sound_path']) && (string) $data['sound_path'] !== (string) ($row['sound_path'] ?? '')) {
+            $this->db()->run(
+                'UPDATE ivr_menus SET greeting = ? WHERE tenant_id = ? AND greeting = ?',
+                [(string) $data['sound_path'], $tid, (string) ($row['sound_path'] ?? '')]
+            );
+        }
         if ($oldFilename !== null) { $this->deleteFile($oldFilename, $tid); }
         $this->audit('announcement.update', 'announcement', (int) $row['id']);
         $this->applyToAsterisk('announcement');
@@ -164,6 +170,10 @@ final class AnnouncementController extends BaseController
         foreach (['ring_groups', 'inbound_routes', 'queues'] as $table) {
             $this->db()->run("UPDATE {$table} SET announcement_id = NULL WHERE tenant_id = ? AND announcement_id = ?", [$tid, (int) $row['id']]);
         }
+        $this->db()->run(
+            'UPDATE ivr_menus SET greeting = NULL WHERE tenant_id = ? AND greeting = ?',
+            [$tid, (string) ($row['sound_path'] ?? '')]
+        );
         $this->db()->run(
             'UPDATE inbound_routes SET dest_type = "hangup", dest_id = NULL WHERE tenant_id = ? AND dest_type = "announcement" AND dest_id = ?',
             [$tid, (int) $row['id']]

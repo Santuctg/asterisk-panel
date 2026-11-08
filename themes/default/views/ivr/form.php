@@ -1,7 +1,7 @@
 <?php
 /**
  * IVR menu create/edit form.
- * Expects: $row (with decoded 'keys'), $destinations, $next
+ * Expects: $row (with decoded 'keys'), $destinations, $greetings, $next
  */
 require dirname(__DIR__) . '/partials/fields.php';
 
@@ -24,6 +24,8 @@ $typeLabels = [
 ];
 
 $keys = $row['keys'] ?? (json_decode((string) old('keys', '[]'), true) ?: []);
+$selectedGreeting = (string) $val('greeting');
+$knownGreetingPaths = array_map(static fn (array $greeting): string => (string) $greeting['value'], $greetings);
 
 $renderKeyTypeOptions = static function (string $selected) use ($typeLabels): string {
     $html = '';
@@ -87,10 +89,28 @@ $newKeyRow = $renderKeyRow('', ['type' => 'extension', 'id' => '']);
                     'required' => true, 'placeholder' => 'e.g. Main Auto-Attendant',
                 ]); ?>
 
-                <?php echo field_text('greeting', 'Greeting audio file', $val('greeting'), [
-                    'span' => true,
-                    'hint' => 'Path to the prompt relative to the Asterisk sounds dir, e.g. custom/welcome. Leave blank for silence.',
-                ]); ?>
+                <div class="field span-2">
+                    <label for="greeting">Greeting audio</label>
+                    <div class="flex gap-2">
+                        <select id="greeting" name="greeting" style="flex:1">
+                            <option value="">No greeting (silence)</option>
+                            <?php if ($selectedGreeting !== '' && !in_array($selectedGreeting, $knownGreetingPaths, true)): ?>
+                                <option value="<?= e($selectedGreeting) ?>" selected>Existing greeting (legacy)</option>
+                            <?php endif; ?>
+                            <?php foreach ($greetings as $greeting): ?>
+                                <option value="<?= e((string) $greeting['value']) ?>"
+                                        data-audio="/announcements/<?= (int) $greeting['id'] ?>/audio"
+                                        <?= $selectedGreeting === (string) $greeting['value'] ? 'selected' : '' ?>>
+                                    <?= e((string) $greeting['label']) ?><?= !empty($greeting['original_filename']) ? ' — ' . e((string) $greeting['original_filename']) : '' ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <button type="button" class="btn" id="ivrGreetingPlay" title="Play selected greeting">▶ Play</button>
+                        <a class="btn" href="/moh">＋ Add Audio</a>
+                    </div>
+                    <span class="hint">Upload prompts from Audio → Announcements, then select one here.</span>
+                    <audio id="ivrGreetingPlayer" controls preload="none" hidden></audio>
+                </div>
 
                 <?php echo field_text('timeout', 'Digit timeout (seconds)', $val('timeout', 3), ['type' => 'number']); ?>
                 <?php echo field_text('response_timeout', 'Overall response timeout (seconds)', $val('response_timeout', 8), ['type' => 'number']); ?>
@@ -151,6 +171,20 @@ $newKeyRow = $renderKeyRow('', ['type' => 'extension', 'id' => '']);
 <script>
 (function () {
     var catalog = <?= json_encode($destinations, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+    var greeting = document.getElementById('greeting');
+    var greetingPlay = document.getElementById('ivrGreetingPlay');
+    var greetingPlayer = document.getElementById('ivrGreetingPlayer');
+
+    if (greetingPlay && greeting && greetingPlayer) {
+        greetingPlay.addEventListener('click', function () {
+            var option = greeting.options[greeting.selectedIndex];
+            var source = option && option.getAttribute('data-audio');
+            if (!source) return;
+            if (greetingPlayer.getAttribute('src') !== source) greetingPlayer.setAttribute('src', source);
+            greetingPlayer.hidden = false;
+            greetingPlayer.play();
+        });
+    }
 
     function destinationControl(type) {
         if (type === 'external') {

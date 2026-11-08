@@ -45,6 +45,7 @@ final class IvrController extends BaseController
         return $this->view('ivr/form', [
             'row'          => null,
             'destinations' => $this->destinationOptions(),
+            'greetings'    => $this->greetingOptions(),
             'next'         => $this->suggestNext(),
         ]);
     }
@@ -72,6 +73,11 @@ final class IvrController extends BaseController
         if (!$this->dialplanNumberAvailable($tid, $data['extension'], 'ivr_menus')) {
             $this->stashOld($request);
             Flash::error('That extension number is already used by an IVR.');
+            return Response::redirect('/ivr/create');
+        }
+        if (!$this->greetingValid((string) $data['greeting'], $tid)) {
+            $this->stashOld($request);
+            Flash::error('Choose a tenant-owned uploaded audio prompt for the IVR greeting.');
             return Response::redirect('/ivr/create');
         }
         if (!$this->destinationsValid($data, $tid)) {
@@ -103,6 +109,7 @@ final class IvrController extends BaseController
         return $this->view('ivr/form', [
             'row'          => $row,
             'destinations' => $this->destinationOptions(),
+            'greetings'    => $this->greetingOptions(),
             'next'         => [],
         ]);
     }
@@ -131,6 +138,11 @@ final class IvrController extends BaseController
         if (!$this->dialplanNumberAvailable((int) $row['tenant_id'], $data['extension'], 'ivr_menus', (int) $row['id'])) {
             $this->stashOld($request);
             Flash::error('That dialplan number is already used by another tenant feature.');
+            return Response::redirect("/ivr/{$row['id']}/edit");
+        }
+        if (!$this->greetingValid((string) $data['greeting'], (int) $row['tenant_id'], (string) ($row['greeting'] ?? ''))) {
+            $this->stashOld($request);
+            Flash::error('Choose a tenant-owned uploaded audio prompt for the IVR greeting.');
             return Response::redirect("/ivr/{$row['id']}/edit");
         }
         if (!$this->destinationsValid($data, (int) $row['tenant_id'])) {
@@ -249,6 +261,26 @@ final class IvrController extends BaseController
         }
 
         return $opts;
+    }
+
+    private function greetingOptions(): array
+    {
+        return $this->db()->all(
+            'SELECT id, sound_path AS value, name AS label, original_filename FROM announcements WHERE tenant_id = ? AND enabled = 1 ORDER BY name',
+            [$this->tenantId()]
+        );
+    }
+
+    private function greetingValid(string $greeting, int $tenantId, string $existing = ''): bool
+    {
+        if ($greeting === '') return true;
+        // Existing legacy paths remain editable, but a new path must always
+        // resolve to an enabled prompt owned by this tenant.
+        if ($existing !== '' && hash_equals($existing, $greeting)) return true;
+        return (bool) $this->db()->scalar(
+            'SELECT COUNT(*) FROM announcements WHERE tenant_id = ? AND enabled = 1 AND sound_path = ?',
+            [$tenantId, $greeting]
+        );
     }
 
     private function destinationLabel(string $type, int|string $id): string
