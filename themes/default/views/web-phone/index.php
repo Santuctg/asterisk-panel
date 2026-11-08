@@ -27,7 +27,7 @@
                 <div class="webphone-login-brand"><span>P</span><div><strong>PBX Web Phone</strong><small>Secure browser calling</small></div></div>
                 <div class="webphone-login-heading"><span>WELCOME BACK</span><h1>Call from anywhere</h1><p>Sign in with your extension to make and receive calls securely in your browser.</p></div>
                 <p class="webphone-permission-note">After your credentials are verified, Web Phone will request microphone and notification permissions.</p>
-                <div class="field"><label for="web-phone-extension">Extension</label><div class="webphone-login-input"><span aria-hidden="true">♙</span><input id="web-phone-extension" name="extension" inputmode="numeric" autocomplete="username" placeholder="Enter your extension" required></div></div>
+                <div class="field"><label for="web-phone-extension">Extension</label><div class="webphone-login-input"><span aria-hidden="true">♙</span><input id="web-phone-extension" name="extension" inputmode="numeric" autocomplete="off" placeholder="Enter your extension" required></div></div>
                 <div class="field"><label for="web-phone-secret">SIP password</label><div class="webphone-password-wrap webphone-login-input"><span aria-hidden="true">◇</span><input id="web-phone-secret" name="secret" type="password" autocomplete="current-password" placeholder="Enter your password" required><button type="button" id="web-phone-password-toggle" aria-label="Show password" title="Show password">◉</button></div></div>
                 <button type="submit" class="btn btn-primary btn-block" id="web-phone-start">Log in</button>
                 <p id="web-phone-login-status" class="webphone-error" role="alert"></p>

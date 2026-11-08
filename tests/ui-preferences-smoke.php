@@ -95,7 +95,9 @@ $checks = [
     [substr_count($phoneView, 'id="web-phone-disconnect"') === 1 && str_contains($phoneView, 'webphone-logout')
         && str_contains($phoneView, '<small>Logout</small>'), 'web phone exposes one persistent workspace logout control'],
     [str_contains($phoneView, 'webphone-login-input') && str_contains($phoneView, 'Enter your extension')
-        && str_contains($phoneView, 'Enter your password') && str_contains($css, '.webphone-login-input:focus-within'), 'web phone login fields use polished icon and focus styling'],
+        && str_contains($phoneView, 'Enter your password') && str_contains($phoneView, 'inputmode="numeric" autocomplete="off"')
+        && str_contains($css, '.webphone-login-input input { width:100%; }')
+        && str_contains($css, '.webphone-login-input:focus-within'), 'web phone login fields use equal full-width polished styling without username autofill'],
     [str_contains($css, '[data-view="dialpad"] .webphone-side { display:none; }')
         && str_contains($css, 'scrollbar-width:thin') && str_contains($css, '::-webkit-scrollbar-thumb:hover'), 'dialpad hides duplicate call history and long call logs use a styled scrollbar'],
     [str_contains($css, '@media (max-width: 700px)') && str_contains($css, 'position:fixed; inset:auto 0 0')
