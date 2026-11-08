@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Core;
 
 use App\Services\TenantHost;
+use App\Services\TenantSecurity;
 
 /**
  * Authentication + authorization.
@@ -29,7 +30,12 @@ final class Auth
         );
         $matches = [];
         foreach ($rows as $candidate) {
-            if (TenantHost::allows($candidate) && password_verify($password, $candidate['password'])) {
+            $tenantId = (int) ($candidate['tenant_id'] ?? 0);
+            $blocked = $tenantId > 0 && (new TenantSecurity())->isBlocked(
+                $tenantId,
+                (string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0')
+            );
+            if (!$blocked && TenantHost::allows($candidate) && password_verify($password, $candidate['password'])) {
                 $matches[] = $candidate;
             }
         }

@@ -341,6 +341,14 @@ $check($phoneLogin->status() === 200 && ($phoneConfig['username'] ?? '') === 'te
     && ($phoneConfig['history'][0]['number'] ?? '') === '09611544567'
     && ($phoneConfig['history'][0]['direction'] ?? '') === 'outgoing',
     'public Web Phone login returns tenant contacts and extension CDR history without exposing the password');
+$phoneResume = (new App\Controllers\WebPhoneController())->session(new App\Core\Request(
+    'POST', '/web-phone/session', [], [], ['REMOTE_ADDR' => '192.0.2.44']
+));
+$resumeConfig = json_decode($phoneResume->body(), true);
+$check($phoneResume->status() === 200 && ($resumeConfig['username'] ?? '') === 'tenant_a_1001-phone-web'
+    && ($resumeConfig['password'] ?? '') === 'test-secret'
+    && ($phoneResume->headers()['Cache-Control'] ?? '') === 'no-store, private',
+    'authenticated Web Phone session resumes securely after a page reload');
 $_SERVER['HTTP_HOST'] = 'tenant-b.example.test';
 $tenantUrlPhone = (new App\Controllers\WebPhoneController())->connect(new App\Core\Request(
     'POST', '/web-phone/connect', [], ['extension' => '1001', 'secret' => 'test-secret3'], ['REMOTE_ADDR' => '192.0.2.45']

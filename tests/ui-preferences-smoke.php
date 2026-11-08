@@ -31,6 +31,8 @@ $checks = [
     [str_contains($css, 'select:not([multiple])') && str_contains($css, 'background-image:url'), 'all single-select controls use the shared dropdown arrow'],
     [str_contains($css, '@media (max-width: 560px)') && str_contains($css, '.repeat-row') && str_contains($css, '.modal-foot .btn'), 'shared mobile rules cover forms, repeat rows, and modals'],
     [str_contains($appJs, "localStorage.setItem('panel-theme'") && str_contains($i18nJs, "localStorage.setItem('panel-language'"), 'theme and language preferences persist'],
+    [str_contains($phoneLayout, "localStorage.getItem('webphone-theme')") && !str_contains($phoneLayout, 'assets/js/app.js')
+        && str_contains($phoneJs, "localStorage.setItem('webphone-theme'") && !str_contains($phoneLayout, "localStorage.getItem('panel-theme')"), 'web phone color mode is independent from the main panel'],
     [str_contains($i18nJs, "'Dashboard': 'ড্যাশবোর্ড'") && str_contains($i18nJs, "'Settings': 'সেটিংস'"), 'Bangla navigation translations are available'],
     [str_contains($css, '[data-theme="light"] .sidebar') && str_contains($css, '[data-theme="light"] .nav-link.is-active'), 'sidebar follows light mode'],
     [str_contains($routesView, 'route-modal outbound-route-modal') && str_contains($routesView, 'route-time-grid') && str_contains($routesView, 'Pattern examples'), 'routing editors use compact layouts'],
@@ -58,13 +60,18 @@ $checks = [
         && str_contains($css, '.webphone-app[data-view="calls"] .webphone-side'), 'web phone provides complete desktop and mobile dialer navigation'],
     [str_contains($css, 'background:linear-gradient(180deg,#111a31,#0b1224)')
         && str_contains($css, '.webphone-keypad button { width:62px; height:62px')
-        && str_contains($css, '--phone-accent:#527ff0')
-        && str_contains($css, '.webphone-dialer { width:min(400px,100%); grid-template-columns:minmax(0,1fr)'),
+        && str_contains($css, '--phone-accent:#5b8cff')
+        && str_contains($css, '.webphone-dialer { width:min(420px,100%); display:grid; grid-template-columns:minmax(0,1fr)')
+        && str_contains($css, '.webphone-dialer:has(.webphone-call-panel.has-call)'),
         'web phone uses the polished responsive Wave-style visual system'],
     [str_contains($phoneJs, 'ua.call(`sip:${destination}@${realm}`')
         && str_contains($phoneView, 'name="extension"') && !str_contains($phoneView, 'name="tenant_domain"'), 'web phone calls from URL-scoped extension login without a tenant field'],
     [str_contains($phoneView, 'webphone-app is-locked') && str_contains($css, '.webphone-app.is-locked .webphone-rail')
         && str_contains($phoneJs, "classList.remove('is-locked')"), 'web phone hides workspace navigation until SIP login succeeds'],
+    [str_contains($routes, "post('/web-phone/session'") && str_contains($routes, "post('/web-phone/disconnect'")
+        && str_contains($phoneJs, "fetch('/web-phone/session'") && str_contains($phoneJs, 'resumePhoneSession()'), 'web phone resumes its authenticated session after reload and supports explicit sign-out'],
+    [str_contains($phoneView, 'id="web-phone-permissions"') && str_contains($phoneJs, 'showPermissionSetup()')
+        && strpos($phoneJs, 'await startPhone(config, password)') < strpos($phoneJs, 'showPermissionSetup();'), 'permission setup appears only after successful SIP registration'],
     [str_contains($listenView, 'active-calls-grid') && str_contains($listenView, 'Listen on an extension')
         && str_contains($listenView, 'Grandstream-style')
         && str_contains($listenJs, "fetch('/active-calls/feed'") && str_contains($listenJs, "requestListen(target.channel, 'extension'")
@@ -77,8 +84,9 @@ $checks = [
     [str_contains($phoneJs, 'getReceivers()') && !str_contains($phoneJs, 'audio.hidden = false')
         && str_contains($phoneJs, 'mediaSyncTimer') && str_contains($phoneView, 'web-phone-speaker')
         && str_contains($phoneView, 'playsinline hidden') && !str_contains($phoneView, 'playsinline controls'), 'web phone continuously attaches remote media without exposing native audio controls'],
-    [strpos($phoneJs, "fetch('/web-phone/connect'") < strpos($phoneJs, 'await requestPhonePermissions()')
-        && str_contains($phoneJs, 'Credentials verified. Requesting browser permissions'), 'web phone requests browser permissions only after credential validation'],
+    [str_contains($phoneJs, 'Credentials verified. Registering phone')
+        && str_contains($phoneJs, "permissionEnable.addEventListener('click'")
+        && !str_contains($phoneJs, 'Credentials verified. Requesting browser permissions'), 'web phone requests browser permissions from a post-login setup dialog'],
     [str_contains($phoneView, 'web-phone-settings-open') && str_contains($phoneView, 'web-phone-microphone')
         && str_contains($phoneView, 'web-phone-speaker-device') && str_contains($phoneView, 'web-phone-ringtone')
         && str_contains($phoneView, 'web-phone-auto-answer'), 'web phone exposes Wave-style audio and incoming-call settings'],

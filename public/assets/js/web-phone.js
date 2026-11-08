@@ -42,6 +42,11 @@ const speakerVolume = $('#web-phone-speaker-volume');
 const ringtoneToggle = $('#web-phone-ringtone');
 const autoAnswerToggle = $('#web-phone-auto-answer');
 const notificationState = $('#web-phone-notification-state');
+const permissionModal = $('#web-phone-permissions');
+const permissionEnable = $('#web-phone-permission-enable');
+const permissionLater = $('#web-phone-permission-later');
+const permissionStatus = $('#web-phone-permission-status');
+const themeToggle = $('#themeToggle');
 const preferenceKey = 'panel-webphone-preferences';
 const originalTitle = document.title;
 
@@ -79,6 +84,7 @@ function loadPreferences() {
 function savePreferences() {
     try { localStorage.setItem(preferenceKey, JSON.stringify(preferences)); } catch (_) {}
 }
+function csrfToken() { return document.querySelector('meta[name="csrf-token"]')?.content || ''; }
 function audioConstraints() {
     return {
         echoCancellation: true,
@@ -401,6 +407,16 @@ speakerVolume.value = String(Math.round(preferences.volume * 100));
 ringtoneToggle.checked = preferences.ringtone;
 autoAnswerToggle.checked = preferences.autoAnswer;
 updateNotificationState();
+const applyPhoneTheme = theme => {
+    document.documentElement.dataset.theme = theme;
+    const icon = themeToggle.querySelector('.theme-icon');
+    if (icon) icon.textContent = theme === 'dark' ? '☀' : '☾';
+};
+applyPhoneTheme(localStorage.getItem('webphone-theme') || 'dark');
+themeToggle.addEventListener('click', () => {
+    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('webphone-theme', next); applyPhoneTheme(next);
+});
 settingsOpen.addEventListener('click', () => { settingsModal.hidden = false; refreshAudioDevices(); });
 settingsClose.addEventListener('click', () => { settingsModal.hidden = true; stopMicrophoneTest(); });
 settingsModal.addEventListener('click', event => { if (event.target === settingsModal) settingsClose.click(); });
@@ -479,12 +495,30 @@ async function requestPhonePermissions() {
             stream = await navigator.mediaDevices.getUserMedia({audio: audioConstraints(), video: false});
         }
     } catch (_) {
-        throw new Error('Microphone permission is required. Allow microphone access, then log in again.');
+        throw new Error('Microphone permission is required. Allow access in browser site settings, then try again.');
     }
     stream.getTracks().forEach(track => track.stop());
     await refreshAudioDevices();
     await notificationRequest;
+    localStorage.setItem('panel-webphone-permissions-ready', '1');
+    updateNotificationState();
 }
+
+function showPermissionSetup() {
+    if (localStorage.getItem('panel-webphone-permissions-ready') === '1') return;
+    permissionStatus.textContent = '';
+    permissionModal.hidden = false;
+}
+permissionLater.addEventListener('click', () => { permissionModal.hidden = true; });
+permissionEnable.addEventListener('click', async () => {
+    permissionEnable.disabled = true; permissionStatus.textContent = 'Requesting browser permissions…';
+    try {
+        await requestPhonePermissions();
+        permissionModal.hidden = true;
+    } catch (error) {
+        permissionStatus.textContent = error.message;
+    } finally { permissionEnable.disabled = false; }
+});
 
 login.addEventListener('submit', async event => {
     event.preventDefault(); loginStatus.textContent = '';
@@ -497,10 +531,11 @@ login.addEventListener('submit', async event => {
         const response = await fetch('/web-phone/connect', {method: 'POST', body: data, headers: {Accept: 'application/json'}});
         const config = await response.json();
         if (!response.ok) throw new Error(config.error || 'Unable to sign in.');
-        login.querySelector('[name="secret"]').value = '';
-        loginStatus.textContent = 'Credentials verified. Requesting browser permissions…';
-        await requestPhonePermissions();
+        loginStatus.textContent = 'Credentials verified. Registering phone…';
         await startPhone(config, password);
+        login.querySelector('[name="secret"]').value = '';
+        loginStatus.textContent = '';
+        showPermissionSetup();
     } catch (error) {
         loginStatus.textContent = error.message;
     } finally {
@@ -583,7 +618,10 @@ $('#web-phone-transfer-send').addEventListener('click', () => {
         setStatus(`Transferring call to ${target}…`); transferBox.hidden = true; transferNumber.value = '';
     } catch (_) { setStatus('Call transfer failed.'); }
 });
-disconnectButton.addEventListener('click', () => {
+disconnectButton.addEventListener('click', async () => {
+    try {
+        await fetch('/web-phone/disconnect', {method: 'POST', headers: {'X-CSRF-Token': csrfToken(), Accept: 'application/json'}});
+    } catch (_) {}
     const current = session;
     if (current) { try { current.terminate(); } catch (_) { finalizeSession(current, 'Ended'); } }
     if (ua) { ua.stop(); ua = null; }
@@ -592,3 +630,26 @@ disconnectButton.addEventListener('click', () => {
     callButton.disabled = true; finalizeSession(session, 'Ended'); setStatus('Disconnected.'); renderList();
 });
 window.addEventListener('pagehide', () => { if (session) session.terminate(); if (ua) ua.stop(); });
+
+async function resumePhoneSession() {
+    const submit = login.querySelector('[type="submit"]');
+    submit.disabled = true; submit.textContent = 'Restoring…';
+    try {
+        const response = await fetch('/web-phone/session', {
+            method: 'POST', headers: {'X-CSRF-Token': csrfToken(), Accept: 'application/json'}, cache: 'no-store',
+        });
+        if (!response.ok) return;
+        const config = await response.json();
+        const password = String(config.password || ''); delete config.password;
+        if (!password) return;
+        loginStatus.textContent = 'Restoring phone session…';
+        await startPhone(config, password);
+        loginStatus.textContent = '';
+        showPermissionSetup();
+    } catch (error) {
+        loginStatus.textContent = error.message || 'Unable to restore the phone session.';
+    } finally {
+        if (!login.hidden) { submit.disabled = false; submit.textContent = 'Log in'; }
+    }
+}
+resumePhoneSession();

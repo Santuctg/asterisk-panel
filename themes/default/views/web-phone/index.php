@@ -1,6 +1,6 @@
 <div class="webphone-app is-locked">
     <aside class="webphone-rail">
-        <a href="/login" class="webphone-avatar" title="Back to login">P</a>
+        <span class="webphone-avatar" title="Web Phone" aria-label="Web Phone">P</span>
         <button type="button" class="webphone-rail-item" data-phone-view="calls" title="Calls"><span>☎</span><small>Calls</small></button>
         <button type="button" class="webphone-rail-item is-active" data-phone-view="dialpad" title="Dialpad"><span>⌨</span><small>Dialpad</small></button>
         <button type="button" class="webphone-rail-item" data-phone-view="contacts" title="Contacts"><span>♙</span><small>Contacts</small></button>
@@ -79,6 +79,15 @@
                             </div>
                         </div>
                     </div>
+                </section>
+            </div>
+            <div class="webphone-settings-backdrop" id="web-phone-permissions" hidden>
+                <section class="webphone-permission-card" role="dialog" aria-modal="true" aria-labelledby="web-phone-permission-title">
+                    <span class="webphone-permission-icon">♩</span>
+                    <h2 id="web-phone-permission-title">Enable calling permissions</h2>
+                    <p>Your phone is signed in. Allow microphone access for calls and notifications for incoming-call alerts.</p>
+                    <div><button type="button" class="btn" id="web-phone-permission-later">Later</button><button type="button" class="btn btn-primary" id="web-phone-permission-enable">Enable permissions</button></div>
+                    <small id="web-phone-permission-status" role="status"></small>
                 </section>
             </div>
             <script type="module" src="<?= e(asset('assets/js/web-phone.js')) ?>"></script>

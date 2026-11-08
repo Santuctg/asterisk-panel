@@ -41,7 +41,7 @@ $allows = static function (string $host, int $userId) use ($db): bool {
 
 $check($allows('a.example.test', $adminA), 'tenant A user may use tenant A domain');
 $check(!$allows('b.example.test', $adminA), 'tenant A user cannot use tenant B domain');
-$check(!$allows('panel.example.test', $adminA), 'domain-bound tenant user cannot use main domain');
+$check($allows('panel.example.test', $adminA), 'tenant user may use the primary panel domain');
 $check($allows('a.example.test', $super), 'super admin may use tenant domain');
 $check($allows('panel.example.test', $super), 'super admin may use main domain');
 $check($allows('panel.example.test', $legacy), 'domain-less tenant user may use main domain');
@@ -54,7 +54,13 @@ $check((new App\Core\Auth())->attempt('rootadmin', 'correct-horse'), 'super admi
 $_SERVER['HTTP_HOST'] = 'b.example.test';
 $check(!(new App\Core\Auth())->attempt('admin-a', 'correct-horse'), 'cross-tenant login is rejected');
 $_SERVER['HTTP_HOST'] = 'panel.example.test';
-$check(!(new App\Core\Auth())->attempt('admin-a', 'correct-horse'), 'tenant login on main host is rejected');
+$check((new App\Core\Auth())->attempt('admin-a', 'correct-horse'), 'tenant login on main host succeeds');
+$app->auth()->logout();
+$db->insert('tenant_login_bans', ['tenant_id' => $tenantA, 'ip' => '203.0.113.19', 'reason' => 'main-host test']);
+$_SERVER['REMOTE_ADDR'] = '203.0.113.19';
+$check(!(new App\Core\Auth())->attempt('admin-a', 'correct-horse'), 'tenant IP block also applies on the primary panel domain');
+$db->run('DELETE FROM tenant_login_bans WHERE tenant_id = ? AND ip = ?', [$tenantA, '203.0.113.19']);
+unset($_SERVER['REMOTE_ADDR']);
 $check(!(new App\Core\Auth())->attempt('shared-main', 'correct-horse'), 'ambiguous shared-host credentials fail closed');
 
 // Role assignment is server-side scoped even when a tenant admin crafts POST data.

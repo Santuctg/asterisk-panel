@@ -40,9 +40,8 @@ final class TenantHost
         $primary = self::normalize((string) Config::get('app.primary_host', ''));
         if ($primary !== '' && hash_equals($primary, $host)) {
             if ($role === 'superadmin') { return true; }
-            if ($role === 'superadmin' || empty($user['tenant_id'])) { return false; }
-            $domain = $db->scalar('SELECT domain FROM tenants WHERE id = ? AND enabled = 1', [(int) $user['tenant_id']]);
-            return $domain === false || self::normalize((string) $domain) === '';
+            if (empty($user['tenant_id'])) { return false; }
+            return (bool) $db->scalar('SELECT COUNT(*) FROM tenants WHERE id = ? AND enabled = 1', [(int) $user['tenant_id']]);
         }
 
         $tenant = self::tenantForHost($host);

@@ -8,11 +8,12 @@ use App\Core\Config;
 use App\Core\Logger;
 use App\Core\Request;
 use App\Core\Response;
+use App\Core\Session;
 use App\Services\TenantHost;
 use App\Services\TenantSecurity;
 use App\Services\WebPhoneLoginThrottle;
 
-/** Browser WebRTC softphone. SIP secrets stay in the user's browser only. */
+/** Browser WebRTC softphone with a separate, tenant-scoped phone session. */
 final class WebPhoneController extends BaseController
 {
     public function index(Request $request): Response
@@ -66,6 +67,56 @@ final class WebPhoneController extends BaseController
             return $this->json(['error' => 'SIP extension or password is incorrect.'], 401);
         }
         $throttle->reset($throttleKey);
+        Session::regenerate();
+        Session::put('web_phone_auth', [
+            'tenant_id' => (int) $row['tenant_id'],
+            'extension' => (string) $row['extension'],
+            'authenticated_at' => time(),
+        ]);
+
+        return $this->json($this->phoneConfig($row))
+            ->withHeader('Cache-Control', 'no-store, private');
+    }
+
+    /** Resume a previously authenticated phone without storing SIP secrets in HTML/local storage. */
+    public function session(Request $request): Response
+    {
+        $phoneAuth = Session::get('web_phone_auth');
+        if (!is_array($phoneAuth)) return $this->json(['error' => 'No active Web Phone session.'], 401);
+
+        $tenantId = (int) ($phoneAuth['tenant_id'] ?? 0);
+        $extension = (string) ($phoneAuth['extension'] ?? '');
+        $hostTenant = $this->tenantIdForWebPhoneHost() ?? TenantHost::tenantIdForRequest();
+        if ($tenantId < 1 || $extension === '' || ($hostTenant && $hostTenant !== $tenantId)) {
+            Session::forget('web_phone_auth');
+            return $this->json(['error' => 'Web Phone session does not belong to this PBX.'], 401);
+        }
+
+        $row = $this->db()->one(
+            'SELECT e.extension, e.name, e.secret, e.tenant_id, t.context, t.domain
+             FROM extensions e JOIN tenants t ON t.id = e.tenant_id
+             WHERE e.extension = ? AND e.tenant_id = ? AND e.enabled = 1 AND t.enabled = 1',
+            [$extension, $tenantId]
+        );
+        if (!$row || (new TenantSecurity())->isBlocked($tenantId, $request->ip())) {
+            Session::forget('web_phone_auth');
+            return $this->json(['error' => 'Web Phone session has expired.'], 401);
+        }
+
+        return $this->json($this->phoneConfig($row) + ['password' => (string) $row['secret']])
+            ->withHeader('Cache-Control', 'no-store, private');
+    }
+
+    public function disconnect(Request $request): Response
+    {
+        Session::forget('web_phone_auth');
+        return $this->json(['ok' => true])->withHeader('Cache-Control', 'no-store');
+    }
+
+    private function phoneConfig(array $row): array
+    {
+        $tenantId = (int) $row['tenant_id'];
+        $extension = (string) $row['extension'];
         $context = preg_replace('/[^A-Za-z0-9_]/', '_', (string) $row['context']) ?: '';
         $realm = strtolower(rtrim(trim((string) ($row['domain'] ?? '')), '.')) ?: TenantHost::requestHost();
         $contacts = array_map(static fn (array $contact): array => [
@@ -91,13 +142,13 @@ final class WebPhoneController extends BaseController
              WHERE tenant_id = ? AND (src = ? OR dst = ?) ORDER BY calldate DESC LIMIT 100',
             [$tenantId, $extension, $extension]
         ));
-        return $this->json([
+        return [
             'extension' => $row['extension'], 'name' => $row['name'],
             'username' => $context . '_' . $row['extension'] . '-phone-web',
             'realm' => $realm,
             'contacts' => $contacts,
             'history' => $history,
-        ]);
+        ];
     }
 
     private function tenantIdForWebPhoneHost(): ?int

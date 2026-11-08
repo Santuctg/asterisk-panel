@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,10 +9,9 @@
     <script>
     (function () {
         try {
-            var theme = localStorage.getItem('panel-theme');
+            var theme = localStorage.getItem('webphone-theme') || 'dark';
             var language = localStorage.getItem('panel-language') || 'en';
-            if (!theme && window.matchMedia && window.matchMedia('(prefers-color-scheme:dark)').matches) theme = 'dark';
-            document.documentElement.dataset.theme = theme || 'light';
+            document.documentElement.dataset.theme = theme;
             document.documentElement.lang = language === 'bn' ? 'bn' : 'en';
         } catch (e) {}
     })();
@@ -25,6 +24,5 @@
         <?= $content ?>
     </main>
     <script src="<?= e(asset('assets/js/i18n.js')) ?>"></script>
-    <script src="<?= e(asset('assets/js/app.js')) ?>"></script>
 </body>
 </html>
