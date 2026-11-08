@@ -18,7 +18,8 @@ use App\Controllers\{
     DeviceController, RingGroupController, ParkingController, IvrController,
     RouteController, MusicOnHoldController, AnnouncementController, CallCenterController,
     ConferenceController, CdrController, TenantController, UserController, RoleController, GlobalAdminController, Fail2banController,
-    SystemController, SslController, ProvisionController, LiveListenController, WebPhoneController, TenantSslController, TenantSecurityController
+    SystemController, SslController, ProvisionController, LiveListenController, WebPhoneController, TenantSslController, TenantSecurityController,
+    ContactController, BrandingController
 };
 use App\Core\Auth;
 use App\Core\Csrf;
@@ -32,6 +33,7 @@ $router->post('/web-phone/connect', [WebPhoneController::class, 'connect'], [Csr
 $router->post('/web-phone/session', [WebPhoneController::class, 'session'], [Csrf::middleware(...)]);
 $router->post('/web-phone/presence', [WebPhoneController::class, 'presence'], [Csrf::middleware(...)]);
 $router->post('/web-phone/disconnect', [WebPhoneController::class, 'disconnect'], [Csrf::middleware(...)]);
+$router->get('/branding/logo', [BrandingController::class, 'logo']);
 
 // Phones poll with a per-device random capability token; no panel session.
 $router->get('/prov/{token}/{file}', [ProvisionController::class, 'serve']);
@@ -61,6 +63,17 @@ $router->post('/extensions/{id}', [ExtensionController::class, 'update'], [Auth:
 $router->delete('/extensions/{id}', [ExtensionController::class, 'destroy'], [Auth::require('extension.manage'), Csrf::middleware(...)]);
 $router->post('/extensions/{id}/regenerate-secret', [ExtensionController::class, 'regenerateSecret'], [Auth::require('extension.manage'), Csrf::middleware(...)]);
 $router->post('/extensions/{id}/reveal-secret', [ExtensionController::class, 'revealSecret'], [Auth::require('extension.manage'), Csrf::middleware(...)]);
+
+// Tenant phonebook contacts
+$router->get('/contacts', [ContactController::class, 'index'], [Auth::require('contact.view')]);
+$router->get('/contacts/create', [ContactController::class, 'create'], [Auth::require('contact.manage')]);
+$router->post('/contacts', [ContactController::class, 'store'], [Auth::require('contact.manage'), Csrf::middleware(...)]);
+$router->get('/contacts/import', [ContactController::class, 'importForm'], [Auth::require('contact.manage')]);
+$router->post('/contacts/import', [ContactController::class, 'import'], [Auth::require('contact.manage'), Csrf::middleware(...)]);
+$router->get('/contacts/import/template', [ContactController::class, 'template'], [Auth::require('contact.manage')]);
+$router->get('/contacts/{id}/edit', [ContactController::class, 'edit'], [Auth::require('contact.manage')]);
+$router->post('/contacts/{id}', [ContactController::class, 'update'], [Auth::require('contact.manage'), Csrf::middleware(...)]);
+$router->delete('/contacts/{id}', [ContactController::class, 'destroy'], [Auth::require('contact.manage'), Csrf::middleware(...)]);
 
 // Voicemail (to email) + mailboxes
 $router->get('/voicemail', [VoicemailController::class, 'index'], [Auth::require('voicemail.view')]);

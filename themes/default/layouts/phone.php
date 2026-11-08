@@ -1,3 +1,4 @@
+<?php $branding ??= \App\Services\Branding::current(); ?>
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
@@ -5,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Standalone browser phone">
     <meta name="csrf-token" content="<?= e(\App\Core\Csrf::token()) ?>">
-    <title>Web Phone · <?= e(config('app.name', 'Asterisk Panel')) ?></title>
+    <title>Web Phone · <?= e($branding['name']) ?></title>
     <script>
     (function () {
         try {
@@ -17,6 +18,7 @@
     })();
     </script>
     <link rel="stylesheet" href="<?= e(asset('assets/css/app.css')) ?>">
+    <?php if (!empty($branding['logo_url'])): ?><link rel="icon" href="<?= e($branding['logo_url']) ?>"><?php endif; ?>
 </head>
 <body class="phone-body">
     <main class="phone-content">

@@ -168,6 +168,7 @@ final class Auth
             'dashboard.view' => 'View dashboard',
             'webphone.use' => 'Use Web Phone',
             'extension.view' => 'Extensions — view', 'extension.manage' => 'Extensions — create/edit/delete',
+            'contact.view' => 'Contacts — view', 'contact.manage' => 'Contacts — create/edit/delete/import',
             'voicemail.view' => 'Voicemail — view', 'voicemail.manage' => 'Voicemail — create/edit/delete',
             'device.view' => 'Devices — view', 'device.manage' => 'Devices — create/edit/delete',
             'ringgroup.view' => 'Ring groups — view', 'ringgroup.manage' => 'Ring groups — create/edit/delete',

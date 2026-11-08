@@ -332,16 +332,22 @@ $db->insert('cdr', [
     'tenant_id' => $tid, 'calldate' => '2026-11-06 10:00:00', 'src' => '1001', 'dst' => '09611544567',
     'disposition' => 'ANSWERED', 'billsec' => 42, 'uniqueid' => 'webphone-history-1',
 ]);
+$db->insert('contacts', ['tenant_id' => $tid, 'name' => 'External Customer', 'phone' => '+15551234567', 'email' => 'customer@example.test']);
+$db->insert('contacts', ['tenant_id' => $other, 'name' => 'Other Tenant Contact', 'phone' => '+19995550123']);
+$db->insert('settings', ['tenant_id' => $tid, 'key' => 'panel_name', 'value' => 'Tenant A Phone']);
 $phoneLogin = (new App\Controllers\WebPhoneController())->connect(new App\Core\Request(
     'POST', '/web-phone/connect', [], ['extension' => '1001', 'secret' => 'test-secret'], ['REMOTE_ADDR' => '192.0.2.44']
 ));
 $phoneConfig = json_decode($phoneLogin->body(), true);
 $check($phoneLogin->status() === 200 && ($phoneConfig['username'] ?? '') === 'tenant_a_1001-phone-web'
-    && !isset($phoneConfig['password']) && count($phoneConfig['contacts'] ?? []) === 1
+    && !isset($phoneConfig['password']) && count($phoneConfig['contacts'] ?? []) === 2
+    && ($phoneConfig['contacts'][1]['extension'] ?? '') === '+15551234567'
+    && ($phoneConfig['contacts'][1]['kind'] ?? '') === 'contact'
+    && ($phoneConfig['branding']['name'] ?? '') === 'Tenant A Phone'
     && ($phoneConfig['voicemailEnabled'] ?? null) === false
     && ($phoneConfig['history'][0]['number'] ?? '') === '09611544567'
     && ($phoneConfig['history'][0]['direction'] ?? '') === 'outgoing',
-    'public Web Phone login returns tenant contacts and extension CDR history without exposing the password');
+    'public Web Phone login returns tenant extensions, panel contacts, branding and CDR history without cross-tenant data or passwords');
 $db->insert('voicemail', [
     'tenant_id' => $tid, 'extension_id' => $targetExtension, 'pin' => '123456',
     'name' => 'Target mailbox', 'enabled' => 1,

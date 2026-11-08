@@ -12,6 +12,7 @@ use App\Core\Session;
 use App\Services\TenantHost;
 use App\Services\TenantSecurity;
 use App\Services\WebPhoneLoginThrottle;
+use App\Services\Branding;
 
 /** Browser WebRTC softphone with a separate, tenant-scoped phone session. */
 final class WebPhoneController extends BaseController
@@ -204,10 +205,18 @@ final class WebPhoneController extends BaseController
         $contacts = array_map(static fn (array $contact): array => [
             'extension' => (string) $contact['extension'],
             'name' => (string) ($contact['name'] ?: $contact['extension']),
+            'kind' => 'extension',
         ], $this->db()->all(
             'SELECT extension, name FROM extensions WHERE tenant_id = ? AND enabled = 1 AND extension <> ? ORDER BY name, extension',
             [$tenantId, $extension]
         ));
+        $knownNumbers = array_fill_keys(array_column($contacts, 'extension'), true);
+        foreach ($this->db()->all('SELECT phone, name FROM contacts WHERE tenant_id = ? ORDER BY name, phone', [$tenantId]) as $contact) {
+            $phone = (string) $contact['phone'];
+            if (isset($knownNumbers[$phone])) continue;
+            $contacts[] = ['extension' => $phone, 'name' => (string) $contact['name'], 'kind' => 'contact'];
+            $knownNumbers[$phone] = true;
+        }
         $history = array_map(static function (array $call) use ($extension): array {
             $outgoing = (string) ($call['src'] ?? '') === $extension;
             $timestamp = strtotime((string) ($call['calldate'] ?? ''));
@@ -237,6 +246,7 @@ final class WebPhoneController extends BaseController
             'contacts' => $contacts,
             'history' => $history,
             'voicemailEnabled' => $voicemailEnabled,
+            'branding' => Branding::current($tenantId),
         ];
     }
 

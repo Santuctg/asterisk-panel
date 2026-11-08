@@ -79,6 +79,7 @@ if ((int)$db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND 
 if ((int)$db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='extension_status_history'") !== 1) throw new RuntimeException('Extension status history table missing');
 if ((int)$db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='server_stats_history'") !== 1) throw new RuntimeException('Server stats history table missing');
 if ((int)$db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='webphone_login_throttles'") !== 1) throw new RuntimeException('Web Phone throttle table missing');
+if ((int)$db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='contacts'") !== 1) throw new RuntimeException('Contacts table missing');
 if (!in_array('tenant_id', array_column($db->all('PRAGMA table_info(audit_log)'), 'name'), true)) throw new RuntimeException('Audit tenant column missing');
 if (!in_array('outbound_route_id', array_column($db->all('PRAGMA table_info(extensions)'), 'name'), true)) throw new RuntimeException('Extension outbound route column missing');
 if (!in_array('provision_token', array_column($db->all('PRAGMA table_info(devices)'), 'name'), true)) throw new RuntimeException('Device provisioning token column missing');

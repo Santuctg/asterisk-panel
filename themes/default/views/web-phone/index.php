@@ -24,7 +24,7 @@
         <symbol id="wp-icon-building" viewBox="0 0 24 24"><path d="M4 21V3h12v18M16 9h4v12M8 7h4M8 11h4M8 15h4M2 21h20"/></symbol>
     </svg>
     <aside class="webphone-rail" aria-label="Web Phone navigation">
-        <span class="webphone-avatar" title="Web Phone" aria-label="Web Phone">P</span>
+        <span class="webphone-avatar" title="Web Phone" aria-label="Web Phone" data-brand-mark><?php if (!empty($branding['logo_url'])): ?><img src="<?= e($branding['logo_url']) ?>" alt=""><?php else: ?><?= e($branding['initial']) ?><?php endif; ?></span>
         <button type="button" class="webphone-rail-item is-active" data-phone-view="calls" title="Calls"><svg class="webphone-icon" aria-hidden="true"><use href="#wp-icon-phone"></use></svg><small>Calls</small></button>
         <button type="button" class="webphone-rail-item" data-phone-view="contacts" title="Contacts"><svg class="webphone-icon" aria-hidden="true"><use href="#wp-icon-users"></use></svg><small>Contacts</small></button>
         <span class="webphone-rail-space"></span>
@@ -35,7 +35,7 @@
     </aside>
 
     <aside class="webphone-side" aria-label="Calls and contacts">
-        <div class="webphone-side-head"><strong>Web Phone</strong><span id="web-phone-presence" class="webphone-presence">Offline</span></div>
+        <div class="webphone-side-head"><strong data-brand-phone-name><?= e($branding['name']) ?> Web Phone</strong><span id="web-phone-presence" class="webphone-presence">Offline</span></div>
         <div class="webphone-search"><svg class="webphone-icon" aria-hidden="true"><use href="#wp-icon-search"></use></svg><input type="search" id="web-phone-search" placeholder="Search calls"></div>
         <div class="webphone-view-menu" id="web-phone-call-menu">
             <button type="button" class="is-active" data-phone-section="recent"><span><svg class="webphone-icon" aria-hidden="true"><use href="#wp-icon-phone"></use></svg></span><strong>Recent Calls</strong></button>
@@ -75,7 +75,7 @@
         <?php else: ?>
             <form class="webphone-login-card" id="web-phone-login" autocomplete="off">
                 <?= csrf() ?>
-                <div class="webphone-login-brand"><span>P</span><div><strong>PBX Web Phone</strong><small>Secure browser calling</small></div></div>
+                <div class="webphone-login-brand"><span data-brand-mark><?php if (!empty($branding['logo_url'])): ?><img src="<?= e($branding['logo_url']) ?>" alt=""><?php else: ?><?= e($branding['initial']) ?><?php endif; ?></span><div><strong data-brand-phone-name><?= e($branding['name']) ?> Web Phone</strong><small>Secure browser calling</small></div></div>
                 <div class="webphone-login-heading"><span>WELCOME BACK</span><h1>Call from anywhere</h1><p>Sign in with your extension to make and receive calls securely in your browser.</p></div>
                 <p class="webphone-permission-note">After your credentials are verified, Web Phone will request microphone and notification permissions.</p>
                 <div class="field"><label for="web-phone-extension">Extension</label><div class="webphone-login-input"><span aria-hidden="true"><svg class="webphone-icon"><use href="#wp-icon-user"></use></svg></span><input id="web-phone-extension" name="extension" inputmode="numeric" autocomplete="off" placeholder="Enter your extension" required></div></div>

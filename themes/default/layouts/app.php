@@ -3,6 +3,7 @@
  * Authenticated app shell.
  * Expects: $content (rendered view), $auth, $flashes
  */
+$branding ??= \App\Services\Branding::current();
 $currentPage = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 $currentLocation = (string) ($_SERVER['REQUEST_URI'] ?? '/dashboard');
 $user = $auth->user();
@@ -14,7 +15,7 @@ $user = $auth->user();
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Tenant-scoped Asterisk PBX administration panel">
     <meta name="csrf-token" content="<?= e(\App\Core\Csrf::token()) ?>">
-    <title><?= e(config('app.name', 'Asterisk Panel')) ?></title>
+    <title><?= e($branding['name']) ?></title>
     <script>
     (function () {
         try {
@@ -27,7 +28,7 @@ $user = $auth->user();
     })();
     </script>
     <link rel="stylesheet" href="<?= e(asset('assets/css/app.css')) ?>">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📞</text></svg>">
+    <link rel="icon" href="<?= !empty($branding['logo_url']) ? e($branding['logo_url']) : "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📞</text></svg>" ?>">
 </head>
 <body>
 <div class="app-shell">
@@ -39,6 +40,7 @@ $user = $auth->user();
         ['label' => 'Web Phone',    'href' => '/web-phone',       'icon' => 'phone',   'ability' => 'webphone.use', 'standalone' => true],
         ['label' => 'Active Calls', 'href' => '/active-calls',     'icon' => 'pulse',   'ability' => 'call.listen'],
         ['label' => 'Extensions',   'href' => '/extensions',     'icon' => 'phone',   'ability' => 'extension.view'],
+        ['label' => 'Contacts',     'href' => '/contacts',       'icon' => 'users',   'ability' => 'contact.view'],
         ['label' => 'Voicemail',    'href' => '/voicemail',      'icon' => 'mail',    'ability' => 'voicemail.view'],
         ['label' => 'Devices',      'href' => '/devices',        'icon' => 'device',  'ability' => 'device.view'],
         ['label' => 'Ring Groups',  'href' => '/ring-groups',    'icon' => 'users',   'ability' => 'ringgroup.view'],
@@ -72,9 +74,9 @@ $user = $auth->user();
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-brand">
-            <div class="brand-mark">P</div>
+            <div class="brand-mark"><?php if (!empty($branding['logo_url'])): ?><img src="<?= e($branding['logo_url']) ?>" alt=""><?php else: ?><?= e($branding['initial']) ?><?php endif; ?></div>
             <div class="brand-text">
-                <strong><?= e(config('app.name', 'Asterisk Panel')) ?></strong>
+                <strong><?= e($branding['name']) ?></strong>
                 <span>v<?= e(config('app.version', '1.0')) ?></span>
             </div>
         </div>

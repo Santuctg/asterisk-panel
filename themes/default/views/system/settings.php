@@ -30,8 +30,27 @@ $s = static fn (string $k, string $d = '') => $settings[$k] ?? $d;
 </div>
 <?php endif; ?>
 
-<form method="post" action="/system/settings">
+<form method="post" action="/system/settings" enctype="multipart/form-data">
     <?= csrf() ?>
+
+    <div class="card">
+        <div class="card-head"><h2>Panel branding</h2></div>
+        <div class="card-body">
+            <div class="form-grid">
+                <?php echo field_text('panel_name', 'Panel name', $s('panel_name', config('app.name', 'Asterisk Panel')), [
+                    'required' => true, 'span' => true,
+                    'hint' => 'Used in the main panel, sign-in screen and Web Phone.',
+                ]); ?>
+                <div class="field span-2">
+                    <label for="panel_logo">Panel logo</label>
+                    <?php if (!empty($branding['logo_url'])): ?><img class="branding-logo-preview" src="<?= e($branding['logo_url']) ?>" alt="Current panel logo"><?php endif; ?>
+                    <input id="panel_logo" name="panel_logo" type="file" accept="image/png,image/jpeg,image/webp">
+                    <span class="hint">PNG, JPEG or WebP; maximum 2 MB. A square or horizontal transparent image works best.</span>
+                </div>
+                <?php if (!empty($branding['logo_url'])): ?><div class="span-2"><?= field_check('remove_panel_logo', 'Remove current logo', false, 'Return to the generated panel initial.') ?></div><?php endif; ?>
+            </div>
+        </div>
+    </div>
 
     <div class="card">
         <div class="card-head"><h2>Business details</h2></div>

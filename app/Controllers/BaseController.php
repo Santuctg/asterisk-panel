@@ -43,6 +43,7 @@ abstract class BaseController
     {
         $data['auth']    ??= $this->app->auth();
         $data['flashes'] ??= Flash::pull();
+        $data['branding'] ??= \App\Services\Branding::current();
 
         return Response::html(View::getInstance()->render($template, $data, $layout));
     }

@@ -246,6 +246,7 @@ function contactHue(contact) {
 function selectContactNumber(extension) {
     number.value = extension;
     setStatus(`Ready to call ${extension}.`);
+    if (currentView === 'contacts') switchView('calls');
     number.focus();
 }
 function contactRow(contact) {
@@ -257,7 +258,8 @@ function contactRow(contact) {
     const detail = document.createElement('div');
     const strong = document.createElement('strong'); strong.textContent = contact.name || contact.extension;
     const state = contact.online === true ? 'Online' : (contact.online === false ? 'Offline' : 'Unknown');
-    const small = document.createElement('small'); small.textContent = `${contact.extension} · Tenant Contacts · ${state}`;
+    const source = contact.kind === 'contact' ? 'Panel Contact' : 'Tenant Extension';
+    const small = document.createElement('small'); small.textContent = `${contact.extension} · ${source} · ${state}`;
     detail.append(strong, small);
     const favorite = document.createElement('button'); favorite.type = 'button'; favorite.className = 'webphone-favorite-action';
     favorite.title = favorites.has(contact.extension) ? 'Remove from favorites' : 'Add to favorites';
@@ -363,6 +365,7 @@ function switchView(view) {
     $('.webphone-app').dataset.view = currentView;
     document.querySelectorAll('[data-phone-view]').forEach(button => button.classList.toggle('is-active', button.dataset.phoneView === currentView));
     callMenu.hidden = currentView !== 'calls'; contactMenu.hidden = currentView !== 'contacts';
+    dialer.hidden = currentView !== 'calls' || !ua;
     switchSection(currentView === 'contacts' ? 'all' : 'recent');
 }
 document.querySelectorAll('[data-phone-view]').forEach(button => button.addEventListener('click', () => switchView(button.dataset.phoneView)));
@@ -659,6 +662,20 @@ $('#web-phone-notification-request').addEventListener('click', async () => {
 });
 
 function startPhone(config, password) {
+    if (config.branding && typeof config.branding === 'object') {
+        const brandName = String(config.branding.name || 'Asterisk Panel');
+        document.title = `Web Phone · ${brandName}`;
+        document.querySelectorAll('[data-brand-phone-name]').forEach(node => { node.textContent = `${brandName} Web Phone`; });
+        document.querySelectorAll('[data-brand-mark]').forEach(mark => {
+            mark.replaceChildren();
+            if (config.branding.logo_url) {
+                const image = document.createElement('img'); image.src = `${config.branding.logo_url}?v=${Date.now()}`; image.alt = '';
+                mark.appendChild(image);
+            } else {
+                mark.textContent = String(config.branding.initial || brandName.charAt(0)).toUpperCase();
+            }
+        });
+    }
     realm = config.realm;
     accountKey = `${config.realm}:${config.extension}`;
     contacts = Array.isArray(config.contacts) ? config.contacts : [];

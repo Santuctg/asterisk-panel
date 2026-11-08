@@ -2,6 +2,7 @@
 /**
  * Minimal shell for the login screen. Expects: $content, $flashes
  */
+$branding ??= \App\Services\Branding::current();
 ?>
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
@@ -9,7 +10,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Sign in to the Asterisk PBX administration panel">
-    <title>Sign in · <?= e(config('app.name', 'Asterisk Panel')) ?></title>
+    <title>Sign in · <?= e($branding['name']) ?></title>
     <script>
     (function () {
         try {
@@ -22,7 +23,7 @@
     })();
     </script>
     <link rel="stylesheet" href="<?= e(asset('assets/css/app.css')) ?>">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📞</text></svg>">
+    <link rel="icon" href="<?= !empty($branding['logo_url']) ? e($branding['logo_url']) : "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📞</text></svg>" ?>">
 </head>
 <body class="auth-body">
 <div class="auth-ui-controls">
@@ -34,8 +35,8 @@
 </div>
 <div class="auth-wrap">
     <div class="auth-brand">
-        <div class="brand-mark lg">P</div>
-        <h1><?= e(config('app.name', 'Asterisk Panel')) ?></h1>
+        <div class="brand-mark lg"><?php if (!empty($branding['logo_url'])): ?><img src="<?= e($branding['logo_url']) ?>" alt=""><?php else: ?><?= e($branding['initial']) ?><?php endif; ?></div>
+        <h1><?= e($branding['name']) ?></h1>
         <p>Sign in to manage your phone system.</p>
     </div>
 
@@ -55,7 +56,7 @@
     </div>
 
     <div class="auth-footer">
-        &copy; <?= date('Y') ?> <?= e(config('app.name', 'Asterisk Panel')) ?>
+        &copy; <?= date('Y') ?> <?= e($branding['name']) ?>
     </div>
 </div>
 <script src="<?= e(asset('assets/js/i18n.js')) ?>"></script>

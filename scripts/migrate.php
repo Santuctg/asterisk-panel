@@ -21,7 +21,7 @@ $ensureTable = static function (string $name) use ($db, $schema, $driver): void 
 foreach ([
     'roles', 'tenant_login_bans', 'cdr', 'cdr_import_log', 'trunk_status_history',
     'extension_status_history', 'server_stats_history', 'announcements',
-    'outbound_route_schedules', 'audit_log', 'webphone_login_throttles', 'settings',
+    'outbound_route_schedules', 'audit_log', 'webphone_login_throttles', 'settings', 'contacts',
 ] as $table) {
     $ensureTable($table);
 }

@@ -23,6 +23,9 @@ $phoneView = file_get_contents(BASE_PATH . '/themes/default/views/web-phone/inde
 $phoneJs = file_get_contents(BASE_PATH . '/public/assets/js/web-phone.js');
 $listenView = file_get_contents(BASE_PATH . '/themes/default/views/live-listen/index.php');
 $listenJs = file_get_contents(BASE_PATH . '/public/assets/js/live-listen.js');
+$contactsView = file_get_contents(BASE_PATH . '/themes/default/views/contacts/index.php');
+$contactImport = file_get_contents(BASE_PATH . '/themes/default/views/contacts/import.php');
+$settingsView = file_get_contents(BASE_PATH . '/themes/default/views/system/settings.php');
 
 $checks = [
     [str_contains($appLayout, 'id="themeToggle"') && str_contains($authLayout, 'id="themeToggle"'), 'light/dark controls render in app and auth layouts'],
@@ -62,6 +65,13 @@ $checks = [
     [!str_contains($phoneView, 'data-phone-view="dialpad"') && str_contains($phoneView, 'web-phone-backspace')
         && str_contains($phoneView, 'webphone-view-menu') && str_contains($phoneView, 'webphone-list-workspace')
         && !str_contains($phoneJs, "switchView('dialpad')"), 'calls and contacts share an integrated compact dialer without a separate dialpad page'],
+    [str_contains($phoneJs, "dialer.hidden = currentView !== 'calls' || !ua")
+        && str_contains($phoneView, 'id="web-phone-dialer"'), 'contacts view hides the compact dialer while calls retains it'],
+    [str_contains($routes, "get('/contacts'") && str_contains($routes, "post('/contacts/import'")
+        && str_contains($contactsView, 'Import contacts') && str_contains($contactImport, 'Download CSV template'), 'main panel exposes tenant contact CRUD and Excel-compatible CSV import'],
+    [str_contains($appLayout, '$branding[\'name\']') && str_contains($authLayout, '$branding[\'name\']')
+        && str_contains($phoneLayout, '$branding[\'name\']') && str_contains($settingsView, 'name="panel_logo"')
+        && str_contains($phoneView, 'data-brand-phone-name'), 'panel name and uploaded logo drive panel, authentication and Web Phone branding'],
     [str_contains($phoneView, 'data-phone-section="recent"') && str_contains($phoneView, 'data-phone-section="voicemail"')
         && str_contains($phoneView, 'data-phone-section="all"') && str_contains($phoneView, 'data-phone-section="favorites"')
         && str_contains($phoneView, 'data-phone-section="tenant"') && str_contains($phoneView, 'web-phone-contact-index'), 'calls expose Recent Calls and Voicemail while contacts expose all, favorites, tenant list, and alphabet navigation'],

@@ -97,6 +97,20 @@ return [
             UNIQUE(tenant_id, extension)
         )',
 
+    'contacts' => '
+        CREATE TABLE IF NOT EXISTS contacts (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            tenant_id   INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+            name        VARCHAR(120) NOT NULL,
+            phone       VARCHAR(40) NOT NULL,
+            email       VARCHAR(160),
+            company     VARCHAR(120),
+            notes       TEXT,
+            created_at  DATETIME,
+            updated_at  DATETIME,
+            UNIQUE(tenant_id, phone)
+        )',
+
     'voicemail' => '
         CREATE TABLE IF NOT EXISTS voicemail (
             id                INTEGER PRIMARY KEY AUTOINCREMENT,

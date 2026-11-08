@@ -295,6 +295,16 @@ final class SystemController extends BaseController
     public function saveSettings(Request $request): Response
     {
         $tid = $this->tenantId();
+        $panelName = trim($request->str('panel_name'));
+        if ($panelName === '' || mb_strlen($panelName) > 80) {
+            Flash::error('Panel name is required and must be 80 characters or fewer.');
+            return Response::redirect('/system/settings');
+        }
+        $logoUpload = $this->validateBrandLogo($request->files('panel_logo'));
+        if (isset($logoUpload['error'])) {
+            Flash::error($logoUpload['error']);
+            return Response::redirect('/system/settings');
+        }
         $recordingMode = $request->str('recording_mode', 'off');
         if (!in_array($recordingMode, ['off', 'all', 'inbound', 'outbound'], true)) {
             Flash::error('The selected automatic recording mode is invalid.');
@@ -326,7 +336,7 @@ final class SystemController extends BaseController
             $this->saveGlobalSetting('sip_udp_port', $sipPort);
         }
 
-        $keys = ['company_name', 'company_email', 'company_phone', 'outbound_cid_name',
+        $keys = ['panel_name', 'company_name', 'company_email', 'company_phone', 'outbound_cid_name',
                   'outbound_cid_number', 'voicemail_email_subject', 'voicemail_email_body',
                    'provision_base_url', 'time_format', 'recording_mode', 'recording_start'];
 
@@ -349,6 +359,31 @@ final class SystemController extends BaseController
                     [$tid, $key, $value, date('Y-m-d H:i:s')]
                 );
             }
+        }
+
+        $oldLogo = (string) ($this->db()->scalar(
+            'SELECT value FROM settings WHERE `key` = ? AND (tenant_id = ? OR (tenant_id IS NULL AND ? IS NULL)) ORDER BY id DESC LIMIT 1',
+            ['panel_logo', $tid, $tid]
+        ) ?? '');
+        if ($request->bool('remove_panel_logo')) {
+            $this->saveScopedSetting('panel_logo', '', $tid);
+            $this->deleteBrandLogo($oldLogo);
+        } elseif (isset($logoUpload['tmp_name'], $logoUpload['extension'])) {
+            $scope = $tid ? 'tenant-' . $tid : 'global';
+            $directory = BASE_PATH . '/storage/branding/' . $scope;
+            if (!is_dir($directory) && !mkdir($directory, 0775, true) && !is_dir($directory)) {
+                Flash::error('The branding storage directory could not be created.');
+                return Response::redirect('/system/settings');
+            }
+            $filename = bin2hex(random_bytes(16)) . '.' . $logoUpload['extension'];
+            $destination = $directory . '/' . $filename;
+            if (!move_uploaded_file($logoUpload['tmp_name'], $destination)) {
+                Flash::error('The panel logo could not be saved.');
+                return Response::redirect('/system/settings');
+            }
+            @chmod($destination, 0640);
+            $this->saveScopedSetting('panel_logo', 'branding/' . $scope . '/' . $filename, $tid);
+            $this->deleteBrandLogo($oldLogo);
         }
 
         $this->audit('settings.update', 'settings', $tid);
@@ -418,6 +453,38 @@ final class SystemController extends BaseController
             $out[$r['key']] = $r['value'];
         }
         return $out;
+    }
+
+    private function saveScopedSetting(string $key, string $value, ?int $tenantId): void
+    {
+        $existing = $this->db()->one(
+            'SELECT id FROM settings WHERE `key` = ? AND (tenant_id = ? OR (tenant_id IS NULL AND ? IS NULL)) ORDER BY id DESC LIMIT 1',
+            [$key, $tenantId, $tenantId]
+        );
+        if ($existing) {
+            $this->db()->update('settings', (int) $existing['id'], ['value' => $value, 'updated_at' => date('Y-m-d H:i:s')]);
+        } else {
+            $this->db()->insert('settings', ['tenant_id' => $tenantId, 'key' => $key, 'value' => $value, 'created_at' => date('Y-m-d H:i:s')]);
+        }
+    }
+
+    private function validateBrandLogo(?array $file): array
+    {
+        if (!$file || (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) return [];
+        if ((int) ($file['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) return ['error' => 'The panel logo upload failed.'];
+        if ((int) ($file['size'] ?? 0) < 1 || (int) $file['size'] > 2_097_152) return ['error' => 'Panel logo must be no larger than 2 MB.'];
+        $mime = (new \finfo(FILEINFO_MIME_TYPE))->file((string) $file['tmp_name']);
+        $extensions = ['image/png' => 'png', 'image/jpeg' => 'jpg', 'image/webp' => 'webp'];
+        if (!isset($extensions[$mime]) || @getimagesize((string) $file['tmp_name']) === false) {
+            return ['error' => 'Panel logo must be a valid PNG, JPEG or WebP image.'];
+        }
+        return ['tmp_name' => (string) $file['tmp_name'], 'extension' => $extensions[$mime]];
+    }
+
+    private function deleteBrandLogo(string $relative): void
+    {
+        $path = \App\Services\Branding::absoluteLogoPath($relative);
+        if ($path) @unlink($path);
     }
 
     /** Filter global AMI rows to values owned by the selected tenant. */
