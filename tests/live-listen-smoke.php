@@ -207,6 +207,8 @@ $check(str_contains($outboundDialplan, "[panel-inbound-shared-{$sharedSuffix}]")
     && str_contains($outboundDialplan, 'Goto(tenant_b-inbound,${EXTEN},1)')
     && str_contains($outboundDialplan, 'exten => _09642359359,1,NoOp(Shared-provider registration dispatch to tenant_a)')
     && str_contains($outboundDialplan, 'Set(__PANEL_INBOUND_CALLER=${CALLERID(num)})')
+    && str_contains($outboundDialplan, 'Set(__PANEL_TENANT_ID=' . $tid . ')')
+    && str_contains($outboundDialplan, 'Set(__PANEL_CALL_STAGE=Announcement)')
     && str_contains($outboundDialplan, 'Set(__PANEL_CALL_STAGE=Ring Group: Sales)')
     && str_contains($outboundDialplan, 'Set(__PANEL_CALL_STAGE=Extension: 1001)')
     && str_contains($outboundDialplan, 'Goto(tenant_a-inbound,${EXTEN},1)')
@@ -253,8 +255,8 @@ $check(($contactDetails['1001@tenant-a.example.test']['ips'] ?? null) === ['192.
     && ($contactDetails['trunk-1-aor']['ips'] ?? null) === ['198.51.100.10'],
     'registered contact IPs are collected per AOR for the extensions page');
 $eventContactDetails = App\Services\Asterisk\AsteriskManager::parseContactDetailEvents([
-    ['Event' => 'ContactList', 'AOR' => '1001@tenant-a.example.test',
-        'URI' => 'sip:1001@phone.example.test', 'ViaAddress' => '203.0.113.44:5060',
+    ['Event' => 'ContactList', 'EndpointName' => '1001@tenant-a.example.test',
+        'ObjectName' => 'contact-object', 'URI' => 'sip:1001@phone.example.test', 'ViaAddr' => '203.0.113.44:5060',
         'Status' => 'Reachable', 'RoundtripUsec' => '5500'],
 ]);
 $check(($eventContactDetails['1001@tenant-a.example.test']['ips'] ?? null) === ['203.0.113.44']
@@ -285,11 +287,17 @@ $tenantSnapshot = App\Services\Asterisk\AsteriskManager::filterTenantChannels(
     'tenant-a.example.test',
     'tenant_a'
 );
+$announcementSnapshot = App\Services\Asterisk\AsteriskManager::filterTenantChannels([
+    ['name' => 'PJSIP/trunk-shared-' . $sharedSuffix . '-00000009', 'context' => 'panel-announcement',
+        'panel_tenant_id' => $tid, 'linkedid' => 'announcement-call'],
+], [['extension' => '1001']], 'tenant-a.example.test', 'tenant_a', 25, $tid);
 $check(count($snapshot) === 3
     && $snapshot['PJSIP/1001@tenant-a.example.test-00000001']['bridged'] === 'PJSIP/trunk-00000002'
     && $snapshot['PJSIP/1001@tenant-a.example.test-00000001']['linkedid'] === 'linked-1'
     && $snapshot['PJSIP/1001@tenant-a.example.test-00000001']['app'] === 'Dial'
-    && count($tenantSnapshot) === 3, 'concise live channels include tenant trunk and extension legs');
+    && count($tenantSnapshot) === 3
+    && count($announcementSnapshot) === 1,
+    'concise live channels include tenant legs and explicitly owned announcement calls');
 
 $amiSnapshot = App\Services\Asterisk\AsteriskManager::parseCoreShowChannelEvents([
     ['Event' => 'CoreShowChannel', 'Channel' => 'PJSIP/202@tenant.test-00000001', 'Context' => 'tenant',

@@ -418,7 +418,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                             <div class="field">
                                 <label for="sip_trunk_auth_secret">SIP trunk password</label>
                                 <div class="secret-input-wrap">
-                                    <input type="password" id="sip_trunk_auth_secret" name="sip_trunk_auth_secret" value="" autocomplete="new-password">
+                                    <input type="password" id="sip_trunk_auth_secret" name="sip_trunk_auth_secret" value="" placeholder="" autocomplete="new-password">
                                     <button type="button" class="secret-eye-button" id="trunkSecretReveal" data-password-toggle data-secret-target="sip_trunk_auth_secret" aria-label="Show password" title="Show password">
                                         <?= $this->fragment('icons/eye') ?>
                                     </button>
@@ -673,6 +673,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
              if (cfg.modal === 'trunkModal') {
                   form.elements.sip_trunk_auth_id.value = data.username || '';
                     form.elements.sip_trunk_auth_secret.value = '';
+                    form.elements.sip_trunk_auth_secret.placeholder = data.has_secret ? '••••••••' : '';
                     var reveal = document.getElementById('trunkSecretReveal');
                     if (reveal) {
                         reveal.dataset.secretReveal = '/routes/trunks/' + data.id + '/reveal-secret';
@@ -699,6 +700,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                 refreshDestinationFilters(form);
                 if (cfg.modal === 'outboundModal') renderOutboundSchedules([]);
                 if (cfg.modal === 'trunkModal') {
+                    form.elements.sip_trunk_auth_secret.placeholder = '';
                     var reveal = document.getElementById('trunkSecretReveal');
                     if (reveal) {
                         delete reveal.dataset.secretLoaded;

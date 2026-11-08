@@ -502,6 +502,7 @@ final class ConfigGenerator
             $routeName = $this->esc((string) $r['name']);
             $out .= "; {$routeName}\n";
             $out .= "exten => {$pattern},1,NoOp(Inbound: {$routeName})\n";
+            $out .= " same => n,Set(__PANEL_TENANT_ID={$tid})\n";
             $out .= " same => n,Set(__PANEL_INBOUND_CALLER=\${CALLERID(num)})\n";
             $out .= " same => n,Set(__PANEL_CALL_STAGE={$this->stageLabel('Inbound Route: ' . (string) $r['name'])})\n";
             if ($this->shouldRecord((int) ($r['record'] ?? 0), $record)) {
@@ -1199,6 +1200,7 @@ final class ConfigGenerator
         $out  = "[panel-announcement]\n";
         $out .= "exten => s,1,NoOp(Non-skippable caller announcement)\n";
         $out .= " same => n,GotoIf(\$[\"\${PANEL_ANNOUNCEMENT_PLAYED}\"=\"1\"]?done)\n";
+        $out .= " same => n,Set(__PANEL_CALL_STAGE=Announcement)\n";
         $out .= " same => n,Set(__PANEL_ANNOUNCEMENT_PLAYED=1)\n";
         $out .= " same => n,Answer()\n";
         $out .= " same => n,Playback(\${ARG1})\n";

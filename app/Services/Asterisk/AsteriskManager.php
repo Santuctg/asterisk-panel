@@ -142,7 +142,14 @@ final class AsteriskManager
     {
         $rows = [];
         foreach ($events as $event) {
-            $aor = trim((string) ($event['AOR'] ?? $event['ObjectName'] ?? ''));
+            $aor = '';
+            foreach (['AOR', 'EndpointName', 'ObjectName'] as $field) {
+                $candidate = trim((string) ($event[$field] ?? ''));
+                if ($candidate === '') continue;
+                $candidate = strstr($candidate, '/', true) ?: $candidate;
+                $candidate = strstr($candidate, ';@', true) ?: $candidate;
+                if ($candidate !== '') { $aor = $candidate; break; }
+            }
             if ($aor === '') continue;
             $status = trim((string) ($event['Status'] ?? ''));
             $usec = $event['RoundtripUsec'] ?? null;
@@ -153,7 +160,12 @@ final class AsteriskManager
             $rows[$aor]['count']++;
             if ($status !== '') $rows[$aor]['status'] = $status;
             if ($rtt !== null) $rows[$aor]['rtt'] = $rtt;
-            foreach ([(string) ($event['ViaAddress'] ?? ''), (string) ($event['URI'] ?? '')] as $address) {
+            foreach ([
+                (string) ($event['ViaAddress'] ?? ''),
+                (string) ($event['ViaAddr'] ?? ''),
+                (string) ($event['RemoteAddress'] ?? ''),
+                (string) ($event['URI'] ?? ''),
+            ] as $address) {
                 $ip = self::contactIp($address);
                 if ($ip !== '' && !in_array($ip, $rows[$aor]['ips'], true)) $rows[$aor]['ips'][] = $ip;
             }
@@ -271,7 +283,8 @@ final class AsteriskManager
             $extensions,
             $realm,
             (string) $tenant['context'],
-            $limit
+            $limit,
+            $tenantId
         );
     }
 
@@ -281,13 +294,15 @@ final class AsteriskManager
         array $extensions,
         string $realm,
         string $context,
-        int $limit = 25
+        int $limit = 25,
+        ?int $tenantId = null
     ): array {
         $prefixes = array_map(static fn ($row) => 'PJSIP/' . $row['extension'] . '@' . $realm . '-', $extensions);
         $identities = [];
         foreach ($snapshot as $channel) {
             $channelContext = (string) ($channel['context'] ?? '');
-            $belongs = $channelContext === $context || str_starts_with($channelContext, $context . '-');
+            $belongs = ($tenantId !== null && (int) ($channel['panel_tenant_id'] ?? 0) === $tenantId)
+                || $channelContext === $context || str_starts_with($channelContext, $context . '-');
             foreach ($prefixes as $prefix) {
                 if (str_starts_with((string) ($channel['name'] ?? ''), $prefix)
                     || str_starts_with((string) ($channel['bridged'] ?? ''), $prefix)) {
@@ -308,7 +323,8 @@ final class AsteriskManager
         $rows = [];
         foreach ($snapshot as $channel) {
             $channelContext = (string) ($channel['context'] ?? '');
-            $belongs = $channelContext === $context || str_starts_with($channelContext, $context . '-');
+            $belongs = ($tenantId !== null && (int) ($channel['panel_tenant_id'] ?? 0) === $tenantId)
+                || $channelContext === $context || str_starts_with($channelContext, $context . '-');
             foreach ($prefixes as $prefix) {
                 if (str_starts_with((string) ($channel['name'] ?? ''), $prefix)
                     || str_starts_with((string) ($channel['bridged'] ?? ''), $prefix)) {
@@ -354,6 +370,14 @@ final class AsteriskManager
             $stage = trim((string) ($stageResponse['Value'] ?? ''));
             if ($stage !== '' && strcasecmp($stage, '(null)') !== 0) {
                 $row['call_stage'] = $stage;
+            }
+            $tenantResponse = $this->ami->action('Getvar', [
+                'Channel' => $name,
+                'Variable' => 'PANEL_TENANT_ID',
+            ]);
+            $panelTenantId = trim((string) ($tenantResponse['Value'] ?? ''));
+            if (ctype_digit($panelTenantId) && (int) $panelTenantId > 0) {
+                $row['panel_tenant_id'] = (int) $panelTenantId;
             }
         }
         unset($row);
