@@ -23,14 +23,14 @@
         <?php else: ?>
             <form class="webphone-login-card" id="web-phone-login" autocomplete="off">
                 <?= csrf() ?>
-                <span class="webphone-qr-corner" aria-hidden="true">▦</span>
-                <h1>Welcome to Web Phone</h1>
-                <p>Log in with your extension SIP credentials.</p>
+                <div class="webphone-login-brand"><span>P</span><div><strong>PBX Web Phone</strong><small>Secure browser calling</small></div></div>
+                <div class="webphone-login-heading"><span>WELCOME BACK</span><h1>Call from anywhere</h1><p>Sign in with your extension to make and receive calls securely in your browser.</p></div>
                 <p class="webphone-permission-note">After your credentials are verified, Web Phone will request microphone and notification permissions.</p>
                 <div class="field"><label for="web-phone-extension">Extension</label><input id="web-phone-extension" name="extension" inputmode="numeric" autocomplete="username" placeholder="Extension" required></div>
                 <div class="field"><label for="web-phone-secret">SIP password</label><div class="webphone-password-wrap"><input id="web-phone-secret" name="secret" type="password" autocomplete="current-password" placeholder="User Password" required><button type="button" id="web-phone-password-toggle" aria-label="Show password" title="Show password">◉</button></div></div>
                 <button type="submit" class="btn btn-primary btn-block" id="web-phone-start">Log in</button>
                 <p id="web-phone-login-status" class="webphone-error" role="alert"></p>
+                <div class="webphone-login-trust"><span>🔒 Encrypted connection</span><span>● WebRTC ready</span></div>
                 <a href="/login" class="text-sm">Back to panel login</a>
             </form>
 

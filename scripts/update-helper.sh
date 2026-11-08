@@ -86,6 +86,13 @@ update() {
     fi
     for site in /etc/nginx/sites-available/asterisk-panel /etc/nginx/sites-available/asterisk-panel-tenant-*; do
         [[ -f "$site" ]] || continue
+        # Older main-site configs denied microphone access. That restrictive
+        # header combines with the app header in Chromium and blocks WebRTC.
+        if grep -qE '^[[:space:]]*add_header[[:space:]]+Permissions-Policy' "$site"; then
+            sed -i 's#^[[:space:]]*add_header[[:space:]]\+Permissions-Policy.*#    add_header Permissions-Policy "camera=(), microphone=(self), geolocation=()" always;#' "$site"
+        else
+            sed -i '/^[[:space:]]*index index\.php;/a\    add_header Permissions-Policy "camera=(), microphone=(self), geolocation=()" always;' "$site"
+        fi
         if grep -q 'client_max_body_size' "$site"; then
             sed -i 's/client_max_body_size[[:space:]][[:space:]]*[0-9][0-9]*[mM];/client_max_body_size 30m;/g' "$site"
         else

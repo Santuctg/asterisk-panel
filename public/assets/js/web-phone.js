@@ -108,7 +108,7 @@ async function getMicrophoneStream() {
 }
 function microphoneErrorMessage(error) {
     if (error?.name === 'NotAllowedError' || error?.name === 'SecurityError') {
-        return 'Microphone access was denied by Chrome or Windows privacy settings.';
+        return 'Chrome blocked this site’s microphone. Use Site controls → Reset permissions, reload, and allow Microphone.';
     }
     if (error?.name === 'NotFoundError' || error?.name === 'OverconstrainedError') {
         return 'No working microphone was detected. Connect or enable a microphone, then retry.';
