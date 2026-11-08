@@ -60,4 +60,14 @@ final class TenantHost
         $tenant = self::tenantForHost($host);
         return $tenant ? (int) $tenant['id'] : null;
     }
+
+    /** True only for the configured primary host or an enabled tenant domain. */
+    public static function isKnownRequest(): bool
+    {
+        $host = self::requestHost();
+        if ($host === '') { return true; } // CLI jobs and tests without an HTTP host.
+        $primary = self::normalize((string) Config::get('app.primary_host', ''));
+        if ($primary !== '' && hash_equals($primary, $host)) return true;
+        return self::tenantForHost($host) !== null;
+    }
 }

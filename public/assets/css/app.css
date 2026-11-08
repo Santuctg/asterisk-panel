@@ -1079,6 +1079,12 @@ th.col-check input:indeterminate::after, td.col-check input:indeterminate::after
     .schedule-days { gap:6px; }
     .schedule-days label { flex:1 1 calc(25% - 6px); justify-content:center; }
 }
+@media (max-width: 360px) {
+    .webphone-app:not(.is-locked) .webphone-rail { gap:1px; padding-left:4px; padding-right:4px; }
+    .webphone-app:not(.is-locked) .webphone-rail-item { min-width:40px; max-width:48px; }
+    .webphone-app:not(.is-locked) .webphone-rail select { width:40px; }
+    .webphone-rail-item small { font-size:8px; }
+}
 
 @media print {
     .sidebar, .topbar, .page-actions, .toolbar { display: none !important; }

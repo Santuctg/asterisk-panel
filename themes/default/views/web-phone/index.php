@@ -1,5 +1,5 @@
 <div class="webphone-app is-locked">
-    <aside class="webphone-rail">
+    <aside class="webphone-rail" aria-label="Web Phone navigation">
         <span class="webphone-avatar" title="Web Phone" aria-label="Web Phone">P</span>
         <button type="button" class="webphone-rail-item" data-phone-view="calls" title="Calls"><span>☎</span><small>Calls</small></button>
         <button type="button" class="webphone-rail-item is-active" data-phone-view="dialpad" title="Dialpad"><span>⌨</span><small>Dialpad</small></button>
@@ -11,7 +11,7 @@
         <button type="button" class="webphone-rail-item webphone-logout" id="web-phone-disconnect" title="Log out"><span>↪</span><small>Logout</small></button>
     </aside>
 
-    <aside class="webphone-side">
+    <aside class="webphone-side" aria-label="Calls and contacts">
         <div class="webphone-side-head"><strong id="web-phone-list-title">Calls</strong><span id="web-phone-presence" class="webphone-presence">Offline</span></div>
         <div class="webphone-search">⌕ <input type="search" id="web-phone-search" placeholder="Search calls"></div>
         <div class="webphone-history" id="web-phone-history"><div class="webphone-history-empty">No call history</div></div>

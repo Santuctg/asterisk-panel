@@ -72,6 +72,7 @@ let ringtoneAudio = null;
 let microphoneTestStream = null;
 let microphoneTestContext = null;
 let microphoneTestTimer = null;
+let settingsReturnFocus = null;
 let preferences = loadPreferences();
 
 function loadPreferences() {
@@ -94,6 +95,8 @@ function audioConstraints() {
     };
 }
 function callMediaConstraints() { return {audio: audioConstraints(), video: false}; }
+function normalizeDestination(value) { return String(value || '').trim().replace(/[\s().-]/g, ''); }
+function validDestination(value) { return /^[0-9*+#]{2,40}$/.test(value); }
 async function getMicrophoneStream() {
     try {
         return await navigator.mediaDevices.getUserMedia({audio: audioConstraints(), video: false});
@@ -445,10 +448,21 @@ themeToggle.addEventListener('click', () => {
     const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
     localStorage.setItem('webphone-theme', next); applyPhoneTheme(next);
 });
-settingsOpen.addEventListener('click', () => { settingsModal.hidden = false; refreshAudioDevices(); });
-settingsClose.addEventListener('click', () => { settingsModal.hidden = true; stopMicrophoneTest(); });
+settingsOpen.addEventListener('click', () => {
+    settingsReturnFocus = document.activeElement;
+    settingsModal.hidden = false; refreshAudioDevices();
+    window.requestAnimationFrame(() => settingsClose.focus());
+});
+settingsClose.addEventListener('click', () => {
+    settingsModal.hidden = true; stopMicrophoneTest();
+    if (settingsReturnFocus instanceof HTMLElement) settingsReturnFocus.focus();
+});
 settingsModal.addEventListener('click', event => { if (event.target === settingsModal) settingsClose.click(); });
-document.addEventListener('keydown', event => { if (event.key === 'Escape' && !settingsModal.hidden) settingsClose.click(); });
+document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    if (!settingsModal.hidden) settingsClose.click();
+    else if (!permissionModal.hidden) permissionLater.click();
+});
 document.querySelectorAll('[data-phone-setting]').forEach(button => button.addEventListener('click', () => {
     document.querySelectorAll('[data-phone-setting]').forEach(item => item.classList.toggle('is-active', item === button));
     document.querySelectorAll('[data-phone-setting-panel]').forEach(panel => { panel.hidden = panel.dataset.phoneSettingPanel !== button.dataset.phoneSetting; });
@@ -491,9 +505,9 @@ function startPhone(config, password) {
             reject(new Error('SIP registration timed out. Check WebRTC/WSS configuration.'));
         }, 15000);
         ua.on('registered', () => {
-            callButton.disabled = false; setPresence('Online', true); setStatus('Ready to call.');
             if (settled) return;
             settled = true; window.clearTimeout(timer);
+            callButton.disabled = false; setPresence('Online', true); setStatus('Ready to call.');
             login.hidden = true; dialer.hidden = false; $('.webphone-app').classList.remove('is-locked');
             switchView('dialpad');
             resolve();
@@ -529,8 +543,9 @@ function showPermissionSetup() {
     if (localStorage.getItem('panel-webphone-permissions-ready') === '1') return;
     permissionStatus.textContent = '';
     permissionModal.hidden = false;
+    window.requestAnimationFrame(() => permissionEnable.focus());
 }
-permissionLater.addEventListener('click', () => { permissionModal.hidden = true; });
+permissionLater.addEventListener('click', () => { permissionModal.hidden = true; number.focus(); });
 permissionEnable.addEventListener('click', async () => {
     permissionEnable.disabled = true; permissionStatus.textContent = 'Requesting browser permissions…';
     try {
@@ -555,6 +570,8 @@ login.addEventListener('submit', async event => {
         loginStatus.textContent = 'Credentials verified. Registering phone…';
         await startPhone(config, password);
         login.querySelector('[name="secret"]').value = '';
+        login.querySelector('[name="secret"]').type = 'password';
+        passwordToggle.title = 'Show password'; passwordToggle.setAttribute('aria-label', passwordToggle.title);
         loginStatus.textContent = '';
         showPermissionSetup();
     } catch (error) {
@@ -583,16 +600,19 @@ passwordToggle.addEventListener('click', () => {
 backspace.addEventListener('click', () => { number.value = number.value.slice(0, -1); number.focus(); });
 number.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); callButton.click(); } });
 callButton.addEventListener('click', () => {
-    const destination = number.value.trim().replace(/[\s().-]/g, '');
-    if (!ua || !destination || !/^[0-9*+#().-]{2,40}$/.test(destination)) { setStatus('Enter a valid number or extension.'); return; }
+    const destination = normalizeDestination(number.value);
+    if (!ua || !validDestination(destination)) { setStatus('Enter a valid number or extension.'); return; }
     number.value = destination;
     // JsSIP emits newRTCSession synchronously for local calls; that event is the
     // single owner of setupSession. Setting it up again here terminates it as a duplicate.
-    ua.call(`sip:${destination}@${realm}`, {mediaConstraints: callMediaConstraints(), sessionTimersExpires: 90});
+    try {
+        ua.call(`sip:${destination}@${realm}`, {mediaConstraints: callMediaConstraints(), sessionTimersExpires: 90});
+    } catch (error) { setStatus(microphoneErrorMessage(error)); }
 });
 answerButton.addEventListener('click', () => {
     if (!session) return;
-    session.answer({mediaConstraints: callMediaConstraints()}); answerButton.hidden = true;
+    try { session.answer({mediaConstraints: callMediaConstraints()}); answerButton.hidden = true; }
+    catch (error) { setStatus(microphoneErrorMessage(error)); }
 });
 hangupButton.addEventListener('click', () => {
     if (!session) return;
@@ -632,25 +652,35 @@ speakerButton.addEventListener('click', () => {
 });
 transferButton.addEventListener('click', () => { transferBox.hidden = !transferBox.hidden; transferNumber.focus(); });
 $('#web-phone-transfer-send').addEventListener('click', () => {
-    const target = transferNumber.value.trim();
-    if (!session || !confirmedAt || !/^[0-9*+#().-]{2,40}$/.test(target)) { setStatus('Enter a valid transfer destination.'); return; }
+    const target = normalizeDestination(transferNumber.value);
+    if (!session || !confirmedAt || !validDestination(target)) { setStatus('Enter a valid transfer destination.'); return; }
     try {
         session.refer(`sip:${target}@${realm}`);
         setStatus(`Transferring call to ${target}…`); transferBox.hidden = true; transferNumber.value = '';
     } catch (_) { setStatus('Call transfer failed.'); }
 });
 disconnectButton.addEventListener('click', async () => {
+    disconnectButton.disabled = true;
     try {
-        await fetch('/web-phone/disconnect', {method: 'POST', headers: {'X-CSRF-Token': csrfToken(), Accept: 'application/json'}});
-    } catch (_) {}
-    const current = session;
-    if (current) { try { current.terminate(); } catch (_) { finalizeSession(current, 'Ended'); } }
-    if (ua) { ua.stop(); ua = null; }
-    setPresence('Offline'); dialer.hidden = true; login.hidden = false; number.value = ''; contacts = [];
-    $('.webphone-app').classList.add('is-locked');
-    callButton.disabled = true; finalizeSession(session, 'Ended'); setStatus('Disconnected.'); renderList();
+        const response = await fetch('/web-phone/disconnect', {method: 'POST', headers: {'X-CSRF-Token': csrfToken(), Accept: 'application/json'}});
+        if (!response.ok) throw new Error('The server did not confirm logout.');
+        const current = session;
+        if (current) { try { current.terminate(); } catch (_) { finalizeSession(current, 'Ended'); } }
+        if (ua) { ua.stop(); ua = null; }
+        stopMicrophoneTest(); stopRingtone(); settingsModal.hidden = true; permissionModal.hidden = true;
+        setPresence('Offline'); dialer.hidden = true; login.hidden = false; number.value = ''; contacts = [];
+        login.querySelector('[name="secret"]').value = ''; login.querySelector('[name="secret"]').type = 'password';
+        passwordToggle.title = 'Show password'; passwordToggle.setAttribute('aria-label', passwordToggle.title);
+        $('.webphone-app').classList.add('is-locked');
+        callButton.disabled = true; finalizeSession(session, 'Ended'); setStatus('Disconnected.'); renderList();
+    } catch (error) {
+        setStatus(error.message || 'Unable to log out. Check the connection and try again.');
+    } finally { disconnectButton.disabled = false; }
 });
-window.addEventListener('pagehide', () => { if (session) session.terminate(); if (ua) ua.stop(); });
+window.addEventListener('pagehide', () => {
+    stopMicrophoneTest(); stopRingtone();
+    if (session) session.terminate(); if (ua) ua.stop();
+});
 
 async function resumePhoneSession() {
     const submit = login.querySelector('[type="submit"]');

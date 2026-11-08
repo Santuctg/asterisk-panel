@@ -102,7 +102,7 @@ $checks = [
         && str_contains($css, 'scrollbar-width:thin') && str_contains($css, '::-webkit-scrollbar-thumb:hover'), 'dialpad hides duplicate call history and long call logs use a styled scrollbar'],
     [str_contains($css, '@media (max-width: 700px)') && str_contains($css, 'position:fixed; inset:auto 0 0')
         && str_contains($css, 'padding-bottom:68px') && str_contains($css, '@media (max-width: 900px) and (min-width: 701px)')
-        && str_contains($css, '@media (min-width: 1440px)'), 'web phone adapts navigation and dialer layout across mobile, tablet, and wide desktop widths'],
+        && str_contains($css, '@media (min-width: 1440px)') && str_contains($css, '@media (max-width: 360px)'), 'web phone adapts navigation and dialer layout across small mobile, tablet, and wide desktop widths'],
     [str_contains($css, 'height:100dvh; min-height:0') && str_contains($css, '.webphone-side { min-width:0; min-height:0')
         && str_contains($css, 'flex-direction:column; overflow:hidden'), 'web phone constrains desktop columns to the viewport and scrolls history independently'],
     [str_contains($phoneJs, 'enumerateDevices()') && str_contains($phoneJs, 'setSinkId')
@@ -126,6 +126,16 @@ $checks = [
         && str_contains($updateHelper, 'nginx -t'), 'updater repairs restrictive Web Phone microphone headers before reloading Nginx'],
     [str_contains($phoneJs, "allowsFeature('microphone')")
         && str_contains($phoneJs, 'blocking microphone access through its Permissions-Policy header'), 'web phone distinguishes a server microphone policy block from a browser permission denial'],
+    [str_contains($phoneJs, "if (!response.ok) throw new Error('The server did not confirm logout.')")
+        && str_contains($phoneJs, 'finally { disconnectButton.disabled = false; }')
+        && str_contains($phoneJs, "login.querySelector('[name=\"secret\"]').type = 'password'"), 'web phone only shows logout after server confirmation and resets password visibility'],
+    [str_contains($phoneJs, 'function normalizeDestination(value)')
+        && str_contains($phoneJs, 'if (settled) return;')
+        && str_contains($phoneJs, 'catch (error) { setStatus(microphoneErrorMessage(error)); }'), 'web phone normalizes call targets and safely handles late registration and media errors'],
+    [str_contains($phoneView, 'aria-label="Web Phone navigation"')
+        && str_contains($phoneView, 'aria-label="Calls and contacts"')
+        && str_contains($phoneJs, 'settingsReturnFocus')
+        && str_contains($phoneJs, 'permissionEnable.focus()'), 'web phone navigation and dialogs preserve accessible labels and keyboard focus'],
 ];
 
 foreach ($checks as [$passed, $description]) {

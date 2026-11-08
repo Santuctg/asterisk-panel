@@ -370,8 +370,35 @@ $primaryUrlPhone = (new App\Controllers\WebPhoneController())->connect(new App\C
 $check($primaryUrlPhone->status() === 200
     && (json_decode($primaryUrlPhone->body(), true)['username'] ?? '') === 'primary_url_3001-phone-web',
     'Web Phone honors a tenant domain even when it is also the primary panel URL');
+$_SERVER['HTTP_HOST'] = 'unknown.example.test';
+$unknownPhonePage = (new App\Controllers\WebPhoneController())->index(new App\Core\Request('GET', '/web-phone'));
+$unknownPhoneLogin = (new App\Controllers\WebPhoneController())->connect(new App\Core\Request(
+    'POST', '/web-phone/connect', [], ['extension' => '3001', 'secret' => 'primary-secret'], ['REMOTE_ADDR' => '192.0.2.46']
+));
+$unknownPhoneResume = (new App\Controllers\WebPhoneController())->session(new App\Core\Request(
+    'POST', '/web-phone/session', [], [], ['REMOTE_ADDR' => '192.0.2.46']
+));
+$check($unknownPhonePage->status() === 421 && $unknownPhoneLogin->status() === 421
+    && $unknownPhoneResume->status() === 421
+    && ($unknownPhonePage->headers()['Cache-Control'] ?? '') === 'no-store',
+    'Web Phone page, login, and credential-resume endpoints fail closed on unknown hosts');
+$_SERVER['HTTP_HOST'] = 'pbx.example.test';
 $failedLogin = null;
-for ($attempt = 1; $attempt <= 5; $attempt++) {
+for ($attempt = 1; $attempt <= 2; $attempt++) {
+    $failedLogin = (new App\Controllers\WebPhoneController())->connect(new App\Core\Request(
+        'POST', '/web-phone/connect', [], ['extension' => '9999', 'secret' => 'wrong'], ['REMOTE_ADDR' => '192.0.2.47']
+    ));
+}
+$validDifferentExtension = (new App\Controllers\WebPhoneController())->connect(new App\Core\Request(
+    'POST', '/web-phone/connect', [], ['extension' => '3001', 'secret' => 'primary-secret'], ['REMOTE_ADDR' => '192.0.2.47']
+));
+$failedKey = (new App\Services\WebPhoneLoginThrottle())->key(
+    '192.0.2.47', App\Services\WebPhoneLoginThrottle::WEBPHONE, '9999'
+);
+$check($validDifferentExtension->status() === 200
+    && (int) $db->scalar('SELECT attempts FROM webphone_login_throttles WHERE key_hash = ?', [$failedKey]) === 2,
+    'successful Web Phone login cannot reset another extension brute-force counter');
+for ($attempt = 3; $attempt <= 5; $attempt++) {
     $failedLogin = (new App\Controllers\WebPhoneController())->connect(new App\Core\Request(
         'POST', '/web-phone/connect', [], ['extension' => '9999', 'secret' => 'wrong'], ['REMOTE_ADDR' => '192.0.2.47']
     ));
@@ -380,7 +407,7 @@ $blockedLogin = (new App\Controllers\WebPhoneController())->connect(new App\Core
     'POST', '/web-phone/connect', [], ['extension' => '9999', 'secret' => 'wrong'], ['REMOTE_ADDR' => '192.0.2.47']
 ));
 $check($failedLogin?->status() === 401 && $blockedLogin->status() === 429
-    && (int) $db->scalar('SELECT attempts FROM webphone_login_throttles WHERE ip = ?', ['192.0.2.47']) === 5,
+    && (int) $db->scalar('SELECT attempts FROM webphone_login_throttles WHERE key_hash = ?', [$failedKey]) === 5,
     'Web Phone brute-force throttling persists in the database across controller instances');
 $app->auth()->login($user);
 unset($_SERVER['HTTP_HOST']);

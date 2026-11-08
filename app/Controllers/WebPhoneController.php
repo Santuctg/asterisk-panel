@@ -18,26 +18,33 @@ final class WebPhoneController extends BaseController
 {
     public function index(Request $request): Response
     {
+        if (!TenantHost::isKnownRequest()) {
+            return Response::text('Unknown PBX host.', 421)->withHeader('Cache-Control', 'no-store');
+        }
         return $this->view('web-phone/index', [
             'browserReady' => str_starts_with((string) Config::get('app.url', ''), 'https://'),
-        ], 'layouts/phone');
+        ], 'layouts/phone')->withHeader('Cache-Control', 'no-store, private');
     }
 
     /** Validate SIP credentials without creating a panel login session. */
     public function connect(Request $request): Response
     {
+        if (!TenantHost::isKnownRequest()) {
+            return $this->json(['error' => 'Unknown PBX host.'], 421)->withHeader('Cache-Control', 'no-store');
+        }
         $extension = trim($request->str('extension'));
         $secret = (string) $request->input('secret', '');
+        $validExtension = preg_match('/^[0-9]{2,12}$/', $extension) === 1;
         $tenantId = $this->tenantIdForWebPhoneHost() ?? TenantHost::tenantIdForRequest();
         if (!$tenantId && auth()->check()) $tenantId = $this->tenantId();
         $throttle = new WebPhoneLoginThrottle();
-        $throttleKey = $throttle->key($request->ip());
+        $throttleKey = $throttle->key($request->ip(), WebPhoneLoginThrottle::WEBPHONE, $validExtension ? $extension : '<invalid>');
         $retryAfter = $throttle->retryAfter($throttleKey);
         if ($retryAfter > 0) {
             return $this->json(['error' => 'Too many attempts. Wait a few minutes and try again.'], 429)
                 ->withHeader('Retry-After', (string) $retryAfter);
         }
-        if (!preg_match('/^[0-9]{2,12}$/', $extension) || $secret === '') {
+        if (!$validExtension || $secret === '') {
             return $this->json(['error' => 'Enter a valid extension and SIP password.'], 422);
         }
 
@@ -81,6 +88,9 @@ final class WebPhoneController extends BaseController
     /** Resume a previously authenticated phone without storing SIP secrets in HTML/local storage. */
     public function session(Request $request): Response
     {
+        if (!TenantHost::isKnownRequest()) {
+            return $this->json(['error' => 'Unknown PBX host.'], 421)->withHeader('Cache-Control', 'no-store');
+        }
         $phoneAuth = Session::get('web_phone_auth');
         if (!is_array($phoneAuth)) return $this->json(['error' => 'No active Web Phone session.'], 401);
 

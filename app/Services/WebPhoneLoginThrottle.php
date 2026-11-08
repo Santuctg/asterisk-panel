@@ -21,14 +21,16 @@ final class WebPhoneLoginThrottle
         $this->db = App::getInstance()->db();
     }
 
-    public function key(string $ip, string $namespace = self::WEBPHONE): string
+    public function key(string $ip, string $namespace = self::WEBPHONE, string $identity = ''): string
     {
         // Do not include the request Host: an attacker may be able to vary an
         // unrecognised Host header and must not gain a fresh attempt window.
         if (!in_array($namespace, [self::WEBPHONE, self::PANEL], true)) {
             throw new \InvalidArgumentException('Unknown login throttle namespace.');
         }
-        return hash('sha256', $namespace . "\0" . trim($ip));
+        $material = $namespace . "\0" . trim($ip);
+        if ($identity !== '') $material .= "\0" . strtolower(trim($identity));
+        return hash('sha256', $material);
     }
 
     /** Seconds until another attempt is allowed, or zero when allowed. */
