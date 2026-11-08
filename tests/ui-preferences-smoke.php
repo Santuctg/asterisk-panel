@@ -93,6 +93,9 @@ $checks = [
     [str_contains($phoneJs, 'enumerateDevices()') && str_contains($phoneJs, 'setSinkId')
         && str_contains($phoneJs, 'startRingtone()') && str_contains($phoneJs, 'preferences.autoAnswer')
         && str_contains($phoneJs, 'panel-webphone-preferences'), 'web phone persists device, ringtone, volume, and auto-answer preferences'],
+    [str_contains($phoneJs, "['OverconstrainedError', 'NotFoundError', 'NotReadableError']")
+        && str_contains($phoneJs, 'No working microphone was detected')
+        && str_contains($phoneJs, 'The microphone is busy or unavailable'), 'web phone falls back from stale devices and reports the actual microphone failure'],
     [str_contains($updateView, '/system/update/progress') && str_contains($updateView, 'RECONNECTING') && str_contains($updateView, "setTimeout(poll, 1000)"), 'update page tracks background progress and reconnects automatically'],
     [str_contains($updateService, 'Progress was recovered after the server restart')
         && str_contains($updateHelper, 'systemd-run --quiet --collect')

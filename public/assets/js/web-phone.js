@@ -94,6 +94,30 @@ function audioConstraints() {
     };
 }
 function callMediaConstraints() { return {audio: audioConstraints(), video: false}; }
+async function getMicrophoneStream() {
+    try {
+        return await navigator.mediaDevices.getUserMedia({audio: audioConstraints(), video: false});
+    } catch (error) {
+        const staleDevice = preferences.microphone
+            && ['OverconstrainedError', 'NotFoundError', 'NotReadableError'].includes(error?.name);
+        if (!staleDevice) throw error;
+        preferences.microphone = ''; savePreferences();
+        microphoneSelect.value = '';
+        return navigator.mediaDevices.getUserMedia({audio: audioConstraints(), video: false});
+    }
+}
+function microphoneErrorMessage(error) {
+    if (error?.name === 'NotAllowedError' || error?.name === 'SecurityError') {
+        return 'Microphone access was denied by Chrome or Windows privacy settings.';
+    }
+    if (error?.name === 'NotFoundError' || error?.name === 'OverconstrainedError') {
+        return 'No working microphone was detected. Connect or enable a microphone, then retry.';
+    }
+    if (error?.name === 'NotReadableError' || error?.name === 'AbortError') {
+        return 'The microphone is busy or unavailable. Close other calling/recording apps, then retry.';
+    }
+    return `Unable to open the microphone${error?.name ? ` (${error.name})` : ''}.`;
+}
 async function setAudioOutput(element) {
     if (!element || typeof element.setSinkId !== 'function' || !preferences.speaker) return;
     try { await element.setSinkId(preferences.speaker); } catch (_) {}
@@ -385,7 +409,7 @@ function stopMicrophoneTest() {
 async function testMicrophone() {
     stopMicrophoneTest();
     try {
-        microphoneTestStream = await navigator.mediaDevices.getUserMedia({audio: audioConstraints(), video: false});
+        microphoneTestStream = await getMicrophoneStream();
         microphoneTestContext = new AudioContext();
         const analyser = microphoneTestContext.createAnalyser(); analyser.fftSize = 256;
         microphoneTestContext.createMediaStreamSource(microphoneTestStream).connect(analyser);
@@ -398,7 +422,7 @@ async function testMicrophone() {
             requestAnimationFrame(draw);
         };
         draw(); microphoneTestTimer = window.setTimeout(stopMicrophoneTest, 5000);
-    } catch (_) { setStatus('Unable to test the selected microphone.'); }
+    } catch (error) { setStatus(microphoneErrorMessage(error)); }
 }
 
 microphoneSelect.value = preferences.microphone;
@@ -485,19 +509,12 @@ async function requestPhonePermissions() {
     if (!navigator.mediaDevices?.getUserMedia) throw new Error('This browser cannot access the microphone.');
     const notificationRequest = typeof Notification !== 'undefined' && Notification.permission === 'default'
         ? Notification.requestPermission().catch(() => 'denied') : Promise.resolve('unavailable');
-    let stream;
     try {
-        try {
-            stream = await navigator.mediaDevices.getUserMedia({audio: audioConstraints(), video: false});
-        } catch (error) {
-            if (!preferences.microphone || error?.name !== 'OverconstrainedError') throw error;
-            preferences.microphone = ''; savePreferences();
-            stream = await navigator.mediaDevices.getUserMedia({audio: audioConstraints(), video: false});
-        }
-    } catch (_) {
-        throw new Error('Microphone permission is required. Allow access in browser site settings, then try again.');
+        const stream = await getMicrophoneStream();
+        stream.getTracks().forEach(track => track.stop());
+    } catch (error) {
+        throw new Error(microphoneErrorMessage(error));
     }
-    stream.getTracks().forEach(track => track.stop());
     await refreshAudioDevices();
     await notificationRequest;
     localStorage.setItem('panel-webphone-permissions-ready', '1');
