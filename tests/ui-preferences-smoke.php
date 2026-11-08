@@ -47,6 +47,10 @@ $checks = [
     [str_contains($phoneView, 'web-phone-mute') && str_contains($phoneView, 'web-phone-hold')
         && str_contains($phoneView, 'web-phone-transfer') && str_contains($phoneView, 'web-phone-dtmf')
         && str_contains($phoneView, 'data-phone-view="contacts"'), 'web phone exposes Wave-style contacts and in-call controls'],
+    [str_contains($phoneView, 'id="wp-icon-phone"') && str_contains($phoneView, 'id="wp-icon-users"')
+        && str_contains($phoneView, 'id="wp-icon-phone-off"') && str_contains($phoneView, 'href="#wp-icon-settings"')
+        && str_contains($phoneJs, 'function phoneIcon(name)') && str_contains($phoneJs, 'setPhoneIcon(passwordToggle')
+        && str_contains($css, '.webphone-icon {'), 'web phone replaces mixed text glyphs with a consistent reusable SVG icon system'],
     [str_contains($phoneJs, 'session.sendDTMF') && str_contains($phoneJs, 'session.refer')
         && str_contains($phoneJs, 'session.hold') && str_contains($phoneJs, 'localStorage.setItem(historyStorageKey()'), 'web phone implements DTMF, transfer, hold, and persistent history'],
     [str_contains($phoneJs, 'JsSIP emits newRTCSession synchronously')

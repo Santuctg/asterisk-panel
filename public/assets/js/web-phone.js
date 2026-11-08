@@ -89,6 +89,17 @@ function savePreferences() {
     try { localStorage.setItem(preferenceKey, JSON.stringify(preferences)); } catch (_) {}
 }
 function csrfToken() { return document.querySelector('meta[name="csrf-token"]')?.content || ''; }
+function phoneIcon(name) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    svg.setAttribute('class', 'webphone-icon'); svg.setAttribute('aria-hidden', 'true');
+    use.setAttribute('href', `#wp-icon-${name}`); svg.appendChild(use);
+    return svg;
+}
+function setPhoneIcon(element, name) {
+    const use = element?.matches?.('svg') ? element.querySelector('use') : element?.querySelector?.('svg use');
+    if (use) use.setAttribute('href', `#wp-icon-${name}`);
+}
 function audioConstraints() {
     return {
         echoCancellation: true,
@@ -176,10 +187,10 @@ function saveHistory(entry) {
     try { localStorage.setItem(historyStorageKey(), JSON.stringify(history)); } catch (_) {}
     renderList();
 }
-function listRow(primary, secondary, numberValue, icon = '☎', online = undefined) {
+function listRow(primary, secondary, numberValue, icon = 'phone', online = undefined) {
     const row = document.createElement('button');
     row.type = 'button'; row.className = 'webphone-history-row'; row.dataset.number = numberValue;
-    const avatar = document.createElement('span'); avatar.textContent = icon;
+    const avatar = document.createElement('span'); avatar.appendChild(phoneIcon(icon));
     if (online !== undefined) {
         row.classList.add('webphone-contact-row', online === true ? 'is-online' : (online === false ? 'is-offline' : 'is-unknown'));
         avatar.setAttribute('aria-hidden', 'true');
@@ -187,7 +198,7 @@ function listRow(primary, secondary, numberValue, icon = '☎', online = undefin
     const detail = document.createElement('div');
     const strong = document.createElement('strong'); strong.textContent = primary || numberValue || 'Unknown';
     const small = document.createElement('small'); small.textContent = secondary;
-    const action = document.createElement('span'); action.className = 'webphone-row-action'; action.textContent = '☎';
+    const action = document.createElement('span'); action.className = 'webphone-row-action'; action.appendChild(phoneIcon('phone'));
     detail.append(strong, small); row.append(avatar, detail, action);
     row.addEventListener('click', () => {
         number.value = numberValue;
@@ -206,7 +217,7 @@ function renderList() {
     rows.forEach(item => {
         if (currentView === 'contacts') {
             const state = item.online === true ? 'Online' : (item.online === false ? 'Offline' : 'Unknown');
-            target.appendChild(listRow(item.name, `Extension ${item.extension} · ${state}`, item.extension, '♙', item.online ?? null));
+            target.appendChild(listRow(item.name, `Extension ${item.extension} · ${state}`, item.extension, 'user', item.online ?? null));
         } else {
             const when = new Date(item.time);
             const direction = item.direction === 'incoming' ? 'Incoming' : 'Outgoing';
@@ -482,7 +493,7 @@ updateNotificationState();
 const applyPhoneTheme = theme => {
     document.documentElement.dataset.theme = theme;
     const icon = themeToggle.querySelector('.theme-icon');
-    if (icon) icon.textContent = theme === 'dark' ? '☀' : '☾';
+    if (icon) setPhoneIcon(icon, theme === 'dark' ? 'sun' : 'moon');
 };
 applyPhoneTheme(localStorage.getItem('webphone-theme') || 'dark');
 themeToggle.addEventListener('click', () => {
@@ -613,6 +624,7 @@ login.addEventListener('submit', async event => {
         await startPhone(config, password);
         login.querySelector('[name="secret"]').value = '';
         login.querySelector('[name="secret"]').type = 'password';
+        setPhoneIcon(passwordToggle, 'eye');
         passwordToggle.title = 'Show password'; passwordToggle.setAttribute('aria-label', passwordToggle.title);
         loginStatus.textContent = '';
         showPermissionSetup();
@@ -636,6 +648,7 @@ document.querySelectorAll('#web-phone-keypad [data-key]').forEach(button => {
 passwordToggle.addEventListener('click', () => {
     const show = login.querySelector('[name="secret"]').type === 'password';
     login.querySelector('[name="secret"]').type = show ? 'text' : 'password';
+    setPhoneIcon(passwordToggle, show ? 'eye-off' : 'eye');
     passwordToggle.title = show ? 'Hide password' : 'Show password';
     passwordToggle.setAttribute('aria-label', passwordToggle.title);
 });
@@ -713,6 +726,7 @@ disconnectButton.addEventListener('click', async () => {
         stopMicrophoneTest(); stopRingtone(); settingsModal.hidden = true; permissionModal.hidden = true;
         setPresence('Offline'); dialer.hidden = true; listWorkspace.hidden = true; login.hidden = false; number.value = ''; contacts = [];
         login.querySelector('[name="secret"]').value = ''; login.querySelector('[name="secret"]').type = 'password';
+        setPhoneIcon(passwordToggle, 'eye');
         passwordToggle.title = 'Show password'; passwordToggle.setAttribute('aria-label', passwordToggle.title);
         $('.webphone-app').classList.add('is-locked');
         callButton.disabled = true; finalizeSession(session, 'Ended'); setStatus('Disconnected.'); renderList();
