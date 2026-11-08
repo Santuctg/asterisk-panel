@@ -65,6 +65,9 @@ $checks = [
     [str_contains($phoneView, 'data-phone-section="recent"') && str_contains($phoneView, 'data-phone-section="voicemail"')
         && str_contains($phoneView, 'data-phone-section="all"') && str_contains($phoneView, 'data-phone-section="favorites"')
         && str_contains($phoneView, 'data-phone-section="tenant"') && str_contains($phoneView, 'web-phone-contact-index'), 'calls expose Recent Calls and Voicemail while contacts expose all, favorites, tenant list, and alphabet navigation'],
+    [str_contains($phoneJs, 'config.voicemailEnabled === true')
+        && str_contains($phoneJs, 'Voicemail has not been enabled.') && str_contains($phoneJs, "settings.href = '/voicemail'")
+        && str_contains($phoneJs, "settings.target = '_blank'") && str_contains($css, '.webphone-voicemail-illustration'), 'disabled voicemail renders a centered settings state without bypassing panel authentication'],
     [str_contains($phoneJs, 'favoriteStorageKey()') && str_contains($phoneJs, 'function contactInitials(contact)')
         && str_contains($phoneJs, "'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'") && str_contains($phoneJs, 'web-phone-contact-group-')
         && str_contains($css, '.webphone-favorite-action.is-active'), 'contact favorites persist per phone account and contacts render in alphabetic groups'],

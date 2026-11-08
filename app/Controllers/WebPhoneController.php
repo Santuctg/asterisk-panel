@@ -224,12 +224,19 @@ final class WebPhoneController extends BaseController
              WHERE tenant_id = ? AND (src = ? OR dst = ?) ORDER BY calldate DESC LIMIT 100',
             [$tenantId, $extension, $extension]
         ));
+        $voicemailEnabled = (int) $this->db()->scalar(
+            'SELECT COUNT(*) FROM voicemail v
+             JOIN extensions e ON e.id = v.extension_id
+             WHERE v.tenant_id = ? AND e.tenant_id = ? AND e.extension = ? AND v.enabled = 1',
+            [$tenantId, $tenantId, $extension]
+        ) > 0;
         return [
             'extension' => $row['extension'], 'name' => $row['name'],
             'username' => $context . '_' . $row['extension'] . '-phone-web',
             'realm' => $realm,
             'contacts' => $contacts,
             'history' => $history,
+            'voicemailEnabled' => $voicemailEnabled,
         ];
     }
 

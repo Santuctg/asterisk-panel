@@ -66,6 +66,7 @@ let history = [];
 let currentView = 'calls';
 let currentSection = 'recent';
 let favorites = new Set();
+let voicemailEnabled = false;
 let currentTarget = '';
 let currentDirection = '';
 let startedAt = null;
@@ -289,7 +290,19 @@ function renderList() {
     if (currentView === 'calls' && currentSection === 'voicemail') {
         voicemailList.replaceChildren();
         const empty = document.createElement('div'); empty.className = 'webphone-history-empty webphone-voicemail-empty';
-        empty.append(phoneIcon('voicemail'), Object.assign(document.createElement('strong'), {textContent: 'No voicemail messages'}), Object.assign(document.createElement('small'), {textContent: 'New mailbox messages will appear here when voicemail message sync is available.'}));
+        if (!voicemailEnabled) {
+            empty.classList.add('is-disabled');
+            const visual = document.createElement('div'); visual.className = 'webphone-voicemail-illustration';
+            const preview = document.createElement('span'); preview.className = 'webphone-voicemail-window'; preview.appendChild(phoneIcon('voicemail'));
+            const person = document.createElement('span'); person.className = 'webphone-voicemail-person'; person.appendChild(phoneIcon('user'));
+            visual.append(preview, person);
+            const title = document.createElement('strong'); title.textContent = 'Voicemail has not been enabled.';
+            const settings = document.createElement('a'); settings.className = 'btn webphone-voicemail-settings'; settings.href = '/voicemail';
+            settings.target = '_blank'; settings.rel = 'noopener'; settings.textContent = 'Change Settings';
+            empty.append(visual, title, settings);
+        } else {
+            empty.append(phoneIcon('voicemail'), Object.assign(document.createElement('strong'), {textContent: 'No voicemail messages'}), Object.assign(document.createElement('small'), {textContent: 'New mailbox messages will appear here when voicemail message sync is available.'}));
+        }
         voicemailList.appendChild(empty); return;
     }
     if (currentView === 'calls') {
@@ -649,6 +662,7 @@ function startPhone(config, password) {
     realm = config.realm;
     accountKey = `${config.realm}:${config.extension}`;
     contacts = Array.isArray(config.contacts) ? config.contacts : [];
+    voicemailEnabled = config.voicemailEnabled === true;
     loadFavorites(); contactCount.textContent = String(contacts.length);
     loadHistory(Array.isArray(config.history) ? config.history : []); renderList();
     const socket = new JsSIP.WebSocketInterface(`wss://${window.location.host}/ws`);
@@ -834,7 +848,7 @@ disconnectButton.addEventListener('click', async () => {
         stopPresencePolling();
         if (ua) { ua.stop(); ua = null; }
         stopMicrophoneTest(); stopRingtone(); settingsModal.hidden = true; permissionModal.hidden = true;
-        setPresence('Offline'); dialer.hidden = true; listWorkspace.hidden = true; login.hidden = false; number.value = ''; contacts = []; favorites = new Set(); contactCount.textContent = '0';
+        setPresence('Offline'); dialer.hidden = true; listWorkspace.hidden = true; login.hidden = false; number.value = ''; contacts = []; favorites = new Set(); voicemailEnabled = false; contactCount.textContent = '0';
         login.querySelector('[name="secret"]').value = ''; login.querySelector('[name="secret"]').type = 'password';
         setPhoneIcon(passwordToggle, 'eye');
         passwordToggle.title = 'Show password'; passwordToggle.setAttribute('aria-label', passwordToggle.title);

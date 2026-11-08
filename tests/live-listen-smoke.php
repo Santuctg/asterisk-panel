@@ -338,15 +338,21 @@ $phoneLogin = (new App\Controllers\WebPhoneController())->connect(new App\Core\R
 $phoneConfig = json_decode($phoneLogin->body(), true);
 $check($phoneLogin->status() === 200 && ($phoneConfig['username'] ?? '') === 'tenant_a_1001-phone-web'
     && !isset($phoneConfig['password']) && count($phoneConfig['contacts'] ?? []) === 1
+    && ($phoneConfig['voicemailEnabled'] ?? null) === false
     && ($phoneConfig['history'][0]['number'] ?? '') === '09611544567'
     && ($phoneConfig['history'][0]['direction'] ?? '') === 'outgoing',
     'public Web Phone login returns tenant contacts and extension CDR history without exposing the password');
+$db->insert('voicemail', [
+    'tenant_id' => $tid, 'extension_id' => $targetExtension, 'pin' => '123456',
+    'name' => 'Target mailbox', 'enabled' => 1,
+]);
 $phoneResume = (new App\Controllers\WebPhoneController())->session(new App\Core\Request(
     'POST', '/web-phone/session', [], [], ['REMOTE_ADDR' => '192.0.2.44']
 ));
 $resumeConfig = json_decode($phoneResume->body(), true);
 $check($phoneResume->status() === 200 && ($resumeConfig['username'] ?? '') === 'tenant_a_1001-phone-web'
     && ($resumeConfig['password'] ?? '') === 'test-secret'
+    && ($resumeConfig['voicemailEnabled'] ?? null) === true
     && ($phoneResume->headers()['Cache-Control'] ?? '') === 'no-store, private',
     'authenticated Web Phone session resumes securely after a page reload');
 $presenceMap = App\Controllers\WebPhoneController::extensionPresence(
