@@ -252,6 +252,14 @@ $check(($contactDetails['1001@tenant-a.example.test']['count'] ?? 0) === 2
 $check(($contactDetails['1001@tenant-a.example.test']['ips'] ?? null) === ['192.0.2.10', '192.0.2.11']
     && ($contactDetails['trunk-1-aor']['ips'] ?? null) === ['198.51.100.10'],
     'registered contact IPs are collected per AOR for the extensions page');
+$eventContactDetails = App\Services\Asterisk\AsteriskManager::parseContactDetailEvents([
+    ['Event' => 'ContactList', 'AOR' => '1001@tenant-a.example.test',
+        'URI' => 'sip:1001@phone.example.test', 'ViaAddress' => '203.0.113.44:5060',
+        'Status' => 'Reachable', 'RoundtripUsec' => '5500'],
+]);
+$check(($eventContactDetails['1001@tenant-a.example.test']['ips'] ?? null) === ['203.0.113.44']
+    && ($eventContactDetails['1001@tenant-a.example.test']['rtt'] ?? null) === 5.5,
+    'AMI contact ViaAddress supplies the connected IP when the Contact URI uses a hostname');
 
 // 24-hour availability timeline stays inside its window and classifies states.
 $timelineSegments = status_timeline([

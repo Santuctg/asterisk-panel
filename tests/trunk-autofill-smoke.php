@@ -38,7 +38,8 @@ foreach ([
     [str_contains($html, '>Registration<') && str_contains($html, 'Unknown'), 'trunk registration status renders when AMI is unavailable'],
     [str_contains($html, '>Uptime<'), 'trunk uptime column renders'],
     [str_contains($html, 'data-modal-open="trunkMonitor1"') && str_contains($html, 'id="trunkMonitor1"'), 'trunk Monitor action opens its popup'],
-    [str_contains($html, '>Active calls<') && str_contains($html, 'data-secret-target="sip_trunk_auth_secret"'), 'trunks show live call counts and an on-demand password control'],
+    [str_contains($html, '>Active calls<') && str_contains($html, 'class="secret-eye-button"')
+        && str_contains($html, 'data-secret-target="sip_trunk_auth_secret"'), 'trunks show live call counts and an inline password eye control'],
 ] as [$ok, $description]) {
     if (!$ok) {
         throw new RuntimeException('FAIL: ' . $description);

@@ -61,24 +61,21 @@ $val    = static fn (string $key, $default = '') => $row[$key] ?? old($key, $def
         <div class="card-head"><h2>Security</h2></div>
         <div class="card-body">
             <div class="form-grid">
-                <?php
-                echo field_text('secret', 'SIP password', '', [
-                    'type' => 'password',
-                    'required' => $isNew,
-                    'autocomplete' => 'new-password',
-                    'hint' => $isNew
+                <div class="field">
+                    <label for="secret">SIP password</label>
+                    <div class="secret-input-wrap">
+                        <input type="password" id="secret" name="secret" value=""<?= $isNew ? ' required' : '' ?> autocomplete="new-password">
+                        <button type="button" class="secret-eye-button" data-password-toggle data-secret-target="secret"<?= !$isNew && (string) ($row['secret'] ?? '') !== '' ? ' data-secret-reveal="/extensions/' . (int) $row['id'] . '/reveal-secret"' : '' ?> aria-label="Show password" title="Show password">
+                            <?= $this->fragment('icons/eye') ?>
+                        </button>
+                    </div>
+                    <span class="hint"><?= $isNew
                         ? 'Generate a strong password; the phone must use this exact value.'
-                        : 'Leave blank to keep the current SIP password, or enter a new one to rotate it.',
-                ]);
-                ?>
+                        : 'Leave blank to keep the current SIP password, or enter a new one to rotate it.' ?></span>
+                </div>
                 <div class="field">
                     <label>&nbsp;</label>
                     <div class="flex gap-2">
-                    <?php if (!$isNew && (string) ($row['secret'] ?? '') !== ''): ?>
-                    <button type="button" class="btn" data-secret-reveal="/extensions/<?= (int) $row['id'] ?>/reveal-secret" data-secret-target="secret">
-                        Show current password
-                    </button>
-                    <?php endif; ?>
                     <button type="button" class="btn" data-random-target="secret" data-random-length="14">
                         <?= $this->fragment('icons/refresh') ?> Generate strong password
                     </button>

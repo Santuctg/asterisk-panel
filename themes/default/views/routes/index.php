@@ -415,12 +415,15 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                             <?php echo field_text('name', 'Trunk name', '', ['required' => true]); ?>
                             <?php echo field_text('host', 'SIP host / proxy', '', ['required' => true, 'placeholder' => 'sip.provider.com']); ?>
                             <?php echo field_text('sip_trunk_auth_id', 'Username / auth ID', '', ['autocomplete' => 'off']); ?>
-                            <?php echo field_text('sip_trunk_auth_secret', 'SIP trunk password', '', [
-                                'type' => 'password', 'autocomplete' => 'new-password',
-                                'hint' => 'On edit, leave blank to keep the existing provider password.']); ?>
-                            <div class="field" id="trunkSecretRevealWrap" hidden>
-                                <label>&nbsp;</label>
-                                <button type="button" class="btn" id="trunkSecretReveal" data-secret-target="sip_trunk_auth_secret">Show current password</button>
+                            <div class="field">
+                                <label for="sip_trunk_auth_secret">SIP trunk password</label>
+                                <div class="secret-input-wrap">
+                                    <input type="password" id="sip_trunk_auth_secret" name="sip_trunk_auth_secret" value="" autocomplete="new-password">
+                                    <button type="button" class="secret-eye-button" id="trunkSecretReveal" data-password-toggle data-secret-target="sip_trunk_auth_secret" aria-label="Show password" title="Show password">
+                                        <?= $this->fragment('icons/eye') ?>
+                                    </button>
+                                </div>
+                                <span class="hint">On edit, leave blank to keep the existing provider password.</span>
                             </div>
                             <?php echo field_text('from_domain', 'From domain', '', ['hint' => 'Defaults to the host.']); ?>
                             <?php echo field_text('cid', 'Caller ID', '', ['placeholder' => 'Name <number>']); ?>
@@ -669,16 +672,15 @@ $activeTab = $_GET['tab'] ?? 'inbound';
               if (cfg.modal === 'outboundModal') renderOutboundSchedules(data.schedules || []);
              if (cfg.modal === 'trunkModal') {
                   form.elements.sip_trunk_auth_id.value = data.username || '';
-                   form.elements.sip_trunk_auth_secret.value = '';
-                   var reveal = document.getElementById('trunkSecretReveal');
-                   var revealWrap = document.getElementById('trunkSecretRevealWrap');
-                   if (reveal && revealWrap) {
-                       reveal.dataset.secretReveal = '/routes/trunks/' + data.id + '/reveal-secret';
-                       delete reveal.dataset.secretLoaded;
-                       reveal.textContent = 'Show current password';
-                       reveal.hidden = !data.has_secret;
-                       revealWrap.hidden = !data.has_secret;
-                   }
+                    form.elements.sip_trunk_auth_secret.value = '';
+                    var reveal = document.getElementById('trunkSecretReveal');
+                    if (reveal) {
+                        reveal.dataset.secretReveal = '/routes/trunks/' + data.id + '/reveal-secret';
+                        delete reveal.dataset.secretLoaded;
+                        reveal.setAttribute('aria-label', data.has_secret ? 'Show current password' : 'Show password');
+                        reveal.title = data.has_secret ? 'Show current password' : 'Show password';
+                        if (!data.has_secret) delete reveal.dataset.secretReveal;
+                    }
               }
             cfg.checks.forEach(function (pair) {
                 var el = form.querySelector('input[type="checkbox"][name="' + pair[0] + '"]');
@@ -697,10 +699,13 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                 refreshDestinationFilters(form);
                 if (cfg.modal === 'outboundModal') renderOutboundSchedules([]);
                 if (cfg.modal === 'trunkModal') {
-                    var revealWrap = document.getElementById('trunkSecretRevealWrap');
                     var reveal = document.getElementById('trunkSecretReveal');
-                    if (revealWrap) revealWrap.hidden = true;
-                    if (reveal) delete reveal.dataset.secretLoaded;
+                    if (reveal) {
+                        delete reveal.dataset.secretLoaded;
+                        delete reveal.dataset.secretReveal;
+                        reveal.setAttribute('aria-label', 'Show password');
+                        reveal.title = 'Show password';
+                    }
                 }
             });
         });

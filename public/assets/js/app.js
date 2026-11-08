@@ -148,7 +148,7 @@
 
     // ---- Authenticated on-demand credential reveal -----------------------
     document.addEventListener('click', function (e) {
-        var btn = e.target.closest('[data-secret-reveal]');
+        var btn = e.target.closest('[data-secret-reveal], [data-password-toggle]');
         if (!btn) return;
         e.preventDefault();
         var target = document.getElementById(btn.getAttribute('data-secret-target') || '');
@@ -156,13 +156,22 @@
         if (btn.dataset.secretLoaded === '1') {
             var showing = target.type === 'text';
             target.type = showing ? 'password' : 'text';
-            btn.textContent = showing ? 'Show current password' : 'Hide password';
+            btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+            btn.title = showing ? 'Show password' : 'Hide password';
+            return;
+        }
+        var revealUrl = btn.getAttribute('data-secret-reveal');
+        if (!revealUrl) {
+            var showing = target.type === 'text';
+            target.type = showing ? 'password' : 'text';
+            btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+            btn.title = showing ? 'Show password' : 'Hide password';
             return;
         }
         var form = btn.closest('form');
         var token = form && form.querySelector('input[name="_token"]');
         btn.disabled = true;
-        fetch(btn.getAttribute('data-secret-reveal'), {
+        fetch(revealUrl, {
             method: 'POST',
             headers: {
                 'Accept': 'application/json',
@@ -179,7 +188,8 @@
             target.value = String(data.secret || '');
             target.type = 'text';
             btn.dataset.secretLoaded = '1';
-            btn.textContent = 'Hide password';
+            btn.setAttribute('aria-label', 'Hide password');
+            btn.title = 'Hide password';
         }).catch(function (error) {
             window.alert(error.message || 'Password could not be revealed.');
         }).then(function () {

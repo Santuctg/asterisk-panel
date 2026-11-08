@@ -19,11 +19,12 @@ $controller = file_get_contents(BASE_PATH . '/app/Controllers/ExtensionControlle
 $check(substr_count($controller, "'secret'    => 'required',") === 2, 'create and update have no SIP password length rule');
 
 $view = file_get_contents(BASE_PATH . '/themes/default/views/extensions/form.php');
-$check(str_contains($view, "'type' => 'password'")
+$check(str_contains($view, 'type="password" id="secret" name="secret" value=""')
     && str_contains($view, 'Leave blank to keep the current SIP password'),
     'extension edit form keeps the stored SIP password out of HTML');
-$check(str_contains($view, 'data-secret-reveal=') && str_contains($view, 'Show current password'),
-    'extension edit form offers authenticated on-demand password reveal');
+$check(str_contains($view, 'data-secret-reveal=') && str_contains($view, 'secret-eye-button')
+    && str_contains($view, "fragment('icons/eye')"),
+    'extension password field offers authenticated reveal through an inline eye button');
 $check(str_contains($view, 'Outbound route') && str_contains($view, 'Internal calls only'), 'extension form defaults to internal-only calling');
 $check(!str_contains($view, 'Phone registration settings'), 'extension form omits phone registration settings card');
 $listView = file_get_contents(BASE_PATH . '/themes/default/views/extensions/index.php');

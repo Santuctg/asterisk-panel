@@ -93,7 +93,21 @@ final class AsteriskManager
      */
     public function contactDetails(): array
     {
-        return self::parseContactDetails($this->ami->command('pjsip show contacts'));
+        $rows = self::parseContactDetails($this->ami->command('pjsip show contacts'));
+        $eventRows = self::parseContactDetailEvents($this->ami->actionEvents('PJSIPShowContacts'));
+        foreach ($eventRows as $aor => $detail) {
+            if (!isset($rows[$aor])) {
+                $rows[$aor] = $detail;
+                continue;
+            }
+            $rows[$aor]['status'] = $detail['status'] ?: $rows[$aor]['status'];
+            $rows[$aor]['rtt'] = $detail['rtt'] ?? $rows[$aor]['rtt'];
+            $rows[$aor]['count'] = max((int) $rows[$aor]['count'], (int) $detail['count']);
+            foreach ($detail['ips'] as $ip) {
+                if (!in_array($ip, $rows[$aor]['ips'], true)) $rows[$aor]['ips'][] = $ip;
+            }
+        }
+        return $rows;
     }
 
     public static function parseContactDetails(string $out): array
@@ -118,6 +132,30 @@ final class AsteriskManager
             $ip = self::contactIp($m[1]);
             if ($ip !== '' && !in_array($ip, $rows[$aor]['ips'], true)) {
                 $rows[$aor]['ips'][] = $ip;
+            }
+        }
+        return $rows;
+    }
+
+    /** Parse AMI PJSIPShowContacts events, including the real Via source IP. */
+    public static function parseContactDetailEvents(array $events): array
+    {
+        $rows = [];
+        foreach ($events as $event) {
+            $aor = trim((string) ($event['AOR'] ?? $event['ObjectName'] ?? ''));
+            if ($aor === '') continue;
+            $status = trim((string) ($event['Status'] ?? ''));
+            $usec = $event['RoundtripUsec'] ?? null;
+            $rtt = is_numeric($usec) && (float) $usec >= 0 ? round((float) $usec / 1000, 1) : null;
+            if (!isset($rows[$aor])) {
+                $rows[$aor] = ['status' => $status, 'rtt' => $rtt, 'count' => 0, 'ips' => []];
+            }
+            $rows[$aor]['count']++;
+            if ($status !== '') $rows[$aor]['status'] = $status;
+            if ($rtt !== null) $rows[$aor]['rtt'] = $rtt;
+            foreach ([(string) ($event['ViaAddress'] ?? ''), (string) ($event['URI'] ?? '')] as $address) {
+                $ip = self::contactIp($address);
+                if ($ip !== '' && !in_array($ip, $rows[$aor]['ips'], true)) $rows[$aor]['ips'][] = $ip;
             }
         }
         return $rows;
