@@ -78,6 +78,7 @@ $check(str_contains($dialplan, '[panel-announcement]')
     && str_contains($dialplan, 'Playback(${ARG1})'), 'announcement playback is answered, complete, and guarded against duplicates');
 $check(str_contains($dialplan, $announcementStep) && str_contains($dialplan, $dialStep)
     && strpos($dialplan, $announcementStep) < strpos($dialplan, $dialStep)
+    && str_contains($dialplan, $announcementStep . "\n same => n,Set(__PANEL_CALL_STAGE=Ring Group: Sales)")
     && !str_contains($dialplan, 'm(sales)'), 'ring group announcement plays before normal simultaneous ringing');
 $liveFeed = (new App\Controllers\DashboardController())->liveCalls(new App\Core\Request('GET', '/dashboard/live-calls'));
 $liveData = json_decode($liveFeed->body(), true);

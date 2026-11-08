@@ -65,7 +65,7 @@ $val    = static fn (string $key, $default = '') => $row[$key] ?? old($key, $def
                     <label for="secret">SIP password</label>
                     <div class="secret-input-wrap">
                         <input type="password" id="secret" name="secret" value=""<?= $isNew ? ' required' : '' ?><?= !$isNew && (string) ($row['secret'] ?? '') !== '' ? ' placeholder="••••••••"' : '' ?> autocomplete="new-password">
-                        <button type="button" class="secret-eye-button" data-password-toggle data-secret-target="secret"<?= !$isNew && (string) ($row['secret'] ?? '') !== '' ? ' data-secret-reveal="/extensions/' . (int) $row['id'] . '/reveal-secret"' : '' ?> aria-label="Show password" title="Show password">
+                        <button type="button" class="secret-eye-button" data-password-toggle data-secret-target="secret"<?= !$isNew && (string) ($row['secret'] ?? '') !== '' ? ' data-secret-reveal="/extensions/' . (int) $row['id'] . '/reveal-secret" data-secret-autoload="1"' : '' ?> aria-label="Show password" title="Show password">
                             <?= $this->fragment('icons/eye') ?>
                         </button>
                     </div>

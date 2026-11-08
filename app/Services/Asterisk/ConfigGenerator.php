@@ -741,6 +741,9 @@ final class ConfigGenerator
                 $out .= $this->recordingGosub('internal', $ctx);
             }
             $out .= $this->announcementGosub((int) ($g['announcement_id'] ?? 0), $tid);
+            // The shared announcement helper temporarily labels the call as
+            // Announcement. Restore this feature before member ringing.
+            $out .= " same => n,Set(__PANEL_CALL_STAGE={$this->stageLabel('Ring Group: ' . (string) $g['name'])})\n";
 
             if ($members === '') {
                 $out .= " same => n,Playback(pbx-invalid)\n";
@@ -774,6 +777,7 @@ final class ConfigGenerator
                 $out .= $this->recordingGosub('internal', $ctx);
             }
             $out .= $this->announcementGosub((int) ($q['announcement_id'] ?? 0), $tid);
+            $out .= " same => n,Set(__PANEL_CALL_STAGE={$this->stageLabel('Queue: ' . (string) $q['name'])})\n";
             $out .= " same => n,Queue({$extension},tT,,," . (int) $q['max_wait'] . ")\n";
             $out .= " same => n,Hangup()\n\n";
         }

@@ -677,10 +677,12 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                     var reveal = document.getElementById('trunkSecretReveal');
                     if (reveal) {
                         reveal.dataset.secretReveal = '/routes/trunks/' + data.id + '/reveal-secret';
+                        reveal.dataset.secretAutoload = '1';
                         delete reveal.dataset.secretLoaded;
                         reveal.setAttribute('aria-label', data.has_secret ? 'Show current password' : 'Show password');
                         reveal.title = data.has_secret ? 'Show current password' : 'Show password';
                         if (!data.has_secret) delete reveal.dataset.secretReveal;
+                        if (data.has_secret) reveal.click();
                     }
               }
             cfg.checks.forEach(function (pair) {
@@ -705,6 +707,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                     if (reveal) {
                         delete reveal.dataset.secretLoaded;
                         delete reveal.dataset.secretReveal;
+                        delete reveal.dataset.secretAutoload;
                         reveal.setAttribute('aria-label', 'Show password');
                         reveal.title = 'Show password';
                     }

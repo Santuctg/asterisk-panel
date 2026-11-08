@@ -23,7 +23,7 @@ $check(str_contains($view, 'type="password" id="secret" name="secret" value=""')
     && str_contains($view, 'Leave blank to keep the current SIP password'),
     'extension edit form keeps the stored SIP password out of HTML');
 $check(str_contains($view, 'data-secret-reveal=') && str_contains($view, 'secret-eye-button')
-    && str_contains($view, "fragment('icons/eye')") && str_contains($view, 'placeholder="••••••••"'),
+    && str_contains($view, "fragment('icons/eye')") && str_contains($view, 'data-secret-autoload="1"'),
     'extension password field offers authenticated reveal through an inline eye button');
 $check(str_contains($view, 'Outbound route') && str_contains($view, 'Internal calls only'), 'extension form defaults to internal-only calling');
 $check(!str_contains($view, 'Phone registration settings'), 'extension form omits phone registration settings card');

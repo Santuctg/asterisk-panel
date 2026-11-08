@@ -40,7 +40,7 @@ foreach ([
     [str_contains($html, 'data-modal-open="trunkMonitor1"') && str_contains($html, 'id="trunkMonitor1"'), 'trunk Monitor action opens its popup'],
     [str_contains($html, '>Active calls<') && str_contains($html, 'class="secret-eye-button"')
         && str_contains($html, 'data-secret-target="sip_trunk_auth_secret"')
-        && str_contains($html, "placeholder = data.has_secret ? '••••••••' : ''"), 'trunks show live call counts and a masked inline password eye control'],
+        && str_contains($html, "reveal.dataset.secretAutoload = '1'"), 'trunks show live call counts and auto-load the exact masked password behind an inline eye control'],
 ] as [$ok, $description]) {
     if (!$ok) {
         throw new RuntimeException('FAIL: ' . $description);

@@ -185,17 +185,20 @@
                 return data;
             });
         }).then(function (data) {
+            var autoLoad = btn.dataset.secretAutoload === '1';
             target.value = String(data.secret || '');
-            target.type = 'text';
+            target.type = autoLoad ? 'password' : 'text';
             btn.dataset.secretLoaded = '1';
-            btn.setAttribute('aria-label', 'Hide password');
-            btn.title = 'Hide password';
+            btn.setAttribute('aria-label', autoLoad ? 'Show password' : 'Hide password');
+            btn.title = autoLoad ? 'Show password' : 'Hide password';
+            delete btn.dataset.secretAutoload;
         }).catch(function (error) {
             window.alert(error.message || 'Password could not be revealed.');
         }).then(function () {
             btn.disabled = false;
         });
     });
+    document.querySelectorAll('[data-secret-autoload]').forEach(function (button) { button.click(); });
 
     // ---- Live table filtering ---------------------------------------------
     var search = document.getElementById('globalSearch');
