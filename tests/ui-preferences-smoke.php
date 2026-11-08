@@ -77,6 +77,12 @@ $checks = [
     [str_contains($phoneJs, 'getReceivers()') && str_contains($phoneJs, 'audio.hidden = false')
         && str_contains($phoneJs, 'mediaSyncTimer') && str_contains($phoneView, 'web-phone-speaker')
         && str_contains($phoneView, 'playsinline controls hidden'), 'web phone continuously attaches remote media and exposes a speaker fallback'],
+    [str_contains($phoneView, 'web-phone-settings-open') && str_contains($phoneView, 'web-phone-microphone')
+        && str_contains($phoneView, 'web-phone-speaker-device') && str_contains($phoneView, 'web-phone-ringtone')
+        && str_contains($phoneView, 'web-phone-auto-answer'), 'web phone exposes Wave-style audio and incoming-call settings'],
+    [str_contains($phoneJs, 'enumerateDevices()') && str_contains($phoneJs, 'setSinkId')
+        && str_contains($phoneJs, 'startRingtone()') && str_contains($phoneJs, 'preferences.autoAnswer')
+        && str_contains($phoneJs, 'panel-webphone-preferences'), 'web phone persists device, ringtone, volume, and auto-answer preferences'],
     [str_contains($updateView, '/system/update/progress') && str_contains($updateView, 'RECONNECTING') && str_contains($updateView, "setTimeout(poll, 1000)"), 'update page tracks background progress and reconnects automatically'],
     [str_contains($updateService, 'Progress was recovered after the server restart')
         && str_contains($updateHelper, 'systemd-run --quiet --collect')

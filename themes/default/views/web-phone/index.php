@@ -5,6 +5,7 @@
         <button type="button" class="webphone-rail-item is-active" data-phone-view="dialpad" title="Dialpad"><span>⌨</span><small>Dialpad</small></button>
         <button type="button" class="webphone-rail-item" data-phone-view="contacts" title="Contacts"><span>♙</span><small>Contacts</small></button>
         <span class="webphone-rail-space"></span>
+        <button type="button" class="webphone-rail-item" id="web-phone-settings-open" title="Phone settings"><span>⚙</span><small>Settings</small></button>
         <select id="languageSelect" aria-label="Language"><option value="en">EN</option><option value="bn">বাং</option></select>
         <button type="button" class="webphone-rail-item theme-toggle" id="themeToggle" title="Switch color mode" aria-label="Switch color mode"><span class="theme-icon">☾</span></button>
     </aside>
@@ -53,6 +54,33 @@
                 </div>
             </div>
             <audio id="web-phone-audio" autoplay playsinline controls hidden></audio>
+            <div class="webphone-settings-backdrop" id="web-phone-settings" hidden>
+                <section class="webphone-settings" role="dialog" aria-modal="true" aria-labelledby="web-phone-settings-title">
+                    <header><div><h2 id="web-phone-settings-title">Phone settings</h2><p>Audio and incoming call preferences are saved in this browser.</p></div><button type="button" id="web-phone-settings-close" aria-label="Close settings">×</button></header>
+                    <div class="webphone-settings-body">
+                        <nav aria-label="Phone settings sections">
+                            <button type="button" class="is-active" data-phone-setting="audio">♩ <span>Audio</span></button>
+                            <button type="button" data-phone-setting="calls">☎ <span>Calls</span></button>
+                        </nav>
+                        <div class="webphone-settings-content">
+                            <div data-phone-setting-panel="audio">
+                                <h3>Microphone settings</h3>
+                                <div class="field"><label for="web-phone-microphone">Microphone</label><div class="webphone-setting-line"><select id="web-phone-microphone"><option value="">Default microphone</option></select><button type="button" class="btn btn-sm" id="web-phone-microphone-test">Test</button></div><div class="webphone-audio-meter"><span id="web-phone-microphone-level"></span></div></div>
+                                <h3>Speaker settings</h3>
+                                <div class="field"><label for="web-phone-speaker-device">Speaker</label><div class="webphone-setting-line"><select id="web-phone-speaker-device"><option value="">Default speaker</option></select><button type="button" class="btn btn-sm" id="web-phone-speaker-test">Test</button></div><span class="hint" id="web-phone-speaker-hint"></span></div>
+                                <div class="field"><label for="web-phone-speaker-volume">Speaker volume</label><input id="web-phone-speaker-volume" type="range" min="0" max="100" value="100"></div>
+                                <button type="button" class="btn btn-sm" id="web-phone-devices-refresh">Refresh devices</button>
+                            </div>
+                            <div data-phone-setting-panel="calls" hidden>
+                                <h3>Incoming call settings</h3>
+                                <label class="webphone-setting-toggle"><span><strong>Play ringtone</strong><small>Ring through the selected speaker for incoming calls.</small></span><input id="web-phone-ringtone" type="checkbox" checked></label>
+                                <label class="webphone-setting-toggle"><span><strong>Auto answer</strong><small>Answer incoming calls automatically while Web Phone is open.</small></span><input id="web-phone-auto-answer" type="checkbox"></label>
+                                <label class="webphone-setting-toggle"><span><strong>Desktop notifications</strong><small id="web-phone-notification-state">Browser permission has not been granted.</small></span><button type="button" class="btn btn-sm" id="web-phone-notification-request">Allow</button></label>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
             <script type="module" src="<?= e(asset('assets/js/web-phone.js')) ?>"></script>
         <?php endif; ?>
     </section>

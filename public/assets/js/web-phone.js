@@ -33,6 +33,16 @@ const transferNumber = $('#web-phone-transfer-number');
 const numberWrap = $('.webphone-number-wrap');
 const passwordToggle = $('#web-phone-password-toggle');
 const backspace = $('#web-phone-backspace');
+const settingsOpen = $('#web-phone-settings-open');
+const settingsModal = $('#web-phone-settings');
+const settingsClose = $('#web-phone-settings-close');
+const microphoneSelect = $('#web-phone-microphone');
+const speakerSelect = $('#web-phone-speaker-device');
+const speakerVolume = $('#web-phone-speaker-volume');
+const ringtoneToggle = $('#web-phone-ringtone');
+const autoAnswerToggle = $('#web-phone-auto-answer');
+const notificationState = $('#web-phone-notification-state');
+const preferenceKey = 'panel-webphone-preferences';
 const originalTitle = document.title;
 
 let ua = null;
@@ -53,6 +63,35 @@ let dtmfMode = false;
 let requestedEndResult = '';
 let mediaSyncTimer = null;
 const mediaConnections = new WeakSet();
+let ringtoneAudio = null;
+let microphoneTestStream = null;
+let microphoneTestContext = null;
+let microphoneTestTimer = null;
+let preferences = loadPreferences();
+
+function loadPreferences() {
+    const defaults = {microphone: '', speaker: '', volume: 1, ringtone: true, autoAnswer: false};
+    try {
+        const saved = JSON.parse(localStorage.getItem(preferenceKey) || '{}');
+        return {...defaults, ...saved, volume: Math.min(1, Math.max(0, Number(saved.volume ?? 1)))};
+    } catch (_) { return defaults; }
+}
+function savePreferences() {
+    try { localStorage.setItem(preferenceKey, JSON.stringify(preferences)); } catch (_) {}
+}
+function audioConstraints() {
+    return {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        ...(preferences.microphone ? {deviceId: {exact: preferences.microphone}} : {}),
+    };
+}
+function callMediaConstraints() { return {audio: audioConstraints(), video: false}; }
+async function setAudioOutput(element) {
+    if (!element || typeof element.setSinkId !== 'function' || !preferences.speaker) return;
+    try { await element.setSinkId(preferences.speaker); } catch (_) {}
+}
 
 function setStatus(message) { status.textContent = message; }
 function setPresence(message, online = false) {
@@ -155,7 +194,8 @@ function playRemoteMedia(peerconnection, stream = null) {
         .map(receiver => receiver.track).filter(track => track && track.kind === 'audio'));
     if (!remote.getAudioTracks().length) return;
     audio.srcObject = remote;
-    audio.muted = false; audio.volume = 1;
+    audio.muted = false; audio.volume = preferences.volume;
+    setAudioOutput(audio);
     audio.hidden = false;
     audio.play().catch(() => setStatus('Call connected. Press Play below to hear audio.'));
 }
@@ -213,6 +253,7 @@ function finalizeSession(current, result) {
     document.title = originalTitle;
     window.clearInterval(callTimer); callTimer = null;
     window.clearInterval(mediaSyncTimer); mediaSyncTimer = null;
+    stopRingtone();
     audio.pause(); audio.srcObject = null; audio.hidden = true;
     showCallState(false);
     callButton.disabled = !ua;
@@ -233,12 +274,14 @@ function setupSession(current, originator) {
         if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
             try { new Notification('Incoming Web Phone call', {body: currentTarget, tag: 'web-phone-incoming'}); } catch (_) {}
         }
+        startRingtone();
     }
     partyNumber.textContent = originator === 'remote' && current.remote_identity?.display_name
         ? `${current.remote_identity.display_name} · ${currentTarget}` : currentTarget;
     callTime.textContent = originator === 'remote' ? 'Incoming call' : 'Calling…';
     attachMedia(current);
     current.on('confirmed', () => {
+        stopRingtone();
         bindMedia(current.connection);
         confirmedAt = Date.now(); answerButton.hidden = true;
         tools.hidden = false;
@@ -252,11 +295,138 @@ function setupSession(current, originator) {
     if (originator === 'remote') {
         answerButton.hidden = false;
         setStatus(`Incoming call from ${currentTarget}.`);
+        if (preferences.autoAnswer) {
+            window.setTimeout(() => {
+                if (session !== current || confirmedAt) return;
+                try { current.answer({mediaConstraints: callMediaConstraints()}); answerButton.hidden = true; }
+                catch (_) { setStatus('Unable to auto-answer this call.'); }
+            }, 500);
+        }
     } else {
         answerButton.hidden = true;
         setStatus(`Calling ${currentTarget}…`);
     }
 }
+
+function toneUrl(frequency = 440, seconds = 1.8, ringPattern = false) {
+    const rate = 8000;
+    const samples = Math.floor(rate * seconds);
+    const buffer = new ArrayBuffer(44 + samples * 2);
+    const view = new DataView(buffer);
+    const write = (offset, value) => [...value].forEach((char, index) => view.setUint8(offset + index, char.charCodeAt(0)));
+    write(0, 'RIFF'); view.setUint32(4, 36 + samples * 2, true); write(8, 'WAVE'); write(12, 'fmt ');
+    view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+    view.setUint32(24, rate, true); view.setUint32(28, rate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+    write(36, 'data'); view.setUint32(40, samples * 2, true);
+    for (let index = 0; index < samples; index++) {
+        const elapsed = index / rate;
+        const audible = !ringPattern || elapsed < .45 || (elapsed > .65 && elapsed < 1.1);
+        const fade = Math.min(1, index / 120, (samples - index) / 120);
+        view.setInt16(44 + index * 2, audible ? Math.sin(2 * Math.PI * frequency * elapsed) * 5000 * fade : 0, true);
+    }
+    return URL.createObjectURL(new Blob([buffer], {type: 'audio/wav'}));
+}
+async function startRingtone() {
+    if (!preferences.ringtone) return;
+    stopRingtone();
+    ringtoneAudio = new Audio(toneUrl(440, 1.8, true));
+    ringtoneAudio.loop = true; ringtoneAudio.volume = preferences.volume;
+    await setAudioOutput(ringtoneAudio);
+    ringtoneAudio.play().catch(() => {});
+}
+function stopRingtone() {
+    if (!ringtoneAudio) return;
+    const source = ringtoneAudio.src;
+    ringtoneAudio.pause(); ringtoneAudio.src = ''; ringtoneAudio = null;
+    if (source.startsWith('blob:')) URL.revokeObjectURL(source);
+}
+function replaceDeviceOptions(select, devices, fallback) {
+    const selected = select.value || (select === microphoneSelect ? preferences.microphone : preferences.speaker);
+    select.replaceChildren();
+    const defaultOption = document.createElement('option'); defaultOption.value = ''; defaultOption.textContent = fallback;
+    select.appendChild(defaultOption);
+    devices.forEach((device, index) => {
+        const option = document.createElement('option'); option.value = device.deviceId;
+        option.textContent = device.label || `${fallback.replace('Default ', '')} ${index + 1}`;
+        select.appendChild(option);
+    });
+    if ([...select.options].some(option => option.value === selected)) select.value = selected;
+}
+async function refreshAudioDevices() {
+    if (!navigator.mediaDevices?.enumerateDevices) return;
+    try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        replaceDeviceOptions(microphoneSelect, devices.filter(device => device.kind === 'audioinput'), 'Default microphone');
+        replaceDeviceOptions(speakerSelect, devices.filter(device => device.kind === 'audiooutput'), 'Default speaker');
+        const outputSupported = typeof audio.setSinkId === 'function';
+        speakerSelect.disabled = !outputSupported;
+        $('#web-phone-speaker-hint').textContent = outputSupported ? '' : 'Speaker selection is not supported by this browser.';
+    } catch (_) {}
+}
+function updateNotificationState() {
+    const permission = typeof Notification === 'undefined' ? 'unsupported' : Notification.permission;
+    notificationState.textContent = permission === 'granted' ? 'Incoming call notifications are allowed.'
+        : permission === 'denied' ? 'Notifications are blocked in browser site settings.'
+        : permission === 'unsupported' ? 'Desktop notifications are not supported by this browser.'
+        : 'Browser permission has not been granted.';
+    $('#web-phone-notification-request').disabled = permission === 'granted' || permission === 'unsupported';
+}
+function stopMicrophoneTest() {
+    window.clearTimeout(microphoneTestTimer); microphoneTestTimer = null;
+    microphoneTestStream?.getTracks().forEach(track => track.stop()); microphoneTestStream = null;
+    microphoneTestContext?.close().catch(() => {}); microphoneTestContext = null;
+    $('#web-phone-microphone-level').style.width = '0%';
+}
+async function testMicrophone() {
+    stopMicrophoneTest();
+    try {
+        microphoneTestStream = await navigator.mediaDevices.getUserMedia({audio: audioConstraints(), video: false});
+        microphoneTestContext = new AudioContext();
+        const analyser = microphoneTestContext.createAnalyser(); analyser.fftSize = 256;
+        microphoneTestContext.createMediaStreamSource(microphoneTestStream).connect(analyser);
+        const values = new Uint8Array(analyser.frequencyBinCount);
+        const draw = () => {
+            if (!microphoneTestStream) return;
+            analyser.getByteFrequencyData(values);
+            const level = Math.min(100, values.reduce((sum, value) => sum + value, 0) / values.length * 1.4);
+            $('#web-phone-microphone-level').style.width = `${level}%`;
+            requestAnimationFrame(draw);
+        };
+        draw(); microphoneTestTimer = window.setTimeout(stopMicrophoneTest, 5000);
+    } catch (_) { setStatus('Unable to test the selected microphone.'); }
+}
+
+microphoneSelect.value = preferences.microphone;
+speakerSelect.value = preferences.speaker;
+speakerVolume.value = String(Math.round(preferences.volume * 100));
+ringtoneToggle.checked = preferences.ringtone;
+autoAnswerToggle.checked = preferences.autoAnswer;
+updateNotificationState();
+settingsOpen.addEventListener('click', () => { settingsModal.hidden = false; refreshAudioDevices(); });
+settingsClose.addEventListener('click', () => { settingsModal.hidden = true; stopMicrophoneTest(); });
+settingsModal.addEventListener('click', event => { if (event.target === settingsModal) settingsClose.click(); });
+document.addEventListener('keydown', event => { if (event.key === 'Escape' && !settingsModal.hidden) settingsClose.click(); });
+document.querySelectorAll('[data-phone-setting]').forEach(button => button.addEventListener('click', () => {
+    document.querySelectorAll('[data-phone-setting]').forEach(item => item.classList.toggle('is-active', item === button));
+    document.querySelectorAll('[data-phone-setting-panel]').forEach(panel => { panel.hidden = panel.dataset.phoneSettingPanel !== button.dataset.phoneSetting; });
+}));
+microphoneSelect.addEventListener('change', () => { preferences.microphone = microphoneSelect.value; savePreferences(); });
+speakerSelect.addEventListener('change', () => { preferences.speaker = speakerSelect.value; savePreferences(); setAudioOutput(audio); });
+speakerVolume.addEventListener('input', () => { preferences.volume = Number(speakerVolume.value) / 100; audio.volume = preferences.volume; savePreferences(); });
+ringtoneToggle.addEventListener('change', () => { preferences.ringtone = ringtoneToggle.checked; savePreferences(); if (!preferences.ringtone) stopRingtone(); });
+autoAnswerToggle.addEventListener('change', () => { preferences.autoAnswer = autoAnswerToggle.checked; savePreferences(); });
+$('#web-phone-devices-refresh').addEventListener('click', refreshAudioDevices);
+$('#web-phone-microphone-test').addEventListener('click', testMicrophone);
+$('#web-phone-speaker-test').addEventListener('click', async () => {
+    const source = toneUrl(523, .45); const testAudio = new Audio(source); testAudio.volume = preferences.volume;
+    await setAudioOutput(testAudio); testAudio.addEventListener('ended', () => URL.revokeObjectURL(source), {once: true});
+    testAudio.play().catch(() => { URL.revokeObjectURL(source); setStatus('Unable to play the speaker test.'); });
+});
+$('#web-phone-notification-request').addEventListener('click', async () => {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') await Notification.requestPermission();
+    updateNotificationState();
+});
+
 function startPhone(config, password) {
     realm = config.realm;
     accountKey = `${config.realm}:${config.extension}`;
@@ -302,11 +472,18 @@ async function requestPhonePermissions() {
         ? Notification.requestPermission().catch(() => 'denied') : Promise.resolve('unavailable');
     let stream;
     try {
-        stream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation: true, noiseSuppression: true}, video: false});
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({audio: audioConstraints(), video: false});
+        } catch (error) {
+            if (!preferences.microphone || error?.name !== 'OverconstrainedError') throw error;
+            preferences.microphone = ''; savePreferences();
+            stream = await navigator.mediaDevices.getUserMedia({audio: audioConstraints(), video: false});
+        }
     } catch (_) {
         throw new Error('Microphone permission is required. Allow microphone access, then log in again.');
     }
     stream.getTracks().forEach(track => track.stop());
+    await refreshAudioDevices();
     await notificationRequest;
 }
 
@@ -356,11 +533,11 @@ callButton.addEventListener('click', () => {
     number.value = destination;
     // JsSIP emits newRTCSession synchronously for local calls; that event is the
     // single owner of setupSession. Setting it up again here terminates it as a duplicate.
-    ua.call(`sip:${destination}@${realm}`, {mediaConstraints: {audio: true, video: false}, sessionTimersExpires: 90});
+    ua.call(`sip:${destination}@${realm}`, {mediaConstraints: callMediaConstraints(), sessionTimersExpires: 90});
 });
 answerButton.addEventListener('click', () => {
     if (!session) return;
-    session.answer({mediaConstraints: {audio: true, video: false}}); answerButton.hidden = true;
+    session.answer({mediaConstraints: callMediaConstraints()}); answerButton.hidden = true;
 });
 hangupButton.addEventListener('click', () => {
     if (!session) return;
@@ -389,7 +566,8 @@ dtmfButton.addEventListener('click', () => {
 });
 speakerButton.addEventListener('click', () => {
     if (!session) return;
-    audio.muted = false; audio.volume = 1;
+    audio.muted = false; audio.volume = preferences.volume;
+    setAudioOutput(audio);
     bindMedia(session.connection);
     audio.play().then(() => {
         speakerButton.classList.add('is-active');
