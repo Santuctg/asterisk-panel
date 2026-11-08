@@ -712,7 +712,8 @@ final class ConfigGenerator
             $out .= " same => n,Dial(PJSIP/{$ep}," . (int) $e['ring_timeout'] . ',Tt' . ($e['follow_me'] ? 'm' : '') . ")\n";
 
             if (!empty($e['vm_on_busy']) || !empty($e['vm_on_noanswer'])) {
-                $out .= " same => n(voicemail),Voicemail({$extension}@{$ctx}," .
+                $out .= " same => n(voicemail),Set(__PANEL_CALL_STAGE={$this->stageLabel('Voicemail: ' . $extension)})\n";
+                $out .= " same => n,Voicemail({$extension}@{$ctx}," .
                     (!empty($e['vm_on_busy']) ? 'u' : 'b') . ")\n";
             }
             $out .= " same => n,Hangup()\n\n";
@@ -1207,6 +1208,9 @@ final class ConfigGenerator
         $out .= " same => n,Set(__PANEL_CALL_STAGE=Announcement)\n";
         $out .= " same => n,Set(__PANEL_ANNOUNCEMENT_PLAYED=1)\n";
         $out .= " same => n,Answer()\n";
+        // Some SIP clients need a short answered-media interval before RTP
+        // playback starts, otherwise the prompt can be clipped or silent.
+        $out .= " same => n,Wait(1)\n";
         $out .= " same => n,Playback(\${ARG1})\n";
         $out .= " same => n(done),Return()\n\n";
         return $out;

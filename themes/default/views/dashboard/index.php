@@ -214,7 +214,7 @@ $tile = function (string $icon, string $tone, int|string $value, string $label, 
                     fromEndpoint: endpointLabel(inbound),
                     to: answered ? 'Answered extension' : 'Current stage',
                     toEndpoint: targetNumber,
-                    status: answered ? 'Connected' : (/^(IVR|Announcement|Conference):/i.test(stage) ? 'In progress' : 'Ringing'),
+                    status: answered ? 'Connected' : (/^(IVR|Announcement|Conference|Voicemail)(?::|$)/i.test(stage) ? 'In progress' : 'Ringing'),
                     duration: String(inbound.duration || channel.duration || '00:00:00'),
                     route: stage
                 });

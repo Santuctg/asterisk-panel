@@ -75,7 +75,11 @@ $dialStep = 'Dial(PJSIP/1001@tenant-a.example.test&PJSIP/2002@tenant-a.example.t
 $check(str_contains($dialplan, '[panel-announcement]')
     && str_contains($dialplan, 'Set(__PANEL_ANNOUNCEMENT_PLAYED=1)')
     && str_contains($dialplan, 'Answer()')
+    && str_contains($dialplan, "Answer()\n same => n,Wait(1)\n same => n,Playback(\${ARG1})")
     && str_contains($dialplan, 'Playback(${ARG1})'), 'announcement playback is answered, complete, and guarded against duplicates');
+$check(str_contains($dialplan, 'Set(__PANEL_CALL_STAGE=Voicemail: 1001)')
+    && str_contains($dashboardSource ?? file_get_contents(BASE_PATH . '/themes/default/views/dashboard/index.php'), 'Conference|Voicemail'),
+    'voicemail playback publishes an in-progress extension stage');
 $check(str_contains($dialplan, $announcementStep) && str_contains($dialplan, $dialStep)
     && strpos($dialplan, $announcementStep) < strpos($dialplan, $dialStep)
     && str_contains($dialplan, $announcementStep . "\n same => n,Set(__PANEL_CALL_STAGE=Ring Group: Sales)")
