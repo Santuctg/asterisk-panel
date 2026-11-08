@@ -146,6 +146,47 @@
         }
     });
 
+    // ---- Authenticated on-demand credential reveal -----------------------
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-secret-reveal]');
+        if (!btn) return;
+        e.preventDefault();
+        var target = document.getElementById(btn.getAttribute('data-secret-target') || '');
+        if (!target) return;
+        if (btn.dataset.secretLoaded === '1') {
+            var showing = target.type === 'text';
+            target.type = showing ? 'password' : 'text';
+            btn.textContent = showing ? 'Show current password' : 'Hide password';
+            return;
+        }
+        var form = btn.closest('form');
+        var token = form && form.querySelector('input[name="_token"]');
+        btn.disabled = true;
+        fetch(btn.getAttribute('data-secret-reveal'), {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+            },
+            cache: 'no-store',
+            body: '_token=' + encodeURIComponent(token ? token.value : '')
+        }).then(function (response) {
+            return response.json().then(function (data) {
+                if (!response.ok) throw new Error(data.error || 'Password could not be revealed.');
+                return data;
+            });
+        }).then(function (data) {
+            target.value = String(data.secret || '');
+            target.type = 'text';
+            btn.dataset.secretLoaded = '1';
+            btn.textContent = 'Hide password';
+        }).catch(function (error) {
+            window.alert(error.message || 'Password could not be revealed.');
+        }).then(function () {
+            btn.disabled = false;
+        });
+    });
+
     // ---- Live table filtering ---------------------------------------------
     var search = document.getElementById('globalSearch');
     if (search) {

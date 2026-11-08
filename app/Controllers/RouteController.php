@@ -58,6 +58,7 @@ final class RouteController extends BaseController
         $trunkRegistrations = [];
         $trunkContacts = [];
         $trunkTimeline = [];
+        $trunkActiveCounts = [];
         if ($request->str('tab', 'inbound') === 'trunks') {
             try {
                 $mgr = asterisk();
@@ -67,6 +68,7 @@ final class RouteController extends BaseController
                 if ($trunkStatusAvailable) {
                     $trunkContacts = $mgr->contactDetails();
                 }
+                $trunkActiveCounts = self::trunkActiveCallCounts($mgr->tenantChannels($tid, 200), $trunks);
                 $windowStart = date('Y-m-d H:i:s', time() - 86400);
                 foreach ($db->all(
                     'SELECT h.trunk_id, h.status, h.started_at, h.ended_at
@@ -86,6 +88,7 @@ final class RouteController extends BaseController
             $contact = $trunkContacts['trunk-' . $trunk['id'] . '-aor'] ?? null;
             $trunk['latency_ms'] = $contact['rtt'] ?? null;
             $trunk['active_contacts'] = $contact['count'] ?? 0;
+            $trunk['active_calls'] = $trunkActiveCounts[(int) $trunk['id']] ?? 0;
             $current = $db->one(
                 'SELECT started_at, status FROM trunk_status_history
                  WHERE trunk_id = ? AND ended_at IS NULL ORDER BY id DESC LIMIT 1',
@@ -460,6 +463,58 @@ final class RouteController extends BaseController
         return Response::redirect('/routes?tab=trunks');
     }
 
+    /** POST /routes/trunks/{id}/reveal-secret — authenticated, tenant-scoped and never cached. */
+    public function revealTrunkSecret(Request $request): Response
+    {
+        $row = $this->findScoped('trunks', (int) $request->params['id']);
+        if (!$row) {
+            return $this->json(['error' => 'Trunk not found.'], 404)->withHeader('Cache-Control', 'no-store');
+        }
+
+        $this->audit('route.trunk.secret.reveal', 'trunk', (int) $row['id']);
+        return $this->json(['secret' => (string) $row['secret']])
+            ->withHeader('Cache-Control', 'no-store, private')
+            ->withHeader('Pragma', 'no-cache');
+    }
+
+    /** Count each linked call once against its tenant-owned trunk endpoint. */
+    public static function trunkActiveCallCounts(array $channels, array $trunks): array
+    {
+        $direct = [];
+        $shared = [];
+        foreach ($trunks as $trunk) {
+            $id = (int) ($trunk['id'] ?? 0);
+            if ($id <= 0) continue;
+            $direct[(string) $id] = $id;
+            $host = strtolower(rtrim(preg_replace('/\s+/', '', (string) ($trunk['host'] ?? '')) ?? '', '.'));
+            if ($host !== '') $shared[substr(hash('sha256', $host), 0, 12)][] = $id;
+        }
+
+        $calls = [];
+        foreach ($channels as $channel) {
+            $name = (string) ($channel['name'] ?? '');
+            $trunkId = null;
+            if (preg_match('#^PJSIP/trunk-(\d+)-#i', $name, $match)) {
+                $trunkId = $direct[$match[1]] ?? null;
+            } elseif (preg_match('#^PJSIP/trunk-shared-([a-f0-9]{12})-#i', $name, $match)) {
+                $ids = array_values(array_unique($shared[strtolower($match[1])] ?? []));
+                if (count($ids) === 1) $trunkId = $ids[0];
+            }
+            if (!$trunkId) continue;
+            $identity = (string) ($channel['linkedid'] ?? '');
+            if ($identity === '') $identity = (string) ($channel['bridgeid'] ?? '');
+            if ($identity === '') $identity = (string) ($channel['uniqueid'] ?? $name);
+            $calls[$trunkId][$identity] = true;
+        }
+
+        $counts = [];
+        foreach ($trunks as $trunk) {
+            $id = (int) ($trunk['id'] ?? 0);
+            if ($id > 0) $counts[$id] = count($calls[$id] ?? []);
+        }
+        return $counts;
+    }
+
     // ----- time conditions -----------------------------------------------
 
     public function storeTime(Request $request): Response
@@ -489,7 +544,7 @@ final class RouteController extends BaseController
         $v = Validator::make($data, ['name' => 'required|max:120']);
         if ($v->fails()) {
             Flash::error($v->firstError());
-            return Response::redirect('/routes');
+            return Response::redirect('/routes?tab=time');
         }
         if ($data['extension'] !== '' && !$this->dialplanNumberAvailable($tid, $data['extension'], 'time_conditions')) {
             Flash::error('That dialplan number is already used by another tenant feature.');
@@ -506,14 +561,14 @@ final class RouteController extends BaseController
         $this->applyToAsterisk('timecondition');
 
         Flash::success('Time condition added.');
-        return Response::redirect('/routes');
+        return Response::redirect('/routes?tab=time');
     }
 
     public function updateTime(Request $request): Response
     {
         $row = $this->findScoped('time_conditions', (int) $request->params['id']);
         if (!$row) {
-            return Response::redirect('/routes');
+            return Response::redirect('/routes?tab=time');
         }
 
         $data = [
@@ -552,14 +607,14 @@ final class RouteController extends BaseController
         $this->applyToAsterisk('timecondition');
 
         Flash::success('Time condition updated.');
-        return Response::redirect('/routes');
+        return Response::redirect('/routes?tab=time');
     }
 
     public function destroyTime(Request $request): Response
     {
         $row = $this->findScoped('time_conditions', (int) $request->params['id']);
         if (!$row) {
-            return Response::redirect('/routes');
+            return Response::redirect('/routes?tab=time');
         }
 
         $this->db()->run(
@@ -571,7 +626,7 @@ final class RouteController extends BaseController
         $this->applyToAsterisk('timecondition');
 
         Flash::success('Time condition deleted.');
-        return Response::redirect('/routes');
+        return Response::redirect('/routes?tab=time');
     }
 
     // ----- shared helpers ------------------------------------------------

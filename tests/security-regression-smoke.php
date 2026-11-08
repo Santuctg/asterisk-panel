@@ -192,6 +192,31 @@ $db->update('trunks', $trunkA, ['secret' => $secretMarker]);
 $routesPage = (new App\Controllers\RouteController())->index(new App\Core\Request('GET', '/routes', ['tab' => 'trunks']));
 $check(!str_contains($extensionEdit->body(), $secretMarker) && !str_contains($routesPage->body(), $secretMarker),
     'stored SIP credentials are never serialized into extension or trunk edit HTML');
+$extensionRevealRequest = new App\Core\Request('POST', '/extensions/' . $extensionA . '/reveal-secret');
+$extensionRevealRequest->params = ['id' => $extensionA];
+$extensionReveal = (new App\Controllers\ExtensionController())->revealSecret($extensionRevealRequest);
+$trunkRevealRequest = new App\Core\Request('POST', '/routes/trunks/' . $trunkA . '/reveal-secret');
+$trunkRevealRequest->params = ['id' => $trunkA];
+$trunkReveal = (new App\Controllers\RouteController())->revealTrunkSecret($trunkRevealRequest);
+$foreignRevealRequest = new App\Core\Request('POST', '/extensions/' . $extensionB . '/reveal-secret');
+$foreignRevealRequest->params = ['id' => $extensionB];
+$foreignReveal = (new App\Controllers\ExtensionController())->revealSecret($foreignRevealRequest);
+$check((json_decode($extensionReveal->body(), true)['secret'] ?? '') === $secretMarker
+    && (json_decode($trunkReveal->body(), true)['secret'] ?? '') === $secretMarker
+    && str_contains((string) ($extensionReveal->headers()['Cache-Control'] ?? ''), 'no-store')
+    && $foreignReveal->status() === 404,
+    'credential reveal is on-demand, non-cacheable, and tenant scoped');
+$disableRequest = new App\Core\Request('POST', '/extensions/' . $extensionA, [], [
+    'extension' => '1001', 'name' => 'Tenant A phone', 'secret' => '',
+    'enabled' => '0', 'vm_enabled' => '0', 'vm_on_busy' => '0',
+    'vm_on_noanswer' => '0', 'follow_me' => '0',
+]);
+$disableRequest->params = ['id' => $extensionA];
+(new App\Controllers\ExtensionController())->update($disableRequest);
+$disabledExtension = $db->one('SELECT enabled, secret FROM extensions WHERE id = ?', [$extensionA]);
+$check((int) ($disabledExtension['enabled'] ?? 1) === 0
+    && ($disabledExtension['secret'] ?? '') === $secretMarker,
+    'unchecked enabled value persists as off without rotating an unchanged extension password');
 
 $oldInput = new class extends App\Controllers\BaseController {
     public function capture(App\Core\Request $request): void { $this->stashOld($request); }

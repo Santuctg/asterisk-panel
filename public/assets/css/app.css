@@ -426,7 +426,13 @@ code, .mono { font-family: var(--mono); font-size: 12.5px; }
 }
 .chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .chart-legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
-.chart-host { min-height: 56px; }
+.chart-host { min-height: 56px; position: relative; }
+.chart-hover-guide { stroke: var(--gray-500); stroke-width: 1; stroke-dasharray: 4 3; pointer-events: none; }
+.chart-tooltip {
+    position: absolute; z-index: 3; pointer-events: none; max-width: calc(100% - 16px);
+    padding: 7px 9px; border-radius: 7px; background: var(--gray-900); color: #fff;
+    box-shadow: var(--shadow-md); font: 11px/1.35 var(--mono); white-space: nowrap;
+}
 
 /* ---------- Buttons ---------- */
 .btn {

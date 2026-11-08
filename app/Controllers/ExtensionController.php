@@ -276,7 +276,7 @@ final class ExtensionController extends BaseController
             return Response::redirect('/extensions');
         }
 
-        $data = $this->collect($request, (int) $row['tenant_id']);
+        $data = $this->collect($request, (int) $row['tenant_id'], false);
         // Edit forms never receive the stored SIP credential. Leaving the
         // password blank preserves it; a non-empty value rotates it.
         if ($data['secret'] === '') {
@@ -356,14 +356,30 @@ final class ExtensionController extends BaseController
         return Response::redirect('/extensions');
     }
 
+    /** POST /extensions/{id}/reveal-secret — authenticated, tenant-scoped and never cached. */
+    public function revealSecret(Request $request): Response
+    {
+        $row = $this->findScoped((int) $request->params['id']);
+        if (!$row) {
+            return $this->json(['error' => 'Extension not found.'], 404)->withHeader('Cache-Control', 'no-store');
+        }
+
+        $this->audit('extension.secret.reveal', 'extension', (int) $row['id']);
+        return $this->json(['secret' => (string) $row['secret']])
+            ->withHeader('Cache-Control', 'no-store, private')
+            ->withHeader('Pragma', 'no-cache');
+    }
+
     // ----- helpers -------------------------------------------------------
 
-    private function collect(Request $request, int $tid): array
+    private function collect(Request $request, int $tid, bool $generateSecret = true): array
     {
+        $secret = $request->str('secret');
+        if ($generateSecret && $secret === '') $secret = random_secret(14);
         return [
             'extension'         => $request->str('extension'),
             'name'              => $request->str('name'),
-            'secret'            => $request->str('secret') ?: random_secret(14),
+            'secret'            => $secret,
             'cid_name'          => $request->str('cid_name'),
             'cid_number'        => $request->str('cid_number'),
             'vm_enabled'        => $request->bool('vm_enabled') ? 1 : 0,

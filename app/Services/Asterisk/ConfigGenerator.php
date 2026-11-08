@@ -502,6 +502,8 @@ final class ConfigGenerator
             $routeName = $this->esc((string) $r['name']);
             $out .= "; {$routeName}\n";
             $out .= "exten => {$pattern},1,NoOp(Inbound: {$routeName})\n";
+            $out .= " same => n,Set(__PANEL_INBOUND_CALLER=\${CALLERID(num)})\n";
+            $out .= " same => n,Set(__PANEL_CALL_STAGE={$this->stageLabel('Inbound Route: ' . (string) $r['name'])})\n";
             if ($this->shouldRecord((int) ($r['record'] ?? 0), $record)) {
                 $out .= $this->recordingGosub('inbound', $ctx);
             }
@@ -678,6 +680,7 @@ final class ConfigGenerator
             $steps .= " same => n,Hangup()\n\n";
             foreach ($patterns as $pattern) {
                 $out .= "exten => {$this->outboundPattern((string) $prefix, $pattern)},1,NoOp(Outbound: {$routeName})\n";
+                $out .= " same => n,Set(__PANEL_CALL_STAGE={$this->stageLabel('Outbound Route: ' . (string) $r['name'])})\n";
                 $out .= $steps;
             }
         }
@@ -701,6 +704,7 @@ final class ConfigGenerator
 
             $out .= "; {$extension} {$label}\n";
             $out .= "exten => {$extension},1,NoOp(Ext {$extension} {$label})\n";
+            $out .= " same => n,Set(__PANEL_CALL_STAGE={$this->stageLabel('Extension: ' . $extension)})\n";
             if ($this->shouldRecord((int) ($e['record'] ?? 0), $record)) {
                 $out .= $this->recordingGosub('internal', $ctx);
             }
@@ -731,6 +735,7 @@ final class ConfigGenerator
 
             $out .= "; Ring group {$extension} {$this->esc($g['name'])}\n";
             $out .= "exten => {$extension},1,NoOp(Ring group: {$this->esc($g['name'])})\n";
+            $out .= " same => n,Set(__PANEL_CALL_STAGE={$this->stageLabel('Ring Group: ' . (string) $g['name'])})\n";
             if ($this->shouldRecord((int) ($g['record'] ?? 0), $record)) {
                 $out .= $this->recordingGosub('internal', $ctx);
             }
@@ -763,6 +768,7 @@ final class ConfigGenerator
             $extension = $this->dialToken((string) $q['extension']);
             $out .= "; Queue {$extension} {$this->esc($q['name'])}\n";
             $out .= "exten => {$extension},1,NoOp(Queue: {$this->esc($q['name'])})\n";
+            $out .= " same => n,Set(__PANEL_CALL_STAGE={$this->stageLabel('Queue: ' . (string) $q['name'])})\n";
             if ($this->shouldRecord((int) ($q['record'] ?? 0), $record)) {
                 $out .= $this->recordingGosub('internal', $ctx);
             }
@@ -785,6 +791,7 @@ final class ConfigGenerator
             $extension = $this->dialToken((string) $ivr['extension']);
             $out .= "; IVR {$extension} {$this->esc($ivr['name'])}\n";
             $out .= "exten => {$extension},1,NoOp(IVR: {$this->esc($ivr['name'])})\n";
+            $out .= " same => n,Set(__PANEL_CALL_STAGE={$this->stageLabel('IVR: ' . (string) $ivr['name'])})\n";
             if ($this->shouldRecord((int) ($ivr['record'] ?? 0), $record)) {
                 $out .= $this->recordingGosub('internal', $ctx);
             }
@@ -854,6 +861,7 @@ final class ConfigGenerator
             $id = $row['dest_id'] ?? 0;
             $out .= "[{$ctx}-announcement-{$row['id']}]\n";
             $out .= "exten => s,1,NoOp(Announcement: {$this->esc($row['name'])})\n";
+            $out .= " same => n,Set(__PANEL_CALL_STAGE={$this->stageLabel('Announcement: ' . (string) $row['name'])})\n";
             $out .= " same => n,Answer()\n";
             $out .= " same => n,Playback({$path})\n";
             if ($type === 'hangup') {
@@ -881,6 +889,7 @@ final class ConfigGenerator
             $extension = $this->dialToken((string) $c['extension']);
             $out .= "; Time condition {$this->esc($c['name'])}\n";
             $out .= "exten => {$extension},1,NoOp(Time condition: {$this->esc($c['name'])})\n";
+            $out .= " same => n,Set(__PANEL_CALL_STAGE={$this->stageLabel('Time Condition: ' . (string) $c['name'])})\n";
             if ($this->shouldRecord((int) ($c['record'] ?? 0), $record)) {
                 $out .= $this->recordingGosub('internal', $ctx);
             }
@@ -905,6 +914,7 @@ final class ConfigGenerator
             }
             $out .= "[{$ctx}-timecond-{$c['id']}]\n";
             $out .= "exten => s,1,NoOp(Time condition: {$this->esc($c['name'])})\n";
+            $out .= " same => n,Set(__PANEL_CALL_STAGE={$this->stageLabel('Time Condition: ' . (string) $c['name'])})\n";
             $out .= " same => n,GotoIfTime(" . $this->timeMatch($c, $this->tenantTimezone($tid)) . "?open)\n";
             $out .= " same => n,Gosub({$this->destinationGosub($c['closed_type'], $c['closed_dest_id'], $ctx)})\n";
             $out .= " same => n,Return()\n";
@@ -928,6 +938,7 @@ final class ConfigGenerator
             $profile = $this->contextName((string) ($r['profile'] ?: 'default'));
             $out .= "; Conference {$extension} {$this->esc($r['name'])}\n";
             $out .= "exten => {$extension},1,NoOp(Conference: {$this->esc($r['name'])})\n";
+            $out .= " same => n,Set(__PANEL_CALL_STAGE={$this->stageLabel('Conference: ' . (string) $r['name'])})\n";
             if ($this->shouldRecord((int) ($r['record'] ?? 0), $record)) {
                 $out .= $this->recordingGosub('internal', $ctx);
             }
@@ -951,6 +962,7 @@ final class ConfigGenerator
             $extension = $this->dialToken((string) $l['extension']);
             $out .= "; Park lot {$this->esc($l['name'])} (ext {$extension})\n";
             $out .= "exten => {$extension},1,NoOp(Park lot: {$this->esc($l['name'])})\n";
+            $out .= " same => n,Set(__PANEL_CALL_STAGE={$this->stageLabel('Parking: ' . (string) $l['name'])})\n";
             if ($this->shouldRecord((int) ($l['record'] ?? 0), $record)) {
                 $out .= $this->recordingGosub('internal', $ctx);
             }
@@ -1436,6 +1448,13 @@ final class ConfigGenerator
     private function esc(string $s): string
     {
         return str_replace(['"', '\\'], ['', '\\\\'], $this->line($s));
+    }
+
+    /** Safe, compact text for an inherited AMI-visible dialplan variable. */
+    private function stageLabel(string $value): string
+    {
+        $value = str_replace([',', '$', '(', ')', '{', '}', ';', '"', '\\'], ' ', $this->line($value));
+        return mb_substr(trim(preg_replace('/\s+/', ' ', $value) ?? ''), 0, 120) ?: 'Call';
     }
 
     /** Keep every database/config value on one generated config line. */

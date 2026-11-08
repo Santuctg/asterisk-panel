@@ -147,7 +147,7 @@ foreach ((array) $tenants as $t) { $tenantOpts[$t['id']] = $t['name']; }
         if (form.elements['role']) form.elements['role'].value = d.role || 'user';
         if (form.elements['tenant_id']) form.elements['tenant_id'].value = d.tenant_id || '';
         form.elements['password'].value = '';
-        form.elements['enabled'].checked = Number(d.active) === 1;
+        form.querySelector('input[type="checkbox"][name="enabled"]').checked = Number(d.active) === 1;
         });
     });
 

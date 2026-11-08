@@ -73,9 +73,16 @@ $val    = static fn (string $key, $default = '') => $row[$key] ?? old($key, $def
                 ?>
                 <div class="field">
                     <label>&nbsp;</label>
-                    <button class="btn" data-random-target="secret" data-random-length="14">
+                    <div class="flex gap-2">
+                    <?php if (!$isNew && (string) ($row['secret'] ?? '') !== ''): ?>
+                    <button type="button" class="btn" data-secret-reveal="/extensions/<?= (int) $row['id'] ?>/reveal-secret" data-secret-target="secret">
+                        Show current password
+                    </button>
+                    <?php endif; ?>
+                    <button type="button" class="btn" data-random-target="secret" data-random-length="14">
                         <?= $this->fragment('icons/refresh') ?> Generate strong password
                     </button>
+                    </div>
                 </div>
             </div>
         </div>

@@ -188,7 +188,7 @@ foreach ((array) $live as $lq) {
             var el = form.elements[k];
             if (el && d[k] !== undefined && d[k] !== null) el.value = d[k];
         });
-        form.elements['enabled'].checked = Number(d.enabled) === 1;
+        form.querySelector('input[type="checkbox"][name="enabled"]').checked = Number(d.enabled) === 1;
         });
     });
 

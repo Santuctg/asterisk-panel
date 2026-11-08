@@ -132,7 +132,7 @@ $timezoneOpts = timezone_options();
         form.elements['contact_email'].value = d.contact_email || '';
         form.elements['contact_phone'].value = d.contact_phone || '';
         form.elements['notes'].value = d.notes || '';
-        form.elements['enabled'].checked = Number(d.enabled) === 1;
+        form.querySelector('input[type="checkbox"][name="enabled"]').checked = Number(d.enabled) === 1;
         });
     });
 

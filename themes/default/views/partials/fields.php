@@ -101,6 +101,7 @@ if (!function_exists('field_check')) {
     function field_check(string $name, string $label, bool $checked, string $desc = '', string $span = ''): string
     {
         return '<label class="check' . ($span ? ' ' . $span : '') . '">'
+            . '<input type="hidden" name="' . e($name) . '" value="0">'
             . '<input type="checkbox" name="' . e($name) . '" value="1"' . ($checked ? ' checked' : '') . '>'
             . '<span class="check-body"><strong>' . e($label) . '</strong>'
             . ($desc !== '' ? '<span>' . e($desc) . '</span>' : '')

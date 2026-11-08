@@ -38,6 +38,7 @@ foreach ([
     [str_contains($html, '>Registration<') && str_contains($html, 'Unknown'), 'trunk registration status renders when AMI is unavailable'],
     [str_contains($html, '>Uptime<'), 'trunk uptime column renders'],
     [str_contains($html, 'data-modal-open="trunkMonitor1"') && str_contains($html, 'id="trunkMonitor1"'), 'trunk Monitor action opens its popup'],
+    [str_contains($html, '>Active calls<') && str_contains($html, 'data-secret-target="sip_trunk_auth_secret"'), 'trunks show live call counts and an on-demand password control'],
 ] as [$ok, $description]) {
     if (!$ok) {
         throw new RuntimeException('FAIL: ' . $description);
@@ -50,6 +51,13 @@ if (!str_contains($outboundHtml, '<option value="1">Test trunk</option>')) {
     throw new RuntimeException('FAIL: outbound route selector renders trunk names and IDs');
 }
 echo "PASS: outbound route selector renders trunk names and IDs\n";
+$timeRedirect = (new App\Controllers\RouteController())->storeTime(
+    new App\Core\Request('POST', '/routes/time', [], ['name' => ''])
+);
+if (($timeRedirect->headers()['Location'] ?? '') !== '/routes?tab=time') {
+    throw new RuntimeException('FAIL: time-condition validation returns to its originating tab');
+}
+echo "PASS: time-condition validation returns to its originating tab\n";
 if (!str_contains($outboundHtml, '<textarea id="match_pattern" name="match_pattern"')
     || !str_contains($outboundHtml, 'Add up to 20 Asterisk patterns, one per line.')) {
     throw new RuntimeException('FAIL: outbound route supports multiple dial patterns');

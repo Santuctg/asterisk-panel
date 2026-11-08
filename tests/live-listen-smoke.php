@@ -140,6 +140,13 @@ $labeledChannels = $trunkLabelMethod->invoke(new App\Controllers\DashboardContro
 $check(($labeledChannels[0]['trunk_name'] ?? '') === 'Tracked'
     && ($labeledChannels[1]['trunk_name'] ?? '') === 'Tracked',
     'active calls show the configured tenant trunk name for direct and shared-provider channels');
+$trunkCounts = App\Controllers\RouteController::trunkActiveCallCounts([
+    ['name' => 'PJSIP/trunk-' . $trackedTrunk . '-00000001', 'linkedid' => 'call-a'],
+    ['name' => 'PJSIP/trunk-' . $trackedTrunk . '-00000002', 'linkedid' => 'call-a'],
+    ['name' => 'PJSIP/trunk-shared-' . $sharedSuffix . '-00000003', 'linkedid' => 'call-b'],
+], [['id' => $trackedTrunk, 'host' => 'sip.example.test']]);
+$check(($trunkCounts[$trackedTrunk] ?? 0) === 2,
+    'trunk page counts unique direct and shared-provider live calls');
 $settingsFiles = $gen->generateFor('settings');
 $check(in_array('pjsip_port.conf', $settingsFiles, true) && in_array('dialplan.conf', $settingsFiles, true), 'system settings regenerate SIP and tenant dialplan configuration');
 $tracker = new App\Services\Asterisk\TrunkStatusTracker();
@@ -200,6 +207,8 @@ $check(str_contains($outboundDialplan, "[panel-inbound-shared-{$sharedSuffix}]")
     && str_contains($outboundDialplan, 'Goto(tenant_b-inbound,${EXTEN},1)')
     && str_contains($outboundDialplan, 'exten => _09642359359,1,NoOp(Shared-provider registration dispatch to tenant_a)')
     && str_contains($outboundDialplan, 'Set(__PANEL_INBOUND_CALLER=${CALLERID(num)})')
+    && str_contains($outboundDialplan, 'Set(__PANEL_CALL_STAGE=Ring Group: Sales)')
+    && str_contains($outboundDialplan, 'Set(__PANEL_CALL_STAGE=Extension: 1001)')
     && str_contains($outboundDialplan, 'Goto(tenant_a-inbound,${EXTEN},1)')
     && str_contains($outboundDialplan, 'exten => _09642105105,1,NoOp(Shared-provider registration dispatch to tenant_b)')
     && str_contains($outboundDialplan, 'Goto(tenant_b-inbound,${EXTEN},1)')

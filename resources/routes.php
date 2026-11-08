@@ -57,6 +57,7 @@ $router->get('/extensions/{id}/edit', [ExtensionController::class, 'edit'], [Aut
 $router->post('/extensions/{id}', [ExtensionController::class, 'update'], [Auth::require('extension.manage'), Csrf::middleware(...)]);
 $router->delete('/extensions/{id}', [ExtensionController::class, 'destroy'], [Auth::require('extension.manage'), Csrf::middleware(...)]);
 $router->post('/extensions/{id}/regenerate-secret', [ExtensionController::class, 'regenerateSecret'], [Auth::require('extension.manage'), Csrf::middleware(...)]);
+$router->post('/extensions/{id}/reveal-secret', [ExtensionController::class, 'revealSecret'], [Auth::require('extension.manage'), Csrf::middleware(...)]);
 
 // Voicemail (to email) + mailboxes
 $router->get('/voicemail', [VoicemailController::class, 'index'], [Auth::require('voicemail.view')]);
@@ -108,6 +109,7 @@ $router->delete('/routes/outbound/{id}', [RouteController::class, 'destroyOutbou
 $router->post('/routes/trunks', [RouteController::class, 'storeTrunk'], [Auth::require('route.manage'), Csrf::middleware(...)]);
 $router->post('/routes/trunks/{id}', [RouteController::class, 'updateTrunk'], [Auth::require('route.manage'), Csrf::middleware(...)]);
 $router->delete('/routes/trunks/{id}', [RouteController::class, 'destroyTrunk'], [Auth::require('route.manage'), Csrf::middleware(...)]);
+$router->post('/routes/trunks/{id}/reveal-secret', [RouteController::class, 'revealTrunkSecret'], [Auth::require('route.manage'), Csrf::middleware(...)]);
 $router->post('/routes/time', [RouteController::class, 'storeTime'], [Auth::require('route.manage'), Csrf::middleware(...)]);
 $router->post('/routes/time/{id}', [RouteController::class, 'updateTime'], [Auth::require('route.manage'), Csrf::middleware(...)]);
 $router->delete('/routes/time/{id}', [RouteController::class, 'destroyTime'], [Auth::require('route.manage'), Csrf::middleware(...)]);

@@ -9,6 +9,7 @@ $appLayout = file_get_contents(BASE_PATH . '/themes/default/layouts/app.php');
 $authLayout = file_get_contents(BASE_PATH . '/themes/default/layouts/auth.php');
 $css = file_get_contents(BASE_PATH . '/public/assets/css/app.css');
 $appJs = file_get_contents(BASE_PATH . '/public/assets/js/app.js');
+$fields = file_get_contents(BASE_PATH . '/themes/default/views/partials/fields.php');
 $i18nJs = file_get_contents(BASE_PATH . '/public/assets/js/i18n.js');
 $routesView = file_get_contents(BASE_PATH . '/themes/default/views/routes/index.php');
 $extensionsView = file_get_contents(BASE_PATH . '/themes/default/views/extensions/index.php');
@@ -35,6 +36,7 @@ $checks = [
     [str_contains($routesView, 'route-modal outbound-route-modal') && str_contains($routesView, 'route-time-grid') && str_contains($routesView, 'Pattern examples'), 'routing editors use compact layouts'],
     [str_contains($extensionsView, 'Extension / name') && !str_contains($extensionsView, '<th>SIP password</th>') && str_contains($extensionsView, 'extensions-table'), 'extension table removes redundant columns and uses compact sizing'],
     [str_contains($appJs, 'enhanceFieldHelp(document)') && str_contains($appJs, 'enhanceCheckHelp(document)') && str_contains($appJs, "button.className = 'field-help-button'") && str_contains($appJs, "required.className = 'required-mark'"), 'field and checkbox instructions become accessible info tooltips'],
+    [str_contains($fields, 'type="hidden" name="') && str_contains($fields, 'value="0"'), 'checkboxes submit an explicit off value when unchecked'],
     [str_contains($css, '.form-help-popover') && str_contains($css, '.field-label-row') && str_contains($css, '.required-mark'), 'instruction tooltip and required-field styles are available'],
     [str_contains($css, '.form-grid:has(> .field) > .check') && str_contains($css, '> :not(.field) > .check'), 'checkbox cards align with adjacent form controls'],
     [str_contains($phoneLayout, 'phone-content') && !str_contains($phoneLayout, 'sidebar-nav'), 'web phone uses a standalone shell'],

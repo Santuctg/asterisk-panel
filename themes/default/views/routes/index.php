@@ -250,7 +250,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
             <?php else: ?>
                 <div class="table-wrap">
                     <table class="compact-table route-table">
-                         <thead><tr><th>Name</th><th>Host</th><th>Username</th><th>From domain</th><th>Registration</th><th>Uptime</th><th>Latency</th><th>Config</th><th class="actions">Actions</th></tr></thead>
+                         <thead><tr><th>Name</th><th>Host</th><th>Username</th><th>From domain</th><th>Registration</th><th>Active calls</th><th>Uptime</th><th>Latency</th><th>Config</th><th class="actions">Actions</th></tr></thead>
                         <tbody>
                             <?php foreach ($trunks as $t): ?>
                                 <tr>
@@ -271,6 +271,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                                             <span class="badge amber"><span class="dot"></span>Unregistered</span>
                                         <?php endif; ?>
                                      </td>
+                                    <td><span class="badge <?= (int) ($t['active_calls'] ?? 0) > 0 ? 'blue' : 'gray' ?>"><?= (int) ($t['active_calls'] ?? 0) ?> live</span></td>
                                     <td>
                                         <?php if ($t['uptime_seconds'] !== null): ?>
                                             <strong class="mono"><?= e(format_duration((int) $t['uptime_seconds'])) ?></strong>
@@ -417,6 +418,10 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                             <?php echo field_text('sip_trunk_auth_secret', 'SIP trunk password', '', [
                                 'type' => 'password', 'autocomplete' => 'new-password',
                                 'hint' => 'On edit, leave blank to keep the existing provider password.']); ?>
+                            <div class="field" id="trunkSecretRevealWrap" hidden>
+                                <label>&nbsp;</label>
+                                <button type="button" class="btn" id="trunkSecretReveal" data-secret-target="sip_trunk_auth_secret">Show current password</button>
+                            </div>
                             <?php echo field_text('from_domain', 'From domain', '', ['hint' => 'Defaults to the host.']); ?>
                             <?php echo field_text('cid', 'Caller ID', '', ['placeholder' => 'Name <number>']); ?>
                             <?php echo field_text('register', 'Re-register every (seconds)', 300, ['type' => 'number']); ?>
@@ -663,11 +668,20 @@ $activeTab = $_GET['tab'] ?? 'inbound';
               refreshDestinationFilters(form);
               if (cfg.modal === 'outboundModal') renderOutboundSchedules(data.schedules || []);
              if (cfg.modal === 'trunkModal') {
-                 form.elements.sip_trunk_auth_id.value = data.username || '';
-                  form.elements.sip_trunk_auth_secret.value = '';
-             }
+                  form.elements.sip_trunk_auth_id.value = data.username || '';
+                   form.elements.sip_trunk_auth_secret.value = '';
+                   var reveal = document.getElementById('trunkSecretReveal');
+                   var revealWrap = document.getElementById('trunkSecretRevealWrap');
+                   if (reveal && revealWrap) {
+                       reveal.dataset.secretReveal = '/routes/trunks/' + data.id + '/reveal-secret';
+                       delete reveal.dataset.secretLoaded;
+                       reveal.textContent = 'Show current password';
+                       reveal.hidden = !data.has_secret;
+                       revealWrap.hidden = !data.has_secret;
+                   }
+              }
             cfg.checks.forEach(function (pair) {
-                var el = form.elements[pair[0]];
+                var el = form.querySelector('input[type="checkbox"][name="' + pair[0] + '"]');
                 if (el) el.checked = Number(data[pair[0]]) === pair[1];
             });
             });
@@ -682,6 +696,12 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                 submit.textContent = 'Add';
                 refreshDestinationFilters(form);
                 if (cfg.modal === 'outboundModal') renderOutboundSchedules([]);
+                if (cfg.modal === 'trunkModal') {
+                    var revealWrap = document.getElementById('trunkSecretRevealWrap');
+                    var reveal = document.getElementById('trunkSecretReveal');
+                    if (revealWrap) revealWrap.hidden = true;
+                    if (reveal) delete reveal.dataset.secretLoaded;
+                }
             });
         });
     });

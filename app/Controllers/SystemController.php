@@ -46,19 +46,23 @@ final class SystemController extends BaseController
                 $confs    = $this->tenantConferences($mgr->conferences());
                 $queues   = $this->tenantLiveRows($mgr->queueStatus(), 'name', 'queues', ['extension']);
 
-                // Collect per-extension connected IP from channel snapshot.
+                // Contact URIs carry the registered phone's network address;
+                // channel Uniqueid values are call identifiers, never IPs.
                 if ($tenantId) {
                     try {
-                        foreach ($channels as $chan) {
-                            $ext = (string) ($chan['extension'] ?? '');
-                            if ($ext !== '' && !isset($extIps[$ext])) {
-                                $ui = (string) ($chan['uniqueid'] ?? '');
-                                $ip = $ui !== '' ? substr($ui, strrpos($ui, '-') + 1) : '';
-                                $extIps[$ext] = $ip;
-                            }
-                        }
+                        $tenant = $this->db()->one('SELECT context, domain FROM tenants WHERE id = ?', [$tenantId]) ?? [];
+                        $extensions = $this->db()->all(
+                            'SELECT extension FROM extensions WHERE tenant_id = ? AND enabled = 1',
+                            [$tenantId]
+                        );
+                        $extIps = self::extensionContactIps(
+                            $extensions,
+                            $mgr->contactDetails(),
+                            (string) ($tenant['domain'] ?? ''),
+                            (string) ($tenant['context'] ?? '')
+                        );
                     } catch (\Throwable $e) {
-                        \App\Core\Logger::info('Status page: channel snapshot unavailable', ['error' => $e->getMessage()]);
+                        \App\Core\Logger::info('Status page: contact details unavailable', ['error' => $e->getMessage()]);
                     }
                 }
             }
@@ -119,6 +123,32 @@ final class SystemController extends BaseController
             'serverStats'=> $serverStats,
             'serverSeries'=> $serverSeries,
         ]);
+    }
+
+    /** @return array<string,list<string>> extension number => registered IPs */
+    public static function extensionContactIps(array $extensions, array $details, string $domain, string $context): array
+    {
+        $realm = strtolower(rtrim(trim($domain), '.')) ?: $context;
+        $safeContext = preg_replace('/[^A-Za-z0-9_]/', '_', $context) ?: '';
+        $result = [];
+        foreach ($extensions as $extension) {
+            $number = (string) ($extension['extension'] ?? '');
+            if ($number === '') continue;
+            $keys = [$number . '@' . $realm];
+            if ($safeContext !== '') {
+                $keys[] = $safeContext . '_' . $number . '-phone-web';
+                $keys[] = $safeContext . '_' . $number . '-web';
+            }
+            foreach (array_unique($keys) as $key) {
+                foreach (($details[$key]['ips'] ?? []) as $ip) {
+                    if (filter_var($ip, FILTER_VALIDATE_IP) !== false
+                        && !in_array($ip, $result[$number] ?? [], true)) {
+                        $result[$number][] = $ip;
+                    }
+                }
+            }
+        }
+        return $result;
     }
 
     /**

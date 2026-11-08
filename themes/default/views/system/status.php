@@ -319,6 +319,7 @@ $meterWidth = static function (float $percent): int {
 
     var ENDPOINT = '/system/server-stats';
     var INTERVAL = 10000;
+    var INITIAL_SERIES = <?= json_encode(array_values($serverSeries), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?: '[]' ?>;
     var timer = null;
     var busy = false;
 
@@ -389,6 +390,45 @@ $meterWidth = static function (float $percent): int {
         if (sub) { sub.hidden = !net; }
     }
 
+    function bindChartTooltip(host, svg, points, geometry) {
+        var ns = 'http://www.w3.org/2000/svg';
+        var guide = document.createElementNS(ns, 'line');
+        guide.setAttribute('class', 'chart-hover-guide');
+        guide.setAttribute('y1', geometry.y0);
+        guide.setAttribute('y2', geometry.y1);
+        guide.hidden = true;
+        svg.appendChild(guide);
+        var tooltip = document.createElement('div');
+        tooltip.className = 'chart-tooltip';
+        tooltip.hidden = true;
+        host.appendChild(tooltip);
+
+        svg.addEventListener('mousemove', function (event) {
+            var rect = svg.getBoundingClientRect();
+            var viewX = (event.clientX - rect.left) / rect.width * geometry.width;
+            var fraction = Math.max(0, Math.min(1, (viewX - geometry.x0) / (geometry.x1 - geometry.x0)));
+            var wanted = geometry.t0 + fraction * (geometry.t1 - geometry.t0);
+            var sample = points.reduce(function (best, point) {
+                return Math.abs(point.t - wanted) < Math.abs(best.t - wanted) ? point : best;
+            }, points[0]);
+            var x = geometry.x0 + (sample.t - geometry.t0) / (geometry.t1 - geometry.t0) * (geometry.x1 - geometry.x0);
+            guide.setAttribute('x1', x);
+            guide.setAttribute('x2', x);
+            guide.hidden = false;
+            var value = function (key) { return typeof sample[key] === 'number' ? sample[key].toFixed(1) + '%' : '—'; };
+            tooltip.textContent = new Date(sample.t * 1000).toLocaleString()
+                + ' · CPU ' + value('cpu') + ' · Memory ' + value('mem') + ' · Disk ' + value('disk');
+            tooltip.hidden = false;
+            var left = (x / geometry.width) * rect.width;
+            tooltip.style.left = Math.max(8, Math.min(rect.width - tooltip.offsetWidth - 8, left - tooltip.offsetWidth / 2)) + 'px';
+            tooltip.style.top = Math.max(6, (event.clientY - rect.top) - tooltip.offsetHeight - 12) + 'px';
+        });
+        svg.addEventListener('mouseleave', function () {
+            guide.hidden = true;
+            tooltip.hidden = true;
+        });
+    }
+
     // Same geometry as server_resource_chart() so the first poll matches the
     // server-rendered SVG exactly.
     function renderChart(series) {
@@ -454,6 +494,9 @@ $meterWidth = static function (float $percent): int {
         host.innerHTML = '<svg class="chart" viewBox="0 0 ' + W + ' ' + H
             + '" role="img" aria-label="CPU, memory and disk usage over the last 24 hours">'
             + parts.join('') + '</svg>';
+        bindChartTooltip(host, host.querySelector('svg'), points, {
+            width: W, x0: x0, x1: x1, y0: y0, y1: y1, t0: t0, t1: t1
+        });
     }
 
     function poll() {
@@ -489,6 +532,7 @@ $meterWidth = static function (float $percent): int {
         }
     });
 
+    renderChart(INITIAL_SERIES);
     start();
 })();
 </script>

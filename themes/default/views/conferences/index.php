@@ -135,8 +135,8 @@ foreach ((array) $mohClasses as $c) { $mohOpts[$c['name']] = $c['name']; }
             var el = form.elements[k];
             if (el && d[k] !== undefined && d[k] !== null) el.value = d[k];
         });
-        form.elements['record'].checked = Number(d.record) === 1;
-        form.elements['enabled'].checked = Number(d.enabled) === 1;
+        form.querySelector('input[type="checkbox"][name="record"]').checked = Number(d.record) === 1;
+        form.querySelector('input[type="checkbox"][name="enabled"]').checked = Number(d.enabled) === 1;
         });
     });
 

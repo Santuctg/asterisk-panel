@@ -314,10 +314,21 @@ $check(str_contains($full, 'class="meter"') && str_contains($full, 'id="srvCpuBa
     'usage meters render with a threshold colour');
 $check(str_contains($full, 'id="srvChart"') && str_contains($full, 'Resource history'),
     'status page renders the 24-hour resource history card');
+$check(str_contains($full, 'chart-tooltip') && str_contains($full, 'bindChartTooltip')
+    && str_contains($full, "toLocaleString()"),
+    'resource history hover shows the sample time and metric values');
 $check(str_contains($full, '/system/server-stats') && str_contains($full, 'INTERVAL = 10000')
     && str_contains($full, 'setInterval(poll'),
     'status page wires up the realtime resource poller');
 $check(!str_contains($full, 'Something went wrong'), 'populated status page never falls through to the 500 page');
+$mappedIps = App\Controllers\SystemController::extensionContactIps(
+    [['extension' => '1001']],
+    ['1001@default' => ['ips' => ['192.0.2.44']]],
+    '',
+    'default'
+);
+$check(($mappedIps['1001'][0] ?? '') === '192.0.2.44',
+    'default tenant connected extension IP comes from its contact AOR');
 
 // Every value null (the Windows / restricted-host case) must still render.
 $none = $renderStatus($base + ['serverStats' => [

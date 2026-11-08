@@ -169,7 +169,7 @@ $toneOpts = ['beep' => 'Beep', 'ring' => 'Ring', 'vertex' => 'Vertex', 'none' =>
 
         [['allow_transfer', 1], ['allow_repark', 1], ['allow_hangup', 0],
          ['play_sounds', 1], ['record', 0], ['enabled', 1]].forEach(function (pair) {
-            var el = form.elements[pair[0]];
+            var el = form.querySelector('input[type="checkbox"][name="' + pair[0] + '"]');
             if (el) el.checked = Number(data[pair[0]]) === pair[1];
         });
         });

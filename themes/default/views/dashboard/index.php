@@ -194,6 +194,13 @@ $tile = function (string $icon, string $tone, int|string $value, string $label, 
             var peer = channel.bridged && byName[channel.bridged] ? byName[channel.bridged]
                 : linked.find(function (leg) { return leg !== channel; }) || null;
             if (inbound) {
+                var answered = linked.find(function (leg) {
+                    return String(leg.name || '').includes('@')
+                        && String(leg.state || '').toLowerCase() === 'up'
+                        && (leg.bridged || leg.bridgeid);
+                }) || null;
+                var stageLeg = linked.find(function (leg) { return leg.call_stage; }) || trunk || inbound;
+                var stage = String((stageLeg && stageLeg.call_stage) || 'Inbound routing');
                 var incomingNumber = validNumber(inbound.inbound_caller)
                     || validNumber(trunk && trunk.inbound_caller)
                     || validNumber(inbound.caller)
@@ -201,15 +208,15 @@ $tile = function (string $icon, string $tone, int|string $value, string $label, 
                     || validNumber(local && local.caller)
                     || validNumber(inbound.connected)
                     || 'Unknown';
-                var targetNumber = endpoint(local || channel);
+                var targetNumber = answered ? endpoint(answered) : stage;
                 calls.push({
                     from: incomingNumber,
                     fromEndpoint: endpointLabel(inbound),
-                    to: 'Extension',
+                    to: answered ? 'Answered extension' : 'Current stage',
                     toEndpoint: targetNumber,
-                    status: linked.some(function (leg) { return String(leg.state || '').toLowerCase() === 'up'; }) ? 'Connected' : 'Ringing',
+                    status: answered ? 'Connected' : (/^(IVR|Announcement|Conference):/i.test(stage) ? 'In progress' : 'Ringing'),
                     duration: String(inbound.duration || channel.duration || '00:00:00'),
-                    route: 'Inbound'
+                    route: stage
                 });
                 return;
             }
