@@ -14,7 +14,12 @@ const disconnectButton = $('#web-phone-disconnect');
 const presence = $('#web-phone-presence');
 const identity = $('#web-phone-identity');
 const historyList = $('#web-phone-history');
+const voicemailList = $('#web-phone-voicemail');
 const contactsList = $('#web-phone-contacts');
+const contactIndex = $('#web-phone-contact-index');
+const callMenu = $('#web-phone-call-menu');
+const contactMenu = $('#web-phone-contact-menu');
+const contactCount = $('#web-phone-contact-count');
 const listWorkspace = $('#web-phone-list-workspace');
 const search = $('#web-phone-search');
 const listTitle = $('#web-phone-list-title');
@@ -59,6 +64,8 @@ let accountKey = '';
 let contacts = [];
 let history = [];
 let currentView = 'calls';
+let currentSection = 'recent';
+let favorites = new Set();
 let currentTarget = '';
 let currentDirection = '';
 let startedAt = null;
@@ -167,6 +174,16 @@ setClock();
 window.setInterval(setClock, 30000);
 
 function historyStorageKey() { return `panel-webphone-history:${accountKey}`; }
+function favoriteStorageKey() { return `panel-webphone-favorites:${accountKey}`; }
+function loadFavorites() {
+    try {
+        const saved = JSON.parse(localStorage.getItem(favoriteStorageKey()) || '[]');
+        favorites = new Set(Array.isArray(saved) ? saved.map(String) : []);
+    } catch (_) { favorites = new Set(); }
+}
+function saveFavorites() {
+    try { localStorage.setItem(favoriteStorageKey(), JSON.stringify([...favorites])); } catch (_) {}
+}
 function loadHistory(serverHistory = []) {
     let localHistory = [];
     try { localHistory = JSON.parse(localStorage.getItem(historyStorageKey()) || '[]'); }
@@ -187,19 +204,30 @@ function saveHistory(entry) {
     try { localStorage.setItem(historyStorageKey(), JSON.stringify(history)); } catch (_) {}
     renderList();
 }
-function listRow(primary, secondary, numberValue, icon = 'phone', online = undefined) {
+function callHistoryRow(item) {
+    const numberValue = String(item.number || '');
+    const contact = contacts.find(candidate => candidate.extension === numberValue);
     const row = document.createElement('button');
-    row.type = 'button'; row.className = 'webphone-history-row'; row.dataset.number = numberValue;
-    const avatar = document.createElement('span'); avatar.appendChild(phoneIcon(icon));
-    if (online !== undefined) {
-        row.classList.add('webphone-contact-row', online === true ? 'is-online' : (online === false ? 'is-offline' : 'is-unknown'));
-        avatar.setAttribute('aria-hidden', 'true');
+    row.type = 'button'; row.className = 'webphone-history-row webphone-call-row'; row.dataset.number = numberValue;
+    const avatar = document.createElement('span');
+    if (contact) {
+        avatar.className = 'webphone-contact-avatar'; avatar.style.setProperty('--contact-hue', String(contactHue(contact)));
+        avatar.textContent = contactInitials(contact);
+    } else {
+        avatar.appendChild(phoneIcon('user'));
     }
     const detail = document.createElement('div');
-    const strong = document.createElement('strong'); strong.textContent = primary || numberValue || 'Unknown';
-    const small = document.createElement('small'); small.textContent = secondary;
+    const strong = document.createElement('strong'); strong.textContent = contact?.name || numberValue || 'Unknown';
+    const small = document.createElement('small'); small.textContent = contact ? numberValue : (item.direction === 'incoming' ? 'Incoming call' : 'Outgoing call');
+    const duration = Number(item.duration || 0);
+    const outcome = document.createElement('span'); outcome.className = 'webphone-call-outcome';
+    const missed = item.direction === 'incoming' && duration < 1;
+    outcome.classList.toggle('is-missed', missed);
+    outcome.append(phoneIcon(missed ? 'phone-off' : 'phone'));
+    outcome.append(document.createTextNode(missed ? 'Missed call' : (duration ? formatDuration(duration) : String(item.result || 'No answer'))));
+    const time = document.createElement('time'); time.dateTime = String(item.time || ''); time.textContent = formatTime(new Date(item.time));
     const action = document.createElement('span'); action.className = 'webphone-row-action'; action.appendChild(phoneIcon('phone'));
-    detail.append(strong, small); row.append(avatar, detail, action);
+    detail.append(strong, small); row.append(avatar, detail, outcome, time, action);
     row.addEventListener('click', () => {
         number.value = numberValue;
         setStatus(`Ready to call ${numberValue}.`);
@@ -207,44 +235,125 @@ function listRow(primary, secondary, numberValue, icon = 'phone', online = undef
     });
     return row;
 }
+function contactInitials(contact) {
+    const parts = String(contact.name || contact.extension).trim().split(/\s+/).filter(Boolean);
+    return (parts.length > 1 ? parts[0][0] + parts.at(-1)[0] : (parts[0] || '?').slice(0, 2)).toUpperCase();
+}
+function contactHue(contact) {
+    return [...String(contact.name || contact.extension)].reduce((value, char) => (value * 31 + char.charCodeAt(0)) % 360, 210);
+}
+function selectContactNumber(extension) {
+    number.value = extension;
+    setStatus(`Ready to call ${extension}.`);
+    number.focus();
+}
+function contactRow(contact) {
+    const row = document.createElement('div');
+    row.className = `webphone-history-row webphone-contact-row ${contact.online === true ? 'is-online' : (contact.online === false ? 'is-offline' : 'is-unknown')}`;
+    row.dataset.number = contact.extension; row.tabIndex = 0; row.setAttribute('role', 'button');
+    const avatar = document.createElement('span'); avatar.className = 'webphone-contact-avatar';
+    avatar.style.setProperty('--contact-hue', String(contactHue(contact))); avatar.textContent = contactInitials(contact);
+    const detail = document.createElement('div');
+    const strong = document.createElement('strong'); strong.textContent = contact.name || contact.extension;
+    const state = contact.online === true ? 'Online' : (contact.online === false ? 'Offline' : 'Unknown');
+    const small = document.createElement('small'); small.textContent = `${contact.extension} · Tenant Contacts · ${state}`;
+    detail.append(strong, small);
+    const favorite = document.createElement('button'); favorite.type = 'button'; favorite.className = 'webphone-favorite-action';
+    favorite.title = favorites.has(contact.extension) ? 'Remove from favorites' : 'Add to favorites';
+    favorite.setAttribute('aria-label', favorite.title); favorite.setAttribute('aria-pressed', String(favorites.has(contact.extension)));
+    favorite.classList.toggle('is-active', favorites.has(contact.extension)); favorite.appendChild(phoneIcon('star'));
+    favorite.addEventListener('click', event => {
+        event.stopPropagation();
+        favorites.has(contact.extension) ? favorites.delete(contact.extension) : favorites.add(contact.extension);
+        saveFavorites(); renderList();
+    });
+    const action = document.createElement('button'); action.type = 'button'; action.className = 'webphone-row-action';
+    action.title = `Call ${contact.name || contact.extension}`; action.setAttribute('aria-label', action.title);
+    action.appendChild(phoneIcon('phone')); action.addEventListener('click', event => { event.stopPropagation(); selectContactNumber(contact.extension); });
+    row.append(avatar, detail, favorite, action);
+    row.addEventListener('click', () => selectContactNumber(contact.extension));
+    row.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectContactNumber(contact.extension); } });
+    return row;
+}
+function renderContactIndex(letters) {
+    contactIndex.replaceChildren();
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'.split('').forEach(letter => {
+        const button = document.createElement('button'); button.type = 'button'; button.textContent = letter;
+        button.disabled = !letters.has(letter);
+        button.addEventListener('click', () => document.getElementById(`web-phone-contact-group-${letter === '#' ? 'other' : letter}`)?.scrollIntoView({block: 'start'}));
+        contactIndex.appendChild(button);
+    });
+}
 function renderList() {
     const query = search.value.trim().toLowerCase();
-    const target = currentView === 'contacts' ? contactsList : historyList;
-    target.replaceChildren();
-    const rows = currentView === 'contacts'
-        ? contacts.filter(item => `${item.name} ${item.extension}`.toLowerCase().includes(query))
-        : history.filter(item => `${item.number} ${item.result} ${item.direction}`.toLowerCase().includes(query));
+    if (currentView === 'calls' && currentSection === 'voicemail') {
+        voicemailList.replaceChildren();
+        const empty = document.createElement('div'); empty.className = 'webphone-history-empty webphone-voicemail-empty';
+        empty.append(phoneIcon('voicemail'), Object.assign(document.createElement('strong'), {textContent: 'No voicemail messages'}), Object.assign(document.createElement('small'), {textContent: 'New mailbox messages will appear here when voicemail message sync is available.'}));
+        voicemailList.appendChild(empty); return;
+    }
+    if (currentView === 'calls') {
+        historyList.replaceChildren();
+        const rows = history.filter(item => `${item.number} ${item.result} ${item.direction}`.toLowerCase().includes(query));
+        rows.forEach(item => {
+            historyList.appendChild(callHistoryRow(item));
+        });
+        if (rows.length) return;
+        const empty = document.createElement('div'); empty.className = 'webphone-history-empty';
+        empty.textContent = 'No call history'; historyList.appendChild(empty); return;
+    }
+
+    contactsList.replaceChildren();
+    let rows = contacts.filter(item => `${item.name} ${item.extension}`.toLowerCase().includes(query));
+    if (currentSection === 'favorites') rows = rows.filter(item => favorites.has(item.extension));
+    rows.sort((left, right) => String(left.name || left.extension).localeCompare(String(right.name || right.extension), undefined, {sensitivity: 'base'}));
+    const groups = new Map();
     rows.forEach(item => {
-        if (currentView === 'contacts') {
-            const state = item.online === true ? 'Online' : (item.online === false ? 'Offline' : 'Unknown');
-            target.appendChild(listRow(item.name, `Extension ${item.extension} · ${state}`, item.extension, 'user', item.online ?? null));
-        } else {
-            const when = new Date(item.time);
-            const direction = item.direction === 'incoming' ? 'Incoming' : 'Outgoing';
-            const duration = item.duration ? ` · ${formatDuration(Number(item.duration))}` : '';
-            target.appendChild(listRow(item.number, `${direction} · ${item.result}${duration} · ${formatTime(when)}`, item.number));
-        }
+        const first = String(item.name || item.extension).trim().charAt(0).toUpperCase();
+        const letter = /^[A-Z]$/.test(first) ? first : '#';
+        if (!groups.has(letter)) groups.set(letter, []);
+        groups.get(letter).push(item);
     });
+    groups.forEach((items, letter) => {
+        const heading = document.createElement('div'); heading.className = 'webphone-contact-group';
+        heading.id = `web-phone-contact-group-${letter === '#' ? 'other' : letter}`; heading.textContent = `${letter} (${items.length})`;
+        contactsList.appendChild(heading); items.forEach(item => contactsList.appendChild(contactRow(item)));
+    });
+    renderContactIndex(new Set(groups.keys()));
     if (!rows.length) {
         const empty = document.createElement('div'); empty.className = 'webphone-history-empty';
-        empty.textContent = currentView === 'contacts' ? (ua ? 'No contacts found' : 'Sign in to view contacts') : 'No call history';
-        target.appendChild(empty);
+        empty.textContent = currentSection === 'favorites' ? 'No favorite contacts yet' : (ua ? 'No contacts found' : 'Sign in to view contacts');
+        contactsList.appendChild(empty);
     }
 }
-function switchView(view) {
-    if (!['calls', 'contacts'].includes(view)) view = 'calls';
-    currentView = view;
-    $('.webphone-app').dataset.view = view;
-    document.querySelectorAll('[data-phone-view]').forEach(button => button.classList.toggle('is-active', button.dataset.phoneView === view));
-    historyList.hidden = view === 'contacts';
-    contactsList.hidden = view !== 'contacts';
-    listTitle.textContent = view === 'contacts' ? 'All Contacts' : 'Recent Calls';
-    listSummary.textContent = view === 'contacts' ? 'Select a contact to place a call' : 'Your latest incoming and outgoing calls';
-    search.placeholder = view === 'contacts' ? 'Search contacts' : 'Search calls';
+function switchSection(section) {
+    const allowed = currentView === 'contacts' ? ['all', 'favorites', 'tenant'] : ['recent', 'voicemail'];
+    currentSection = allowed.includes(section) ? section : allowed[0];
+    document.querySelectorAll('[data-phone-section]').forEach(button => button.classList.toggle('is-active', button.dataset.phoneSection === currentSection));
+    historyList.hidden = currentSection !== 'recent';
+    voicemailList.hidden = currentSection !== 'voicemail';
+    contactsList.hidden = currentView !== 'contacts';
+    contactIndex.hidden = currentView !== 'contacts';
+    const metadata = {
+        recent: ['Recent Calls', 'Your latest incoming and outgoing calls', 'Search calls'],
+        voicemail: ['Voicemail', 'Your voicemail mailbox', 'Search voicemail'],
+        all: ['All Contacts', 'All available tenant contacts', 'Search contacts'],
+        favorites: ['Favorites', 'Contacts you call most often', 'Search favorites'],
+        tenant: ['Tenant Contacts', 'Extensions available in this tenant', 'Search tenant contacts'],
+    }[currentSection];
+    [listTitle.textContent, listSummary.textContent, search.placeholder] = metadata;
     search.value = '';
     renderList();
 }
+function switchView(view) {
+    currentView = ['calls', 'contacts'].includes(view) ? view : 'calls';
+    $('.webphone-app').dataset.view = currentView;
+    document.querySelectorAll('[data-phone-view]').forEach(button => button.classList.toggle('is-active', button.dataset.phoneView === currentView));
+    callMenu.hidden = currentView !== 'calls'; contactMenu.hidden = currentView !== 'contacts';
+    switchSection(currentView === 'contacts' ? 'all' : 'recent');
+}
 document.querySelectorAll('[data-phone-view]').forEach(button => button.addEventListener('click', () => switchView(button.dataset.phoneView)));
+document.querySelectorAll('[data-phone-section]').forEach(button => button.addEventListener('click', () => switchSection(button.dataset.phoneSection)));
 search.addEventListener('input', renderList);
 
 function stopPresencePolling() {
@@ -540,6 +649,7 @@ function startPhone(config, password) {
     realm = config.realm;
     accountKey = `${config.realm}:${config.extension}`;
     contacts = Array.isArray(config.contacts) ? config.contacts : [];
+    loadFavorites(); contactCount.textContent = String(contacts.length);
     loadHistory(Array.isArray(config.history) ? config.history : []); renderList();
     const socket = new JsSIP.WebSocketInterface(`wss://${window.location.host}/ws`);
     ua = new JsSIP.UA({
@@ -724,7 +834,7 @@ disconnectButton.addEventListener('click', async () => {
         stopPresencePolling();
         if (ua) { ua.stop(); ua = null; }
         stopMicrophoneTest(); stopRingtone(); settingsModal.hidden = true; permissionModal.hidden = true;
-        setPresence('Offline'); dialer.hidden = true; listWorkspace.hidden = true; login.hidden = false; number.value = ''; contacts = [];
+        setPresence('Offline'); dialer.hidden = true; listWorkspace.hidden = true; login.hidden = false; number.value = ''; contacts = []; favorites = new Set(); contactCount.textContent = '0';
         login.querySelector('[name="secret"]').value = ''; login.querySelector('[name="secret"]').type = 'password';
         setPhoneIcon(passwordToggle, 'eye');
         passwordToggle.title = 'Show password'; passwordToggle.setAttribute('aria-label', passwordToggle.title);

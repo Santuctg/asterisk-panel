@@ -19,6 +19,9 @@
         <symbol id="wp-icon-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
         <symbol id="wp-icon-eye-off" viewBox="0 0 24 24"><path d="m3 3 18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 4.2A9.8 9.8 0 0 1 12 4c6.5 0 10 8 10 8a17 17 0 0 1-2.1 3.2M6.6 6.6C3.6 8.5 2 12 2 12s3.5 8 10 8a9.7 9.7 0 0 0 4.1-.9"/></symbol>
         <symbol id="wp-icon-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+        <symbol id="wp-icon-star" viewBox="0 0 24 24"><path d="m12 2.8 2.8 5.7 6.3.9-4.6 4.5 1.1 6.3-5.6-3-5.6 3 1.1-6.3-4.6-4.5 6.3-.9L12 2.8z"/></symbol>
+        <symbol id="wp-icon-voicemail" viewBox="0 0 24 24"><circle cx="6" cy="12" r="4"/><circle cx="18" cy="12" r="4"/><path d="M6 16h12"/></symbol>
+        <symbol id="wp-icon-building" viewBox="0 0 24 24"><path d="M4 21V3h12v18M16 9h4v12M8 7h4M8 11h4M8 15h4M2 21h20"/></symbol>
     </svg>
     <aside class="webphone-rail" aria-label="Web Phone navigation">
         <span class="webphone-avatar" title="Web Phone" aria-label="Web Phone">P</span>
@@ -34,9 +37,15 @@
     <aside class="webphone-side" aria-label="Calls and contacts">
         <div class="webphone-side-head"><strong>Web Phone</strong><span id="web-phone-presence" class="webphone-presence">Offline</span></div>
         <div class="webphone-search"><svg class="webphone-icon" aria-hidden="true"><use href="#wp-icon-search"></use></svg><input type="search" id="web-phone-search" placeholder="Search calls"></div>
-        <div class="webphone-view-menu">
-            <button type="button" class="is-active" data-phone-view="calls"><span><svg class="webphone-icon" aria-hidden="true"><use href="#wp-icon-phone"></use></svg></span><strong>Recent Calls</strong></button>
-            <button type="button" data-phone-view="contacts"><span><svg class="webphone-icon" aria-hidden="true"><use href="#wp-icon-users"></use></svg></span><strong>All Contacts</strong></button>
+        <div class="webphone-view-menu" id="web-phone-call-menu">
+            <button type="button" class="is-active" data-phone-section="recent"><span><svg class="webphone-icon" aria-hidden="true"><use href="#wp-icon-phone"></use></svg></span><strong>Recent Calls</strong></button>
+            <button type="button" data-phone-section="voicemail"><span><svg class="webphone-icon" aria-hidden="true"><use href="#wp-icon-voicemail"></use></svg></span><strong>Voicemail</strong></button>
+        </div>
+        <div class="webphone-view-menu" id="web-phone-contact-menu" hidden>
+            <button type="button" class="is-active" data-phone-section="all"><span><svg class="webphone-icon" aria-hidden="true"><use href="#wp-icon-users"></use></svg></span><strong>All Contacts</strong></button>
+            <button type="button" data-phone-section="favorites"><span class="is-favorite"><svg class="webphone-icon" aria-hidden="true"><use href="#wp-icon-star"></use></svg></span><strong>Favorites</strong></button>
+            <div class="webphone-menu-divider"></div>
+            <button type="button" data-phone-section="tenant"><span><svg class="webphone-icon" aria-hidden="true"><use href="#wp-icon-building"></use></svg></span><strong>Tenant Contacts</strong><small id="web-phone-contact-count">0</small></button>
         </div>
         <?php if ($browserReady): ?>
             <div class="webphone-dialer" id="web-phone-dialer" hidden>
@@ -80,7 +89,9 @@
             <div class="webphone-list-workspace" id="web-phone-list-workspace" hidden>
                 <header><div><span>PHONEBOOK</span><h1 id="web-phone-list-title">Recent Calls</h1></div><p id="web-phone-list-summary">Your latest incoming and outgoing calls</p></header>
                 <div class="webphone-history" id="web-phone-history"><div class="webphone-history-empty">No call history</div></div>
+                <div class="webphone-voicemail" id="web-phone-voicemail" hidden><div class="webphone-history-empty">No voicemail messages</div></div>
                 <div class="webphone-contacts" id="web-phone-contacts" hidden><div class="webphone-history-empty">Sign in to view contacts</div></div>
+                <nav class="webphone-contact-index" id="web-phone-contact-index" aria-label="Contact alphabet" hidden></nav>
             </div>
             <audio id="web-phone-audio" autoplay playsinline hidden></audio>
             <div class="webphone-settings-backdrop" id="web-phone-settings" hidden>

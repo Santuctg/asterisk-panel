@@ -62,6 +62,14 @@ $checks = [
     [!str_contains($phoneView, 'data-phone-view="dialpad"') && str_contains($phoneView, 'web-phone-backspace')
         && str_contains($phoneView, 'webphone-view-menu') && str_contains($phoneView, 'webphone-list-workspace')
         && !str_contains($phoneJs, "switchView('dialpad')"), 'calls and contacts share an integrated compact dialer without a separate dialpad page'],
+    [str_contains($phoneView, 'data-phone-section="recent"') && str_contains($phoneView, 'data-phone-section="voicemail"')
+        && str_contains($phoneView, 'data-phone-section="all"') && str_contains($phoneView, 'data-phone-section="favorites"')
+        && str_contains($phoneView, 'data-phone-section="tenant"') && str_contains($phoneView, 'web-phone-contact-index'), 'calls expose Recent Calls and Voicemail while contacts expose all, favorites, tenant list, and alphabet navigation'],
+    [str_contains($phoneJs, 'favoriteStorageKey()') && str_contains($phoneJs, 'function contactInitials(contact)')
+        && str_contains($phoneJs, "'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'") && str_contains($phoneJs, 'web-phone-contact-group-')
+        && str_contains($css, '.webphone-favorite-action.is-active'), 'contact favorites persist per phone account and contacts render in alphabetic groups'],
+    [str_contains($phoneJs, 'function callHistoryRow(item)') && str_contains($phoneJs, "outcome.className = 'webphone-call-outcome'")
+        && str_contains($phoneJs, "time.dateTime = String(item.time") && str_contains($css, '.webphone-call-row { grid-template-columns:'), 'recent calls use separate identity, outcome or duration, timestamp, and call-action columns'],
     [str_contains($css, 'background:linear-gradient(180deg,#111a31,#0b1224)')
         && str_contains($css, '.webphone-side .webphone-keypad button { width:38px; height:38px')
         && str_contains($css, '--phone-accent:#5b8cff')
@@ -77,7 +85,7 @@ $checks = [
     [str_contains($routes, "post('/web-phone/presence'")
         && str_contains($phoneJs, "fetch('/web-phone/presence'")
         && str_contains($phoneJs, 'startPresencePolling()')
-        && str_contains($phoneJs, "item.online === true ? 'Online'")
+        && str_contains($phoneJs, "contact.online === true ? 'Online'")
         && str_contains($phoneJs, "'is-unknown'")
         && str_contains($css, '.webphone-contact-row.is-online'), 'contacts poll tenant-scoped extension presence and render online, offline, or unknown indicators'],
     [str_contains($phoneView, 'id="web-phone-permissions"') && str_contains($phoneJs, 'showPermissionSetup()')
