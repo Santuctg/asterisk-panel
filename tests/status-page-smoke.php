@@ -49,7 +49,7 @@ $check(str_contains($offline, 'Offline') && str_contains($offline, 'Could not re
     'offline status page explains the AMI outage instead of failing');
 $check(!str_contains($offline, 'Something went wrong'), 'offline status page never falls through to the 500 page');
 
-// 2) Asterisk online with live data, including the connected-extension stat card.
+// 2) Asterisk online with live tenant data.
 $online = $renderStatus([
     'online'      => true,
     'version'     => ['version' => '20.5.0', 'raw' => 'Asterisk 20.5.0'],
@@ -63,8 +63,7 @@ $online = $renderStatus([
 ]);
 
 $check(str_contains($online, 'Online'), 'online status page reports the connection state');
-$check(str_contains($online, 'Connected extensions') && str_contains($online, '1 extension(s) connected'),
-    'connected extensions stat card renders its value');
+$check(!str_contains($online, 'Connected extensions'), 'redundant connected extensions stat card is removed');
 $check(str_contains($online, 'PJSIP/201-00000001'), 'live channel rows render');
 $check(str_contains($online, 'sip:201@10.0.0.5:5060') && str_contains($online, 'Grandstream GXP'),
     'registered endpoint rows render');
@@ -86,7 +85,7 @@ $empty = $renderStatus([
     'extIps'      => [],
 ]);
 
-$check(str_contains($empty, '0 extension(s) connected'), 'empty online status page shows zero connected extensions');
+$check(!str_contains($empty, 'Connected extensions'), 'empty online status omits connected extensions summary');
 $check(str_contains($empty, 'No active calls') && str_contains($empty, 'No registrations'),
     'empty states render instead of broken tables');
 
@@ -145,6 +144,11 @@ if ($chartAt !== false) {
     $chartHtml = substr($graphed, $chartAt, $chartEnd === false ? 4000 : $chartEnd - $chartAt + 6);
 }
 $check(substr_count($chartHtml, '<path ') === 3, 'the graph plots one path per metric');
+
+$controllerSource = file_get_contents(BASE_PATH . '/app/Controllers/SystemController.php');
+$check(!str_contains($controllerSource, "if (\$isGlobal) {\n                    \$version")
+    && str_contains($controllerSource, '$version  = $mgr->version();'),
+    'Asterisk version and uptime are fetched for tenant status viewers');
 
 // 4) Every icon referenced anywhere in the theme must exist on disk.
 $missing = [];

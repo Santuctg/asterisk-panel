@@ -37,10 +37,8 @@ final class SystemController extends BaseController
             $online = $mgr->isOnline();
 
             if ($online) {
-                if ($isGlobal) {
-                    $version  = $mgr->version();
-                    $uptime   = $mgr->uptime()['raw'] ?? '';
-                }
+                $version  = $mgr->version();
+                $uptime   = $mgr->uptime()['raw'] ?? '';
                 $channels = $tenantId ? $mgr->tenantChannels($tenantId, 30) : [];
                 $contacts = $tenantId && !$isGlobal ? $mgr->tenantContacts($tenantId) : $mgr->contacts();
                 $confs    = $this->tenantConferences($mgr->conferences());
@@ -134,11 +132,7 @@ final class SystemController extends BaseController
         foreach ($extensions as $extension) {
             $number = (string) ($extension['extension'] ?? '');
             if ($number === '') continue;
-            $keys = [$number . '@' . $realm];
-            if ($safeContext !== '') {
-                $keys[] = $safeContext . '_' . $number . '-phone-web';
-                $keys[] = $safeContext . '_' . $number . '-web';
-            }
+            $keys = \App\Services\Asterisk\AsteriskManager::extensionContactKeys($number, $realm, $safeContext);
             foreach (array_unique($keys) as $key) {
                 foreach (($details[$key]['ips'] ?? []) as $ip) {
                     if (filter_var($ip, FILTER_VALIDATE_IP) !== false

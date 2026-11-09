@@ -329,6 +329,24 @@ $mappedIps = App\Controllers\SystemController::extensionContactIps(
 );
 $check(($mappedIps['1001'][0] ?? '') === '192.0.2.44',
     'default tenant connected extension IP comes from its contact AOR');
+$legacyMappedIps = App\Controllers\SystemController::extensionContactIps(
+    [['extension' => '1001']],
+    ['default_1001-web' => ['ips' => ['192.0.2.45']]],
+    '',
+    'default'
+);
+$check(($legacyMappedIps['1001'][0] ?? '') === '192.0.2.45',
+    'tenant extension IP matching accepts the legacy Web Phone AOR');
+
+$monitor = file_get_contents(BASE_PATH . '/scripts/monitor-trunks.php');
+$installer = file_get_contents(BASE_PATH . '/scripts/install-server-ubuntu.sh');
+$updater = file_get_contents(BASE_PATH . '/scripts/update-helper.sh');
+$check(str_contains($monitor, 'ServerStatsHistory') && str_contains($monitor, 'ServerStats())->sample()'),
+    'background monitor records resource history without a browser session');
+$check(str_contains($installer, 'asterisk-panel-trunk-monitor.timer')
+    && str_contains($installer, 'enable --now asterisk-panel-trunk-monitor.timer')
+    && str_contains($updater, 'restart asterisk-panel-trunk-monitor.timer'),
+    'installer and updater keep the once-a-minute background sampler active');
 
 // Every value null (the Windows / restricted-host case) must still render.
 $none = $renderStatus($base + ['serverStats' => [

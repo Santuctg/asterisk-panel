@@ -59,13 +59,6 @@ $serverSeries = is_array($serverSeries ?? null) ? $serverSeries : [];
             <div class="stat-label">Uptime</div>
         </div>
     </div>
-    <div class="stat">
-        <div class="stat-icon teal"><?= $this->fragment('icons/server') ?></div>
-        <div class="stat-body">
-            <div class="stat-value"><?= $online ? count($extIps ?? []) . ' extension(s) connected' : '—' ?></div>
-            <div class="stat-label">Connected extensions</div>
-        </div>
-    </div>
 </div>
 
 <?php
