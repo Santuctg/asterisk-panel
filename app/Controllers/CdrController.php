@@ -49,9 +49,12 @@ final class CdrController extends BaseController
             $params
         );
         foreach ($rows as &$row) {
-            $row['recording_available'] = (string) ($row['disposition'] ?? '') === 'ANSWERED'
-                && (int) ($row['billsec'] ?? 0) > 0
-                && $this->resolveRecording((string) ($row['userfield'] ?? '')) !== null;
+            $recording = null;
+            if ((string) ($row['disposition'] ?? '') === 'ANSWERED' && (int) ($row['billsec'] ?? 0) > 0) {
+                $recording = $this->resolveRecording((string) ($row['userfield'] ?? ''));
+            }
+            $row['recording_available'] = $recording !== null;
+            $row['recording_format'] = $recording['format'] ?? null;
         }
         unset($row);
 
@@ -91,7 +94,7 @@ final class CdrController extends BaseController
         $disposition = $request->bool('inline') ? 'inline' : 'attachment';
 
         return (new Response('', 200, [
-            'Content-Type'        => 'audio/wav',
+            'Content-Type'        => $recording['mime'],
             'Content-Disposition' => $disposition . '; filename="' . $filename . '"',
             'X-Accel-Redirect'    => '/_protected/recordings/' . rawurlencode($filename),
             'X-Content-Type-Options' => 'nosniff',
@@ -102,18 +105,12 @@ final class CdrController extends BaseController
     /** Resolve a safe recording marker only when its protected file exists. */
     private function resolveRecording(string $userfield): ?array
     {
-        if (!str_starts_with($userfield, 'recording:')) {
-            return null;
+        foreach ($this->recordingCandidates($userfield) as $recording) {
+            if (is_file($recording['path']) && is_readable($recording['path'])) {
+                return $recording;
+            }
         }
-        $filename = substr($userfield, strlen('recording:'));
-        if ($filename !== basename($filename)
-            || str_contains($filename, '..')
-            || !preg_match('/^[A-Za-z0-9_.-]+\.wav$/', $filename)) {
-            return null;
-        }
-        $dir = rtrim((string) Config::get('asterisk.recording_dir', '/var/spool/asterisk/monitor/asterisk-panel'), '/');
-        $file = $dir . '/' . $filename;
-        return is_file($file) && is_readable($file) ? ['filename' => $filename, 'path' => $file] : null;
+        return null;
     }
 
     /** DELETE /cdr/{id} — remove one tenant-scoped record and recording. */
@@ -187,11 +184,32 @@ final class CdrController extends BaseController
 
     private function deleteRecording(string $userfield): void
     {
-        if (!str_starts_with($userfield, 'recording:')) { return; }
-        $filename = substr($userfield, strlen('recording:'));
-        if ($filename !== basename($filename) || !preg_match('/^[A-Za-z0-9_.-]+\.wav$/', $filename)) { return; }
-        $dir = rtrim((string) Config::get('asterisk.recording_dir', '/var/spool/asterisk/monitor/asterisk-panel'), '/');
-        $file = $dir . '/' . $filename;
-        if (is_file($file)) { @unlink($file); }
+        foreach ($this->recordingCandidates($userfield) as $recording) {
+            if (is_file($recording['path'])) { @unlink($recording['path']); }
+        }
+    }
+
+    /** @return array<int,array{filename:string,path:string,mime:string,format:string}> */
+    private function recordingCandidates(string $userfield): array
+    {
+        if (!str_starts_with($userfield, 'recording:')) { return []; }
+        $marker = substr($userfield, strlen('recording:'));
+        if ($marker === '' || $marker !== basename($marker) || str_contains($marker, '..')) { return []; }
+
+        if (preg_match('/^[A-Za-z0-9_.-]+\.wav$/D', $marker)) {
+            $files = [[$marker, 'audio/wav', 'WAV']];
+        } elseif (preg_match('/^[A-Za-z0-9][A-Za-z0-9_.-]{0,240}$/D', $marker)) {
+            $files = [[$marker . '.ogg', 'audio/ogg', 'OPUS'], [$marker . '.wav', 'audio/wav', 'WAV']];
+        } else {
+            return [];
+        }
+
+        $dir = rtrim((string) Config::get('asterisk.recording_dir', '/var/spool/asterisk/monitor/asterisk-panel'), '/\\');
+        return array_map(static fn (array $file): array => [
+            'filename' => $file[0],
+            'path' => $dir . DIRECTORY_SEPARATOR . $file[0],
+            'mime' => $file[1],
+            'format' => $file[2],
+        ], $files);
     }
 }

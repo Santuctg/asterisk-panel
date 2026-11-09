@@ -121,9 +121,10 @@ $answeredRate = ($stats['total'] ?? 0) > 0
                                 <td>
                                     <?php if (!empty($c['recording_available'])): ?>
                                         <button type="button" class="btn btn-sm" data-modal-open="recordingPlaybackModal"
-                                                data-recording-src="/cdr/<?= (int) $c['id'] ?>/recording?inline=1"
-                                                data-recording-download="/cdr/<?= (int) $c['id'] ?>/recording"
-                                                data-recording-title="<?= e($c['src'] . ' → ' . $c['dst']) ?>">Play</button>
+                                                 data-recording-src="/cdr/<?= (int) $c['id'] ?>/recording?inline=1"
+                                                 data-recording-download="/cdr/<?= (int) $c['id'] ?>/recording"
+                                                 data-recording-format="<?= e((string) $c['recording_format']) ?>"
+                                                 data-recording-title="<?= e($c['src'] . ' → ' . $c['dst']) ?>">Play</button>
                                     <?php else: ?>
                                         <span class="muted">—</span>
                                     <?php endif; ?>
@@ -167,7 +168,7 @@ $answeredRate = ($stats['total'] ?? 0) > 0
             <audio id="recordingPlaybackAudio" controls preload="none">Your browser does not support audio playback.</audio>
         </div>
         <div class="modal-foot">
-            <a class="btn btn-ghost" id="recordingPlaybackDownload" href="#">Download WAV</a>
+            <a class="btn btn-ghost" id="recordingPlaybackDownload" href="#">Download recording</a>
             <button type="button" class="btn" data-modal-close>Close</button>
         </div>
     </div>
@@ -191,6 +192,7 @@ $answeredRate = ($stats['total'] ?? 0) > 0
             stopPlayback();
             audio.src = button.dataset.recordingSrc;
             download.href = button.dataset.recordingDownload;
+            download.textContent = 'Download ' + (button.dataset.recordingFormat || 'recording');
             call.textContent = button.dataset.recordingTitle || '';
             audio.load();
             var started = audio.play();
