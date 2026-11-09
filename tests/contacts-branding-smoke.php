@@ -60,6 +60,34 @@ $check($search->status() === 200 && in_array('Extension', $searchKinds, true) &&
     && in_array('Device', $searchKinds, true) && in_array('Trunk', $searchKinds, true)
     && !str_contains($search->body(), 'Other Tenant'), 'global search returns useful tenant-scoped entities without cross-tenant results');
 
+$searchController = new App\Controllers\SearchController();
+$tlsSearch = $searchController->index(new App\Core\Request('GET', '/search', ['q' => 'TLS']));
+$tlsRows = json_decode($tlsSearch->body(), true)['results'] ?? [];
+$tlsSetting = array_values(array_filter($tlsRows, static fn (array $row): bool => ($row['kind'] ?? '') === 'Setting'));
+$check(count($tlsSetting) === 1 && ($tlsSetting[0]['title'] ?? '') === 'SIP transports'
+    && ($tlsSetting[0]['url'] ?? '') === '/system/settings#sip-transports',
+    'global search links permitted users directly to matching Settings sections');
+$brandingSearch = $searchController->index(new App\Core\Request('GET', '/search', ['q' => 'branding']));
+$check(str_contains($brandingSearch->body(), '/system/settings#panel-branding'), 'global search matches Settings section keywords case-insensitively');
+$db->insert('settings', ['tenant_id' => $tenantA, 'key' => 'voicemail_email_subject', 'value' => 'PrivateNeedleValue']);
+$privateSearch = $searchController->index(new App\Core\Request('GET', '/search', ['q' => 'PrivateNeedleValue']));
+$check(!str_contains($privateSearch->body(), 'PrivateNeedleValue') && !str_contains($privateSearch->body(), 'Setting'), 'global search never indexes stored Settings values');
+$settingsView = file_get_contents(BASE_PATH . '/themes/default/views/system/settings.php');
+$check(str_contains($settingsView, 'id="sip-transports"') && str_contains($settingsView, 'id="panel-branding"')
+    && str_contains($settingsView, 'id="business-details"') && str_contains($settingsView, 'id="voicemail-email"')
+    && str_contains($settingsView, 'id="call-recording"'), 'Settings search targets stable section anchors');
+
+$restrictedUser = $db->insert('users', ['tenant_id' => $tenantA, 'username' => 'restricted', 'password' => password_hash('pass', PASSWORD_DEFAULT), 'role' => 'user', 'active' => 1]);
+$app->auth()->login($restrictedUser);
+$restrictedSearch = $searchController->index(new App\Core\Request('GET', '/search', ['q' => 'TLS']));
+$restrictedRows = json_decode($restrictedSearch->body(), true)['results'] ?? [];
+$check(!in_array('Setting', array_column($restrictedRows, 'kind'), true), 'global search hides Settings sections without system settings permission');
+$superadmin = $db->insert('users', ['tenant_id' => null, 'username' => 'root-search', 'password' => password_hash('pass', PASSWORD_DEFAULT), 'role' => 'superadmin', 'active' => 1]);
+$app->auth()->login($superadmin);
+$globalSettingsSearch = $searchController->index(new App\Core\Request('GET', '/search', ['q' => 'TLS']));
+$check(str_contains($globalSettingsSearch->body(), '/system/settings#sip-transports'), 'global Settings search works without an active tenant');
+$app->auth()->login($user);
+
 $db->insert('settings', ['tenant_id' => null, 'key' => 'panel_name', 'value' => 'Global Brand']);
 $db->insert('settings', ['tenant_id' => $tenantA, 'key' => 'panel_name', 'value' => 'Tenant A Brand']);
 $branding = App\Services\Branding::current($tenantA);

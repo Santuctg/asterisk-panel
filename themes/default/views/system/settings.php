@@ -21,7 +21,7 @@ $s = static fn (string $k, string $d = '') => $settings[$k] ?? $d;
     <?= csrf() ?>
 
 <?php if (!empty($canChangeSipPort)): ?>
-<div class="card">
+<div class="card" id="sip-transports">
     <div class="card-head"><h2>SIP transports</h2></div>
     <div class="card-body">
         <div class="form-grid">
@@ -45,7 +45,7 @@ $s = static fn (string $k, string $d = '') => $settings[$k] ?? $d;
 </div>
 <?php endif; ?>
 
-    <div class="card">
+    <div class="card" id="panel-branding">
         <div class="card-head"><h2>Panel branding</h2></div>
         <div class="card-body">
             <div class="form-grid">
@@ -64,7 +64,7 @@ $s = static fn (string $k, string $d = '') => $settings[$k] ?? $d;
         </div>
     </div>
 
-    <div class="card">
+    <div class="card" id="business-details">
         <div class="card-head"><h2>Business details</h2></div>
         <div class="card-body">
             <div class="form-grid">
@@ -85,7 +85,7 @@ $s = static fn (string $k, string $d = '') => $settings[$k] ?? $d;
         </div>
     </div>
 
-    <div class="card">
+    <div class="card" id="voicemail-email">
         <div class="card-head"><h2>Voicemail email</h2></div>
         <div class="card-body">
             <div class="form-grid">
@@ -101,7 +101,7 @@ $s = static fn (string $k, string $d = '') => $settings[$k] ?? $d;
         </div>
     </div>
 
-    <div class="card">
+    <div class="card" id="call-recording">
         <div class="card-head"><h2>Automatic call recording</h2></div>
         <div class="card-body">
             <div class="form-grid">
