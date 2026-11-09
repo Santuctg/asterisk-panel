@@ -170,6 +170,6 @@ Expected: all checks pass with no warnings or failures attributable to the chang
 
 Review codec parameters, command/path safety, atomic failure handling, CDR tenant isolation, backward compatibility, installer/updater behavior, and release integrity.
 
-- [ ] **Step 4: Commit, tag, integrate, and publish**
+- [x] **Step 4: Commit, tag, integrate, and publish**
 
 Commit version/design/plan, create annotated `v1.4.3`, integrate into `main` after user choice, push `main` and tag, publish release notes with storage estimate and WAV fallback behavior, and verify clean repository plus matching local/remote/tag/release commits.
