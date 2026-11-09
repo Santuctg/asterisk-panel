@@ -22,7 +22,7 @@ final class SearchController extends BaseController
         $auth = $this->app->auth();
 
         if ($auth->can('system_settings.view')) {
-            $results = $this->settingResults($query);
+            $results = $this->settingResults($query, $auth->isSuperAdmin());
         }
         if ($tenantId && $auth->can('extension.view')) {
             foreach ($this->db()->all(
@@ -73,19 +73,22 @@ final class SearchController extends BaseController
     }
 
     /** Search fixed, non-secret Settings metadata rather than stored values. */
-    private function settingResults(string $query): array
+    private function settingResults(string $query, bool $includeGlobal): array
     {
         $needle = mb_strtolower(trim($query));
         $sections = [
-            ['SIP transports', 'Configure SIP UDP, TCP and TLS listener ports and certificate.', 'sip transports udp tcp tls port certificate signalling settings configuration', 'sip-transports'],
-            ['Panel branding', 'Configure the panel name and logo.', 'panel branding name logo settings configuration', 'panel-branding'],
-            ['Business details', 'Configure company details, timezone, time format and provisioning URL.', 'business company email phone timezone time format provisioning url settings configuration', 'business-details'],
-            ['Voicemail email', 'Configure voicemail notification email subject and body.', 'voicemail email notification subject body settings configuration', 'voicemail-email'],
-            ['Automatic call recording', 'Configure call recording mode and start point.', 'automatic call recording mode inbound outbound answered settings configuration', 'call-recording'],
+            ['SIP transports', 'Configure SIP UDP, TCP and TLS listener ports and certificate.', 'sip transports udp tcp tls port certificate signalling settings configuration', 'sip-transports', true],
+            ['Panel branding', 'Configure the panel name and logo.', 'panel branding name logo settings configuration', 'panel-branding', false],
+            ['Business details', 'Configure company details, timezone, time format and provisioning URL.', 'business company email phone timezone time format provisioning url settings configuration', 'business-details', false],
+            ['Voicemail email', 'Configure voicemail notification email subject and body.', 'voicemail email notification subject body settings configuration', 'voicemail-email', false],
+            ['Automatic call recording', 'Configure call recording mode and start point.', 'automatic call recording mode inbound outbound answered settings configuration', 'call-recording', false],
         ];
 
         $results = [];
-        foreach ($sections as [$title, $meta, $keywords, $anchor]) {
+        foreach ($sections as [$title, $meta, $keywords, $anchor, $global]) {
+            if ($global && !$includeGlobal) {
+                continue;
+            }
             if (!str_contains(mb_strtolower($title . ' ' . $meta . ' ' . $keywords), $needle)) {
                 continue;
             }

@@ -228,7 +228,7 @@
             if (!searchResults) return;
             searchResults.replaceChildren();
             if (!rows.length) {
-                var empty = document.createElement('div'); empty.className = 'global-search-empty'; empty.textContent = 'No matching extensions, contacts, devices or trunks';
+                var empty = document.createElement('div'); empty.className = 'global-search-empty'; empty.textContent = 'No matching extensions, contacts, devices, trunks or settings';
                 searchResults.appendChild(empty);
             } else {
                 rows.forEach(function (row) {
