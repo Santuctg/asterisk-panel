@@ -51,8 +51,11 @@ final class ExtensionController extends BaseController
         $contactDetails = [];
         try {
             $mgr = asterisk();
-            $registrationAvailable = $mgr->isOnline();
-            if ($registrationAvailable) { $contactDetails = $mgr->contactDetails(); }
+            if ($mgr->isOnline()) {
+                $contactResult = $mgr->contactDetailsResult();
+                $registrationAvailable = $contactResult['available'];
+                $contactDetails = $contactResult['contacts'];
+            }
         } catch (\Throwable) {
             $registrationAvailable = false;
         }
@@ -118,8 +121,8 @@ final class ExtensionController extends BaseController
             $rows = array_values(array_map(static fn (int $id): array => $byId[$id], $pageIds));
             foreach ($db->all(
                 "SELECT extension_id, started_at FROM extension_status_history
-                 WHERE extension_id IN ({$ph}) AND ended_at IS NULL AND status = 'Registered'",
-                $pageIds
+                 WHERE tenant_id = ? AND extension_id IN ({$ph}) AND ended_at IS NULL AND status = 'Registered'",
+                array_merge([$tid], $pageIds)
             ) as $h) {
                 $onlineSince[(int) $h['extension_id']] = (string) $h['started_at'];
             }
@@ -144,7 +147,7 @@ final class ExtensionController extends BaseController
         // 24h availability timeline + event history for the monitor cards.
         $windowStart = date('Y-m-d H:i:s', time() - 86400);
         $timeline = [];
-        foreach ($allExtensions as $ae) {
+        foreach ($rows as $ae) {
             $id = (int) $ae['id'];
             $timeline[$id] = [
                 'id' => $id,
@@ -155,16 +158,20 @@ final class ExtensionController extends BaseController
                 'events' => [],
             ];
         }
-        foreach ($db->all(
-            'SELECT h.extension_id, h.status, h.started_at, h.ended_at
-             FROM extension_status_history h
-             WHERE h.tenant_id = ? AND (h.ended_at IS NULL OR h.ended_at >= ?)
-             ORDER BY h.started_at, h.id',
-            [$tid, $windowStart]
-        ) as $h) {
-            $eid = (int) $h['extension_id'];
-            if (isset($timeline[$eid])) {
-                $timeline[$eid]['events'][] = $h;
+        if ($pageIds !== []) {
+            $ph = implode(',', array_fill(0, count($pageIds), '?'));
+            foreach ($db->all(
+                "SELECT h.extension_id, h.status, h.started_at, h.ended_at
+                 FROM extension_status_history h
+                 WHERE h.tenant_id = ? AND h.extension_id IN ({$ph})
+                   AND (h.ended_at IS NULL OR h.ended_at >= ?)
+                 ORDER BY h.started_at, h.id",
+                array_merge([$tid], $pageIds, [$windowStart])
+            ) as $h) {
+                $eid = (int) $h['extension_id'];
+                if (isset($timeline[$eid])) {
+                    $timeline[$eid]['events'][] = $h;
+                }
             }
         }
 

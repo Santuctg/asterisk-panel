@@ -29,6 +29,15 @@ $check(App\Controllers\ExtensionController::registrationMatches($disabled, $down
     'disabled filter works without AMI');
 $check(!App\Controllers\ExtensionController::registrationMatches($registered, $down, 'unregistered', false),
     'AMI outage never guesses unregistered state');
+$failedContacts = App\Services\Asterisk\AsteriskManager::contactDetailsFromResponses(
+    ['Response' => 'Error', 'Message' => 'Permission denied'], []
+);
+$emptyContacts = App\Services\Asterisk\AsteriskManager::contactDetailsFromResponses(
+    ['Response' => 'Follows', 'Output' => 'No objects found.'], []
+);
+$check($failedContacts === ['available' => false, 'contacts' => []]
+    && $emptyContacts === ['available' => true, 'contacts' => []],
+    'contact retrieval distinguishes a failed AMI query from a successful empty result');
 
 $app = App\Core\App::getInstance();
 $app->boot();
@@ -79,6 +88,10 @@ foreach ([1, 2] as $suffix) {
         'provision_token' => 'registration-device-' . $suffix,
     ]);
 }
+$db->insert('extension_status_history', [
+    'tenant_id' => $foreignTenant, 'extension_id' => $extensionIds[106], 'status' => 'Registered',
+    'started_at' => date('Y-m-d H:i:s', time() - 60), 'last_checked_at' => date('Y-m-d H:i:s'),
+]);
 
 $extensionHtml = (new App\Controllers\ExtensionController())->index(new App\Core\Request(
     'GET', '/extensions', ['registration' => 'disabled', 'page' => '2', 'per' => '5']
@@ -88,6 +101,8 @@ $check(str_contains($extensionHtml, '7 extensions') && str_contains($extensionHt
     'database-backed filtering keeps duplicate related rows out of totals and page membership');
 $check(!str_contains($extensionHtml, 'Foreign Desk') && !str_contains($extensionHtml, 'foreign-secret'),
     'Extension filtering remains tenant-scoped and never renders foreign secrets');
+$check(!str_contains($extensionHtml, '· since '),
+    'current online duration ignores malformed status history owned by another tenant');
 $check(str_contains($extensionHtml, 'name="per" value="5"')
     && str_contains($extensionHtml, 'registration=disabled&amp;per=5&amp;page=1'),
     'Extension filter submission and pagination preserve normalized per-page state');
@@ -104,9 +119,12 @@ $check(str_contains($desk102Row, '<span class="badge gray">Off</span>'),
 
 $dashboard = file_get_contents(BASE_PATH . '/themes/default/views/dashboard/index.php');
 $extensions = file_get_contents(BASE_PATH . '/themes/default/views/extensions/index.php');
+$extensionController = file_get_contents(BASE_PATH . '/app/Controllers/ExtensionController.php');
 $check(str_contains($dashboard, "'Registered phones', '/extensions?registration=registered'"),
     'Dashboard Registered phones opens the registered extension filter');
 $check(str_contains($extensions, 'name="registration"') && str_contains($extensions, 'Unregistered')
     && str_contains($extensions, 'http_build_query'), 'Extensions UI renders and preserves registration filters');
+$check(str_contains($extensionController, 'AND h.extension_id IN ({$ph})'),
+    '24-hour status history is constrained to selected-page extension IDs');
 
 echo "All extension registration filter checks passed.\n";

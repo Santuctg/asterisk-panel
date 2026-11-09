@@ -93,8 +93,28 @@ final class AsteriskManager
      */
     public function contactDetails(): array
     {
-        $rows = self::parseContactDetails($this->ami->command('pjsip show contacts'));
-        $eventRows = self::parseContactDetailEvents($this->ami->actionEvents('PJSIPShowContacts'));
+        return $this->contactDetailsResult()['contacts'];
+    }
+
+    /** @return array{available:bool,contacts:array<string,array<string,mixed>>} */
+    public function contactDetailsResult(): array
+    {
+        return self::contactDetailsFromResponses(
+            $this->ami->action('Command', ['Command' => 'pjsip show contacts']),
+            $this->ami->actionEvents('PJSIPShowContacts')
+        );
+    }
+
+    /** Convert raw AMI responses while preserving failed-query vs empty-list semantics. */
+    public static function contactDetailsFromResponses(array $commandResponse, array $events): array
+    {
+        $response = strtolower((string) ($commandResponse['Response'] ?? ''));
+        if (!in_array($response, ['success', 'follows'], true)) {
+            return ['available' => false, 'contacts' => []];
+        }
+
+        $rows = self::parseContactDetails((string) ($commandResponse['Output'] ?? ''));
+        $eventRows = self::parseContactDetailEvents($events);
         foreach ($eventRows as $aor => $detail) {
             if (!isset($rows[$aor])) {
                 $rows[$aor] = $detail;
@@ -107,7 +127,7 @@ final class AsteriskManager
                 if (!in_array($ip, $rows[$aor]['ips'], true)) $rows[$aor]['ips'][] = $ip;
             }
         }
-        return $rows;
+        return ['available' => true, 'contacts' => $rows];
     }
 
     public static function parseContactDetails(string $out): array
