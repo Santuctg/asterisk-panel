@@ -36,14 +36,20 @@ $successRunner = static function (array $command) use (&$captured): int {
     file_put_contents((string) end($command), 'OggS-opus-audio');
     return 0;
 };
-$status = transcode_recording_main(['transcode-recording', $basename], $successRunner);
+$logged = [];
+$collectLog = static function (string $message) use (&$logged): void {
+    $logged[] = $message;
+};
+$status = transcode_recording_main(['transcode-recording', $basename], $successRunner, $collectLog);
 $check($status === 0 && is_file($target) && filesize($target) > 0 && !is_file($source),
     'successful conversion atomically publishes Ogg and removes temporary WAV');
-$check($captured === [
+$check($logged === [], 'successful conversion logs nothing');
+$check(array_slice($captured, 0, -1) === [
     '/usr/bin/ffmpeg', '-nostdin', '-hide_banner', '-loglevel', 'error', '-y',
     '-i', $source, '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'libopus',
-    '-b:a', '48k', '-vbr', 'on', '-application', 'voip', '-f', 'ogg', $captured[count($captured) - 1] ?? null,
-], 'converter invokes FFmpeg with exact mono 16 kHz 48 kbps Opus settings');
+    '-b:a', '48k', '-vbr', 'on', '-application', 'voip', '-f', 'ogg',
+] && str_starts_with((string) ($captured[count($captured) - 1] ?? ''), $target . '.tmp-'),
+    'converter invokes FFmpeg with exact mono 16 kHz 48 kbps Opus settings');
 $check(glob($target . '.tmp-*') === [], 'successful conversion leaves no temporary Ogg file');
 
 $failureBase = 'tenant-1-conversion-failure';
@@ -75,8 +81,16 @@ $unsafeStatus = transcode_recording_main(['transcode-recording', '../outside'], 
 });
 $check($unsafeStatus !== 0 && !$runnerCalled, 'unsafe recording basenames are rejected before FFmpeg runs');
 
-$missingStatus = transcode_recording_main(['transcode-recording', 'missing-recording'], static fn (): int => 0);
+$missingStatus = transcode_recording_main(['transcode-recording', 'missing-recording'], static fn (): int => 0, $collectLog);
 $check($missingStatus !== 0, 'missing or empty WAV input is rejected');
+$check($logged !== [] && str_contains(implode(' ', $logged), 'missing-recording'),
+    'helper failures are written to the system log with the recording name');
+
+$updateHelper = file_get_contents($base . '/scripts/update-helper.sh');
+$check(is_string($updateHelper)
+    && str_contains($updateHelper, 'command -v ffmpeg')
+    && str_contains($updateHelper, 'logger -t asterisk-panel'),
+    'updater checks for FFmpeg and warns through syslog when it is missing');
 
 foreach (glob($dir . '/*') ?: [] as $file) {
     @unlink($file);

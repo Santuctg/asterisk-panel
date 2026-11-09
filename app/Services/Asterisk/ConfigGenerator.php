@@ -1211,7 +1211,7 @@ final class ConfigGenerator
         $out .= " same => n,Set(__PANEL_RECORDING_FILE=\${PANEL_RECORDING_BASENAME}.wav)\n";
         $out .= " same => n,Set(CDR(userfield)=recording:\${PANEL_RECORDING_BASENAME})\n";
         $out .= " same => n,GotoIf(\$[\"\${ARG3}\"=\"answered\"]?answered)\n";
-        $command = '/usr/local/lib/asterisk-panel/transcode-recording ${PANEL_RECORDING_BASENAME}';
+        $command = "/usr/local/lib/asterisk-panel/transcode-recording '\${PANEL_RECORDING_BASENAME}'";
         $out .= " same => n,MixMonitor({$dir}/\${PANEL_RECORDING_FILE},,{$command})\n";
         $out .= " same => n,Goto(done)\n";
         $out .= " same => n(answered),MixMonitor({$dir}/\${PANEL_RECORDING_FILE},b,{$command})\n";

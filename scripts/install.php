@@ -95,6 +95,10 @@ echo "[3/4] Setting up tenant...\n";
 
 $tenantName  = $opts['tenant'] ?? 'Default Business';
 $tenantCtx   = $opts['context'] ?? 'default';
+if (!is_string($tenantCtx) || !preg_match('/^[A-Za-z0-9_][A-Za-z0-9_-]{0,79}$/D', $tenantCtx)) {
+    fwrite(STDERR, 'Invalid --context "' . (string) $tenantCtx . "\"; expected 1-80 letters, digits, underscores or dashes.\n");
+    exit(1);
+}
 
 $existingTenant = $db->one('SELECT id FROM tenants WHERE context = ?', [$tenantCtx]);
 

@@ -109,6 +109,12 @@ update() {
     install -o root -g root -m 0755 "$APP/scripts/acme-dns-cleanup-hook.sh" /usr/local/lib/asterisk-panel/acme-dns-cleanup
     install -o root -g root -m 0755 "$APP/scripts/deploy-sip-tls-cert.sh" /usr/local/lib/asterisk-panel/deploy-sip-tls-cert
     install -o root -g root -m 0755 "$APP/scripts/transcode-recording.php" /usr/local/lib/asterisk-panel/transcode-recording
+    # Post-call Opus conversion needs FFmpeg. Missing FFmpeg is not fatal:
+    # recordings stay WAV, but the operator must know about it.
+    if ! command -v ffmpeg >/dev/null 2>&1; then
+        echo 'WARNING: ffmpeg is not installed; new call recordings will stay WAV.' >&2
+        logger -t asterisk-panel 'ffmpeg not found; new call recordings remain WAV until ffmpeg is installed' 2>/dev/null || true
+    fi
     local pool=/etc/php/8.3/fpm/pool.d/asterisk-panel.conf
     if [[ -f "$pool" ]]; then
         sed -i '/^php_admin_value\[upload_max_filesize\]/d; /^php_admin_value\[post_max_size\]/d' "$pool"
