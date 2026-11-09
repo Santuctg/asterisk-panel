@@ -1,5 +1,5 @@
 <?php
-/** Extensions list. Expects: $rows, $q, $registration, $page, $pages, $total */
+/** Extensions list. Expects: $rows, $q, $registration, $page, $pages, $per, $total */
 require dirname(__DIR__) . '/partials/fields.php';
 $registration ??= '';
 $registrationOptions = ['' => 'All registrations', 'registered' => 'Registered', 'unregistered' => 'Unregistered', 'disabled' => 'Disabled'];
@@ -20,6 +20,8 @@ $registrationOptions = ['' => 'All registrations', 'registered' => 'Registered',
 <div class="card">
     <div class="toolbar">
         <form method="get" action="/extensions" class="flex gap-2 items-center w-full">
+            <input type="hidden" name="page" value="<?= (int) $page ?>">
+            <input type="hidden" name="per" value="<?= (int) $per ?>">
             <input type="search" name="q" value="<?= e($q) ?>" placeholder="Search number, name or caller ID…"
                    data-filter-input="#extTable" style="max-width:320px">
             <select name="registration" data-auto-submit style="max-width:190px">
@@ -174,7 +176,7 @@ $registrationOptions = ['' => 'All registrations', 'registered' => 'Registered',
             <?= \App\Core\View::fragment('partials/pagination', [
                 'page' => $page, 'pages' => $pages,
                 'base' => '/extensions' . (($query = http_build_query(array_filter([
-                    'q' => $q, 'registration' => $registration, 'per' => ($_GET['per'] ?? null),
+                    'q' => $q, 'registration' => $registration, 'per' => $per,
                 ], static fn ($value): bool => $value !== '' && $value !== null))) !== '' ? '?' . $query : ''),
             ]) ?>
             <span class="muted text-sm">Page <?= $page ?> of <?= $pages ?></span>

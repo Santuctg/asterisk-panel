@@ -1,7 +1,7 @@
 <?php
 /**
  * Call detail records (CDR). Expects: $rows, $page, $pages, $total, $q,
- * $disposition, $from, $to, $stats
+ * $disposition, $from, $to, $per, $stats
  */
 require dirname(__DIR__) . '/partials/fields.php';
 $from ??= ''; $to ??= '';
@@ -60,6 +60,8 @@ $answeredRate = ($stats['total'] ?? 0) > 0
 <div class="card">
     <div class="toolbar">
         <form method="get" action="/cdr" class="flex gap-2 items-center w-full">
+            <input type="hidden" name="page" value="<?= (int) $page ?>">
+            <input type="hidden" name="per" value="<?= (int) $per ?>">
             <input type="search" name="q" value="<?= e($q) ?>" placeholder="Search source, destination or uniqueid…"
                    style="max-width:320px">
             <select name="disposition" data-auto-submit style="max-width:180px">
@@ -153,7 +155,7 @@ $answeredRate = ($stats['total'] ?? 0) > 0
                 'page' => $page, 'pages' => $pages,
                 'base' => '/cdr' . (($query = http_build_query(array_filter([
                     'q' => $q, 'disposition' => $disposition, 'from' => $from, 'to' => $to,
-                    'per' => ($_GET['per'] ?? null),
+                    'per' => $per,
                 ], static fn ($value): bool => $value !== '' && $value !== null))) !== '' ? '?' . $query : ''),
             ]) ?>
             <span class="muted text-sm">Page <?= $page ?> of <?= $pages ?></span>

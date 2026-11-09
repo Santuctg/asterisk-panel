@@ -77,7 +77,7 @@ final class CdrController extends BaseController
 
         return $this->view('cdr/index', [
             'rows' => $rows, 'page' => $page, 'pages' => $pages,
-            'total' => $total, 'q' => $q, 'disposition' => $disp,
+            'per' => $per, 'total' => $total, 'q' => $q, 'disposition' => $disp,
             'from' => $range['from'], 'to' => $range['to'],
             'stats' => $stats ?: ['total' => 0, 'answered' => 0, 'talktime' => 0],
         ]);

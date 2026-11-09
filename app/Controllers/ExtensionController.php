@@ -43,17 +43,7 @@ final class ExtensionController extends BaseController
 
         $db = $this->db();
         $rows = $db->all(
-            "SELECT e.*,
-                    (SELECT v.id FROM voicemail v WHERE v.extension_id = e.id ORDER BY v.id LIMIT 1) AS vm_id,
-                    (SELECT v.email FROM voicemail v WHERE v.extension_id = e.id ORDER BY v.id LIMIT 1) AS vm_email,
-                    (SELECT v.attach FROM voicemail v WHERE v.extension_id = e.id ORDER BY v.id LIMIT 1) AS vm_attach,
-                    (SELECT d.mac FROM devices d WHERE d.extension_id = e.id ORDER BY d.id LIMIT 1) AS device_mac,
-                    (SELECT d.vendor FROM devices d WHERE d.extension_id = e.id ORDER BY d.id LIMIT 1) AS device_vendor,
-                    o.name AS outbound_route_name
-             FROM extensions e
-             LEFT JOIN outbound_routes o ON o.id = e.outbound_route_id AND o.tenant_id = e.tenant_id
-             WHERE {$where}
-             ORDER BY e.extension",
+            "SELECT e.id, e.extension, e.name, e.enabled FROM extensions e WHERE {$where} ORDER BY e.extension",
             $params
         );
 
@@ -92,17 +82,6 @@ final class ExtensionController extends BaseController
             $live[(int) $ae['id']] = $state;
         }
 
-        foreach ($rows as &$row) {
-            $row['sip_username'] = $row['extension'];
-            $row['sip_realm'] = $realm;
-            $state = $live[(int) $row['id']] ?? ['status' => null, 'rtt' => null, 'devices' => 0, 'ips' => []];
-            $row['registration_status'] = $state['status'];
-            $row['latency_ms'] = $state['rtt'];
-            $row['active_devices'] = $state['devices'];
-            $row['registration_ips'] = $state['ips'];
-        }
-        unset($row);
-
         if ($registration !== '') {
             $rows = array_values(array_filter($rows, static fn (array $row): bool => self::registrationMatches(
                 $row,
@@ -121,6 +100,22 @@ final class ExtensionController extends BaseController
         $pageIds = array_map('intval', array_column($rows, 'id'));
         if ($pageIds !== []) {
             $ph = implode(',', array_fill(0, count($pageIds), '?'));
+            $hydrated = $db->all(
+                "SELECT e.*,
+                        (SELECT v.id FROM voicemail v WHERE v.extension_id = e.id ORDER BY v.id LIMIT 1) AS vm_id,
+                        (SELECT v.email FROM voicemail v WHERE v.extension_id = e.id ORDER BY v.id LIMIT 1) AS vm_email,
+                        (SELECT v.attach FROM voicemail v WHERE v.extension_id = e.id ORDER BY v.id LIMIT 1) AS vm_attach,
+                        (SELECT d.mac FROM devices d WHERE d.extension_id = e.id ORDER BY d.id LIMIT 1) AS device_mac,
+                        (SELECT d.vendor FROM devices d WHERE d.extension_id = e.id ORDER BY d.id LIMIT 1) AS device_vendor,
+                        o.name AS outbound_route_name
+                 FROM extensions e
+                 LEFT JOIN outbound_routes o ON o.id = e.outbound_route_id AND o.tenant_id = e.tenant_id
+                 WHERE e.tenant_id = ? AND e.id IN ({$ph})",
+                array_merge([$tid], $pageIds)
+            );
+            $byId = [];
+            foreach ($hydrated as $hydratedRow) $byId[(int) $hydratedRow['id']] = $hydratedRow;
+            $rows = array_values(array_map(static fn (int $id): array => $byId[$id], $pageIds));
             foreach ($db->all(
                 "SELECT extension_id, started_at FROM extension_status_history
                  WHERE extension_id IN ({$ph}) AND ended_at IS NULL AND status = 'Registered'",
@@ -129,6 +124,16 @@ final class ExtensionController extends BaseController
                 $onlineSince[(int) $h['extension_id']] = (string) $h['started_at'];
             }
         }
+        foreach ($rows as &$row) {
+            $row['sip_username'] = $row['extension'];
+            $row['sip_realm'] = $realm;
+            $state = $live[(int) $row['id']] ?? ['status' => null, 'rtt' => null, 'devices' => 0, 'ips' => []];
+            $row['registration_status'] = $state['status'];
+            $row['latency_ms'] = $state['rtt'];
+            $row['active_devices'] = $state['devices'];
+            $row['registration_ips'] = $state['ips'];
+        }
+        unset($row);
         foreach ($rows as &$row) {
             $since = $onlineSince[(int) $row['id']] ?? null;
             $row['online_since'] = $since;
@@ -180,7 +185,7 @@ final class ExtensionController extends BaseController
 
         return $this->view('extensions/index', [
             'rows' => $rows, 'q' => $q, 'page' => $page, 'pages' => $pages, 'total' => $total,
-            'registrationAvailable' => $registrationAvailable, 'registration' => $registration,
+            'per' => $perPage, 'registrationAvailable' => $registrationAvailable, 'registration' => $registration,
         ]);
     }
 
