@@ -1,6 +1,8 @@
 <?php
-/** Extensions list. Expects: $rows, $q, $page, $pages, $total */
+/** Extensions list. Expects: $rows, $q, $registration, $page, $pages, $total */
 require dirname(__DIR__) . '/partials/fields.php';
+$registration ??= '';
+$registrationOptions = ['' => 'All registrations', 'registered' => 'Registered', 'unregistered' => 'Unregistered', 'disabled' => 'Disabled'];
 ?>
 
 <div class="page-head">
@@ -20,6 +22,12 @@ require dirname(__DIR__) . '/partials/fields.php';
         <form method="get" action="/extensions" class="flex gap-2 items-center w-full">
             <input type="search" name="q" value="<?= e($q) ?>" placeholder="Search number, name or caller ID…"
                    data-filter-input="#extTable" style="max-width:320px">
+            <select name="registration" data-auto-submit style="max-width:190px">
+                <?php foreach ($registrationOptions as $value => $label): ?>
+                    <option value="<?= e($value) ?>" <?= $registration === $value ? 'selected' : '' ?>><?= e($label) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <button type="submit" class="btn">Filter</button>
             <span class="spacer"></span>
             <span class="muted text-sm"><?= (int) $total ?> total</span>
         </form>
@@ -29,9 +37,9 @@ require dirname(__DIR__) . '/partials/fields.php';
         <?php if (empty($rows)): ?>
             <?= \App\Core\View::fragment('partials/empty', [
                 'icon'   => 'phone',
-                'title'  => $q ? 'No extensions match your search' : 'No extensions yet',
-                'message'=> $q ? 'Try a different search term.' : 'Create your first extension to start connecting phones.',
-                'action_html' => $q ? '' : '<a class="btn btn-primary" href="/extensions/create">Create extension</a>',
+                'title'  => ($registration && !$registrationAvailable && $registration !== 'disabled') ? 'Registration status unavailable' : (($q || $registration) ? 'No extensions match this filter' : 'No extensions yet'),
+                'message'=> ($registration && !$registrationAvailable && $registration !== 'disabled') ? 'Asterisk AMI is offline, so registered and unregistered phones cannot be classified.' : (($q || $registration) ? 'Try a different search or registration status.' : 'Create your first extension to start connecting phones.'),
+                'action_html' => ($q || $registration) ? '' : '<a class="btn btn-primary" href="/extensions/create">Create extension</a>',
             ]) ?>
         <?php else: ?>
             <div class="table-wrap">
@@ -165,7 +173,9 @@ require dirname(__DIR__) . '/partials/fields.php';
         <div class="card-foot">
             <?= \App\Core\View::fragment('partials/pagination', [
                 'page' => $page, 'pages' => $pages,
-                'base' => '/extensions' . ($q ? '?q=' . urlencode($q) : ''),
+                'base' => '/extensions' . (($query = http_build_query(array_filter([
+                    'q' => $q, 'registration' => $registration, 'per' => ($_GET['per'] ?? null),
+                ], static fn ($value): bool => $value !== '' && $value !== null))) !== '' ? '?' . $query : ''),
             ]) ?>
             <span class="muted text-sm">Page <?= $page ?> of <?= $pages ?></span>
         </div>

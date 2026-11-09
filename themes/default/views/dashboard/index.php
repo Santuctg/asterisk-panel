@@ -61,7 +61,7 @@ $tile = function (string $icon, string $tone, int|string $value, string $label, 
               $online ? $activeChannels : '—',
               $online ? 'Active calls' : 'Offline',
               auth()->can('call.listen') ? '/active-calls' : '/system/status', 'activeCallsCount') ?>
-    <?= $tile('users',    'green',  $registered, 'Registered phones', '/devices') ?>
+    <?= $tile('users',    'green',  $registered, 'Registered phones', '/extensions?registration=registered') ?>
 </div>
 
 <div class="grid grid-4 mb-4">

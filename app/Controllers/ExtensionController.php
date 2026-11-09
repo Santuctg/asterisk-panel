@@ -29,6 +29,8 @@ final class ExtensionController extends BaseController
         $q     = $request->str('q');
         $page  = $request->page();
         $perPage = $request->perPage();
+        $registration = $request->str('registration');
+        if (!in_array($registration, ['registered', 'unregistered', 'disabled'], true)) $registration = '';
 
         $where  = 'e.tenant_id = ?';
         $params = [$tid];
@@ -39,23 +41,19 @@ final class ExtensionController extends BaseController
             array_push($params, $pattern, $pattern, $pattern);
         }
 
-        $db     = $this->db();
-        $total  = (int) $db->scalar("SELECT COUNT(*) FROM extensions e WHERE {$where}", $params);
-        $pages  = max(1, (int) ceil($total / $perPage));
-        $page   = min($page, $pages);
-        $offset = ($page - 1) * $perPage;
-
+        $db = $this->db();
         $rows = $db->all(
-            "SELECT e.*, v.id AS vm_id, v.email AS vm_email, v.attach AS vm_attach,
-                    d.mac AS device_mac, d.vendor AS device_vendor,
+            "SELECT e.*,
+                    (SELECT v.id FROM voicemail v WHERE v.extension_id = e.id ORDER BY v.id LIMIT 1) AS vm_id,
+                    (SELECT v.email FROM voicemail v WHERE v.extension_id = e.id ORDER BY v.id LIMIT 1) AS vm_email,
+                    (SELECT v.attach FROM voicemail v WHERE v.extension_id = e.id ORDER BY v.id LIMIT 1) AS vm_attach,
+                    (SELECT d.mac FROM devices d WHERE d.extension_id = e.id ORDER BY d.id LIMIT 1) AS device_mac,
+                    (SELECT d.vendor FROM devices d WHERE d.extension_id = e.id ORDER BY d.id LIMIT 1) AS device_vendor,
                     o.name AS outbound_route_name
              FROM extensions e
-             LEFT JOIN voicemail v ON v.extension_id = e.id
-             LEFT JOIN devices d ON d.extension_id = e.id
              LEFT JOIN outbound_routes o ON o.id = e.outbound_route_id AND o.tenant_id = e.tenant_id
              WHERE {$where}
-             ORDER BY e.extension
-             LIMIT {$perPage} OFFSET {$offset}",
+             ORDER BY e.extension",
             $params
         );
 
@@ -73,17 +71,10 @@ final class ExtensionController extends BaseController
         $realm = strtolower(rtrim(trim((string) ($tenant['domain'] ?? '')), '.')) ?: (string) ($tenant['context'] ?? '');
 
         // Live state for every extension in this tenant (list + monitor card).
-        $allExtensions = $db->all(
-            'SELECT id, extension, name, enabled FROM extensions WHERE tenant_id = ? ORDER BY extension',
-            [$tid]
-        );
+        $allExtensions = $rows;
         $live = [];
         foreach ($allExtensions as $ae) {
-            $keys = [
-                $ae['extension'] . '@' . $realm,
-                $context . '_' . $ae['extension'] . '-phone-web',
-                $context . '_' . $ae['extension'] . '-web',
-            ];
+            $keys = \App\Services\Asterisk\AsteriskManager::extensionContactKeys((string) $ae['extension'], $realm, $context);
             $state = ['status' => null, 'rtt' => null, 'devices' => 0, 'ips' => []];
             foreach ($keys as $key) {
                 if (!isset($contactDetails[$key])) {
@@ -111,6 +102,19 @@ final class ExtensionController extends BaseController
             $row['registration_ips'] = $state['ips'];
         }
         unset($row);
+
+        if ($registration !== '') {
+            $rows = array_values(array_filter($rows, static fn (array $row): bool => self::registrationMatches(
+                $row,
+                $live[(int) $row['id']] ?? ['status' => null, 'devices' => 0],
+                $registration,
+                $registrationAvailable
+            )));
+        }
+        $total = count($rows);
+        $pages = max(1, (int) ceil($total / $perPage));
+        $page = min($page, $pages);
+        $rows = array_slice($rows, ($page - 1) * $perPage, $perPage);
 
         // Current online duration per extension on this page.
         $onlineSince = [];
@@ -176,8 +180,17 @@ final class ExtensionController extends BaseController
 
         return $this->view('extensions/index', [
             'rows' => $rows, 'q' => $q, 'page' => $page, 'pages' => $pages, 'total' => $total,
-            'registrationAvailable' => $registrationAvailable,
+            'registrationAvailable' => $registrationAvailable, 'registration' => $registration,
         ]);
+    }
+
+    public static function registrationMatches(array $extension, array $state, string $filter, bool $available): bool
+    {
+        $enabled = !empty($extension['enabled']);
+        if ($filter === 'disabled') return !$enabled;
+        if (!$available || !$enabled) return false;
+        $registered = ($state['status'] ?? null) !== null || (int) ($state['devices'] ?? 0) > 0;
+        return $filter === 'registered' ? $registered : ($filter === 'unregistered' && !$registered);
     }
 
     /** GET /extensions/create */

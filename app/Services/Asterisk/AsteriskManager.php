@@ -505,18 +505,28 @@ final class AsteriskManager
 
     public static function filterTenantContacts(array $contacts, array $extensions, string $realm, string $context, array $trunks = []): array
     {
-        $safeContext = preg_replace('/[^A-Za-z0-9_]/', '_', $context) ?: '';
         $allowed = [];
         foreach ($extensions as $extension) {
             $number = (string) $extension['extension'];
-            $allowed[$number . '@' . $realm] = true;
-            if ($safeContext !== '') $allowed[$safeContext . '_' . $number . '-phone-web'] = true;
+            foreach (self::extensionContactKeys($number, $realm, $context) as $key) $allowed[$key] = true;
         }
         foreach ($trunks as $trunk) $allowed['trunk-' . (int) $trunk['id'] . '-aor'] = true;
         return array_values(array_filter($contacts, static function (array $contact) use ($allowed): bool {
             $aor = strstr((string) ($contact['uri'] ?? ''), '/', true);
             return isset($allowed[$aor === false ? (string) ($contact['uri'] ?? '') : $aor]);
         }));
+    }
+
+    /** Every AOR form used by desk phones and current/legacy Web Phone clients. */
+    public static function extensionContactKeys(string $number, string $realm, string $context): array
+    {
+        $keys = [$number . '@' . $realm];
+        $safeContext = preg_replace('/[^A-Za-z0-9_]/', '_', $context) ?: '';
+        if ($safeContext !== '') {
+            $keys[] = $safeContext . '_' . $number . '-phone-web';
+            $keys[] = $safeContext . '_' . $number . '-web';
+        }
+        return array_values(array_unique($keys));
     }
 
     /** Live conferences (ConfBridge). */

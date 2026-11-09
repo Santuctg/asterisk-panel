@@ -96,10 +96,7 @@ final class DashboardController extends BaseController
             if ($number === '') {
                 continue;
             }
-            $keys = [
-                $number . '@' . $realm,
-                $context . '_' . $number . '-phone-web',
-            ];
+            $keys = \App\Services\Asterisk\AsteriskManager::extensionContactKeys($number, $realm, $context);
             foreach ($keys as $key) {
                 if (isset($contacts[$key])) {
                     $count++;
