@@ -370,6 +370,10 @@ $expectedHistoryTime = format_cdr_date('2026-11-06 10:00:00', DATE_ATOM);
 $check($expectedHistoryTime !== date(DATE_ATOM, strtotime('2026-11-06 10:00:00'))
     && $historyTime === $expectedHistoryTime,
     'Web Phone history renders the tenant-local call time');
+$historyDisplayTime = (string) ($phoneConfig['history'][0]['displayTime'] ?? '');
+$expectedDisplayTime = format_cdr_date('2026-11-06 10:00:00', 'M j, g:i A');
+$check($historyDisplayTime === $expectedDisplayTime,
+    'Web Phone receives a tenant-local display time that the browser cannot convert');
 $db->insert('voicemail', [
     'tenant_id' => $tid, 'extension_id' => $targetExtension, 'pin' => '123456',
     'name' => 'Target mailbox', 'enabled' => 1,

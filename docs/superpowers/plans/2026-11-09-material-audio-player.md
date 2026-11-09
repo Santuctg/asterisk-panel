@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - No third-party libraries, no bundler: `public/assets/js/audio-player.js` is plain JS served as-is.
-- Styling uses only existing tokens: `--surface`, `--surface-alt`, `--border`, `--brand-500`, `--brand-600`, `--text-muted`, `--mono`, `--radius-*`; no hard-coded hex colors.
+- Styling uses existing semantic tokens (`--surface*`, `--border`, `--brand-*`, `--text*`, `--danger-500`, `--gray-50`, `--shadow-*`, `--mono`, `--radius-*`); no hard-coded colors.
 - Existing view scripts must keep working unmodified: they set `audio.hidden` and call `play()/pause()` on the raw element (MoH, Announcement, IVR, record preview).
 - The listen audio element must not be auto-enhanced and must not display any controls.
 - Web Phone times come from `format_cdr_date($calldate, DATE_ATOM)`; no raw `date()`/`strtotime()` formatting of CDR timestamps remains in `WebPhoneController`.

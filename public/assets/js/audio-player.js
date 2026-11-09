@@ -25,6 +25,9 @@
 
         var wrapper = document.createElement('div');
         wrapper.className = 'audio-player';
+        if (audio.classList.contains('moh-audio-player')) wrapper.classList.add('audio-player--moh');
+        if (audio.classList.contains('announcement-prompt-player')) wrapper.classList.add('audio-player--prompt');
+        if (audio.closest('.recording-modal')) wrapper.classList.add('audio-player--recording');
 
         var toggle = document.createElement('button');
         toggle.type = 'button';
@@ -47,6 +50,13 @@
         time.setAttribute('data-ap-time', '');
         time.textContent = '0:00 / --:--';
 
+        var status = document.createElement('span');
+        status.className = 'ap-status';
+        status.setAttribute('data-ap-status', '');
+        status.setAttribute('role', 'status');
+        status.setAttribute('aria-live', 'polite');
+        status.hidden = true;
+
         var mute = document.createElement('button');
         mute.type = 'button';
         mute.className = 'ap-mute';
@@ -58,6 +68,7 @@
         wrapper.appendChild(toggle);
         wrapper.appendChild(seek);
         wrapper.appendChild(time);
+        wrapper.appendChild(status);
         wrapper.appendChild(mute);
         wrapper.appendChild(audio);
         audio.removeAttribute('controls');
@@ -75,7 +86,21 @@
             time.textContent = formatClock(current) + ' / ' + formatClock(duration);
             seek.value = String(Math.round(percent * 10));
             seek.disabled = !Number.isFinite(duration);
+            seek.setAttribute('aria-valuetext', formatClock(current) + ' of ' + formatClock(duration));
             wrapper.style.setProperty('--ap-progress', percent.toFixed(2) + '%');
+        }
+
+        function clearError() {
+            wrapper.classList.remove('is-error');
+            status.hidden = true;
+            status.textContent = '';
+        }
+
+        function showError() {
+            wrapper.classList.add('is-error');
+            status.textContent = 'Audio could not be played.';
+            status.hidden = false;
+            syncToggle();
         }
 
         function syncToggle() {
@@ -93,7 +118,7 @@
         toggle.addEventListener('click', function () {
             if (audio.paused) {
                 var started = audio.play();
-                if (started && typeof started.catch === 'function') started.catch(function () {});
+                if (started && typeof started.catch === 'function') started.catch(showError);
             } else {
                 audio.pause();
             }
@@ -116,6 +141,10 @@
             audio.addEventListener(name, syncToggle);
         });
         audio.addEventListener('volumechange', syncMute);
+        audio.addEventListener('error', showError);
+        ['loadstart', 'loadedmetadata', 'canplay'].forEach(function (name) {
+            audio.addEventListener(name, clearError);
+        });
 
         render();
         syncToggle();

@@ -226,6 +226,7 @@ final class WebPhoneController extends BaseController
                 'result' => (string) ($call['disposition'] ?: 'UNKNOWN'),
                 'duration' => (int) ($call['billsec'] ?? 0),
                 'time' => format_cdr_date((string) ($call['calldate'] ?? ''), DATE_ATOM),
+                'displayTime' => format_cdr_date((string) ($call['calldate'] ?? ''), 'M j, g:i A'),
             ];
         }, $this->db()->all(
             'SELECT id, calldate, src, dst, disposition, billsec, uniqueid FROM cdr

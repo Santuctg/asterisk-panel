@@ -227,7 +227,8 @@ function callHistoryRow(item) {
     outcome.classList.toggle('is-missed', missed);
     outcome.append(phoneIcon(missed ? 'phone-off' : 'phone'));
     outcome.append(document.createTextNode(missed ? 'Missed call' : (duration ? formatDuration(duration) : String(item.result || 'No answer'))));
-    const time = document.createElement('time'); time.dateTime = String(item.time || ''); time.textContent = formatTime(new Date(item.time));
+    const time = document.createElement('time'); time.dateTime = String(item.time || '');
+    time.textContent = String(item.displayTime || formatTime(new Date(item.time)));
     const action = document.createElement('span'); action.className = 'webphone-row-action'; action.appendChild(phoneIcon('phone'));
     detail.append(strong, small); row.append(avatar, detail, outcome, time, action);
     row.addEventListener('click', () => {

@@ -1,4 +1,5 @@
 import JsSIP from '../vendor/jssip-3.13.9.mjs?v=2';
+import { createPlaybackRetry } from './playback-retry.js';
 
 const $ = selector => document.querySelector(selector);
 const status = $('#listen-status');
@@ -20,8 +21,19 @@ let busy = false;
 let refreshTimer = null;
 let listenerMediaTimer = null;
 const mediaConnections = new WeakSet();
+const playbackRetry = createPlaybackRetry({
+    target: window,
+    play: () => audio.play(),
+    onBlocked: () => { status.textContent = 'Listening connected. Click anywhere to hear audio.'; },
+    onStarted: () => {
+        if (status.textContent === 'Listening connected. Click anywhere to hear audio.') {
+            status.textContent = 'Listening in browser. Use Stop to hang up.';
+        }
+    },
+});
 
 function cleanup() {
+    playbackRetry.cancel();
     const currentSession = session;
     const currentUa = ua;
     session = null; ua = null;
@@ -42,21 +54,7 @@ function playRemoteMedia(peerconnection, stream = null) {
     audio.srcObject = remote;
     audio.muted = false; audio.volume = 1;
     audio.hidden = false;
-    audio.play().catch(() => {
-        status.textContent = 'Listening connected. Click anywhere to hear audio.';
-        const retry = () => {
-            window.removeEventListener('pointerdown', retry);
-            const started = audio.play();
-            if (started && typeof started.then === 'function') {
-                started.then(() => {
-                    if (status.textContent === 'Listening connected. Click anywhere to hear audio.') {
-                        status.textContent = 'Listening in browser. Use Stop to hang up.';
-                    }
-                }).catch(() => {});
-            }
-        };
-        window.addEventListener('pointerdown', retry);
-    });
+    playbackRetry.attempt();
 }
 function bindMedia(peerconnection) {
     if (!peerconnection) return;

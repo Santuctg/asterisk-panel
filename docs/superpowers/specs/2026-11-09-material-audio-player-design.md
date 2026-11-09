@@ -30,8 +30,9 @@ just fixed on the Dashboard).
 
 ## Constraints
 
-- Dark and light themes both exist (`[data-theme]`); the player must read
-  `--surface`, `--brand-*`, `--border`, `--text-muted` tokens only.
+- Dark and light themes both exist (`[data-theme]`); the player must use
+  existing semantic design tokens only (surface, brand, border, text, error,
+  shadow, and neutral tokens), with no hard-coded colors.
 - Existing view scripts toggle `audio.hidden` and call `.play()`/`.pause()` on the
   raw `<audio>` element; the component must not break them (it wraps the element
   and mirrors the `hidden` attribute).
