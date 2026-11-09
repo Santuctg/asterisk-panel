@@ -104,6 +104,8 @@ for dir in database logs cache provision asterisk acme; do
     install -d -o www-data -g www-data -m 0770 "$INSTALL_DIR/storage/$dir"
 done
 chown -R www-data:www-data "$INSTALL_DIR/storage"
+install -d -o root -g root -m 0755 /usr/local/lib/asterisk-panel
+install -o root -g root -m 0755 "$INSTALL_DIR/scripts/transcode-recording.php" /usr/local/lib/asterisk-panel/transcode-recording
 
 echo "[3/11] Creating persistent server credentials..."
 install -d -o root -g root -m 0750 /etc/asterisk-panel

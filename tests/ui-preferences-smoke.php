@@ -19,6 +19,7 @@ $loginView = file_get_contents(BASE_PATH . '/themes/default/views/auth/login.php
 $routes = file_get_contents(BASE_PATH . '/resources/routes.php');
 $updateService = file_get_contents(BASE_PATH . '/app/Services/UpdateService.php');
 $updateHelper = file_get_contents(BASE_PATH . '/scripts/update-helper.sh');
+$serverInstaller = file_get_contents(BASE_PATH . '/scripts/install-server-ubuntu.sh');
 $phoneView = file_get_contents(BASE_PATH . '/themes/default/views/web-phone/index.php');
 $phoneJs = file_get_contents(BASE_PATH . '/public/assets/js/web-phone.js');
 $listenView = file_get_contents(BASE_PATH . '/themes/default/views/live-listen/index.php');
@@ -94,6 +95,9 @@ $checks = [
     [str_contains($systemController, "trunks WHERE transport = 'tcp'") && str_contains($systemController, "trunks WHERE transport = 'tls'")
         && str_contains($systemController, 'A SIP trunk still uses the transport you are trying to disable.'),
         'transport disable remains blocked while a trunk uses that transport'],
+    [str_contains($serverInstaller, 'install -o root -g root -m 0755 "$INSTALL_DIR/scripts/transcode-recording.php" /usr/local/lib/asterisk-panel/transcode-recording')
+        && str_contains($updateHelper, 'install -o root -g root -m 0755 "$APP/scripts/transcode-recording.php" /usr/local/lib/asterisk-panel/transcode-recording'),
+        'fresh installs and updates deploy the protected Opus converter as root-owned executable'],
     [str_contains($phoneJs, 'config.voicemailEnabled === true')
         && str_contains($phoneJs, 'Voicemail has not been enabled.') && str_contains($phoneJs, "settings.href = '/voicemail'")
         && str_contains($phoneJs, "settings.target = '_blank'") && str_contains($css, '.webphone-voicemail-illustration'), 'disabled voicemail renders a centered settings state without bypassing panel authentication'],

@@ -78,8 +78,15 @@ if (!str_contains($dialplan, '[a-announcement-'.$aa.']')
     || !str_contains($dialplan, 'Playback(asterisk-panel/a/a)')
     || !str_contains($dialplan, 'Gosub(a,600,1)')
     || !str_contains($dialplan, 'Gosub(panel-auto-record,s,1(internal,a,full))')
-    || !str_contains($dialplan, 'GotoIf($["${ARG3}"="answered"]?answered)')
-    || !str_contains($dialplan, 'MixMonitor(/var/spool/asterisk/monitor/asterisk-panel/${PANEL_RECORDING_FILE},b)')) throw new RuntimeException('Routable announcement or selectable recording dialplan is invalid');
+    || !str_contains($dialplan, 'GotoIf($["${ARG3}"="answered"]?answered)')) throw new RuntimeException('Routable announcement or selectable recording dialplan is invalid');
+if (!preg_match('/\[panel-auto-record\]\n(.*?)\n\n/s', $dialplan, $recordingContext)) throw new RuntimeException('Recording helper context is missing');
+if (!str_contains($recordingContext[1], 'Set(__PANEL_RECORDING_BASENAME=${ARG2}-${ARG1}-${STRFTIME(${EPOCH},,%Y%m%d-%H%M%S)}-${UNIQUEID})')
+    || !str_contains($recordingContext[1], 'Set(__PANEL_RECORDING_FILE=${PANEL_RECORDING_BASENAME}.wav)')
+    || !str_contains($recordingContext[1], 'Set(CDR(userfield)=recording:${PANEL_RECORDING_BASENAME})')) throw new RuntimeException('Recording basename and extension-independent CDR marker are invalid');
+$transcodeCommand = '/usr/local/lib/asterisk-panel/transcode-recording ${PANEL_RECORDING_BASENAME}';
+if (!str_contains($recordingContext[1], 'MixMonitor(/var/spool/asterisk/monitor/asterisk-panel/${PANEL_RECORDING_FILE},,'.$transcodeCommand.')')
+    || !str_contains($recordingContext[1], 'MixMonitor(/var/spool/asterisk/monitor/asterisk-panel/${PANEL_RECORDING_FILE},b,'.$transcodeCommand.')')) throw new RuntimeException('Full and answered recordings do not invoke protected post-call transcoding');
+if (str_contains($recordingContext[1], '${CALLERID') || str_contains($recordingContext[1], '${EXTEN}')) throw new RuntimeException('Recording command contains request-derived dialplan text');
 $recordingStart = $db->insert('settings', ['tenant_id'=>$a,'key'=>'recording_start','value'=>'answered']);
 if (!str_contains((new App\Services\Asterisk\ConfigGenerator())->renderDialplan(), 'Gosub(panel-auto-record,s,1(internal,a,answered))')) throw new RuntimeException('Answered-only recording mode was not generated');
 $db->update('settings', $recordingStart, ['value'=>'full']);

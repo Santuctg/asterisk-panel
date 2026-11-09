@@ -108,6 +108,7 @@ update() {
     install -o root -g root -m 0755 "$APP/scripts/acme-dns-auth-hook.sh" /usr/local/lib/asterisk-panel/acme-dns-auth
     install -o root -g root -m 0755 "$APP/scripts/acme-dns-cleanup-hook.sh" /usr/local/lib/asterisk-panel/acme-dns-cleanup
     install -o root -g root -m 0755 "$APP/scripts/deploy-sip-tls-cert.sh" /usr/local/lib/asterisk-panel/deploy-sip-tls-cert
+    install -o root -g root -m 0755 "$APP/scripts/transcode-recording.php" /usr/local/lib/asterisk-panel/transcode-recording
     local pool=/etc/php/8.3/fpm/pool.d/asterisk-panel.conf
     if [[ -f "$pool" ]]; then
         sed -i '/^php_admin_value\[upload_max_filesize\]/d; /^php_admin_value\[post_max_size\]/d' "$pool"

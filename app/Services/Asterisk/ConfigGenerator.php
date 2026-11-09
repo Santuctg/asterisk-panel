@@ -1207,12 +1207,14 @@ final class ConfigGenerator
         $out .= "exten => s,1,NoOp(Auto recording: \${ARG1})\n";
         $out .= " same => n,GotoIf(\$[\"\${PANEL_RECORDING_STARTED}\"=\"1\"]?done)\n";
         $out .= " same => n,Set(__PANEL_RECORDING_STARTED=1)\n";
-        $out .= " same => n,Set(__PANEL_RECORDING_FILE=\${ARG2}-\${ARG1}-\${STRFTIME(\${EPOCH},,%Y%m%d-%H%M%S)}-\${UNIQUEID}.wav)\n";
-        $out .= " same => n,Set(CDR(userfield)=recording:\${PANEL_RECORDING_FILE})\n";
+        $out .= " same => n,Set(__PANEL_RECORDING_BASENAME=\${ARG2}-\${ARG1}-\${STRFTIME(\${EPOCH},,%Y%m%d-%H%M%S)}-\${UNIQUEID})\n";
+        $out .= " same => n,Set(__PANEL_RECORDING_FILE=\${PANEL_RECORDING_BASENAME}.wav)\n";
+        $out .= " same => n,Set(CDR(userfield)=recording:\${PANEL_RECORDING_BASENAME})\n";
         $out .= " same => n,GotoIf(\$[\"\${ARG3}\"=\"answered\"]?answered)\n";
-        $out .= " same => n,MixMonitor({$dir}/\${PANEL_RECORDING_FILE})\n";
+        $command = '/usr/local/lib/asterisk-panel/transcode-recording ${PANEL_RECORDING_BASENAME}';
+        $out .= " same => n,MixMonitor({$dir}/\${PANEL_RECORDING_FILE},,{$command})\n";
         $out .= " same => n,Goto(done)\n";
-        $out .= " same => n(answered),MixMonitor({$dir}/\${PANEL_RECORDING_FILE},b)\n";
+        $out .= " same => n(answered),MixMonitor({$dir}/\${PANEL_RECORDING_FILE},b,{$command})\n";
         $out .= " same => n(done),Return()\n\n";
         return $out;
     }
