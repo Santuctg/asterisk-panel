@@ -36,4 +36,12 @@ $check(str_contains($appLayout, 'assets/js/audio-player.js'), 'app layout loads 
 $check((bool) preg_match('/id="recordingPlaybackAudio"[^>]*\scontrols|controls[^>]*id="recordingPlaybackAudio"/', $cdrView),
     'recording modal audio still declares controls for auto-enhancement');
 
+$listenView = file_get_contents(BASE_PATH . '/themes/default/views/live-listen/index.php');
+$listenJs = file_get_contents(BASE_PATH . '/public/assets/js/live-listen.js');
+$check(!str_contains($listenView, 'id="listen-audio"') || !preg_match('/id="listen-audio"[^>]*\scontrols/', $listenView),
+    'Active Calls listen audio carries no native controls');
+$check(!str_contains($listenJs, 'Press Play below') && str_contains($listenJs, 'pointerdown')
+    && str_contains($listenJs, 'audio.play()'),
+    'blocked autoplay retries from the next click instead of pointing at a play button');
+
 echo 'All material player checks passed.' . PHP_EOL;

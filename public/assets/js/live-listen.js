@@ -42,7 +42,21 @@ function playRemoteMedia(peerconnection, stream = null) {
     audio.srcObject = remote;
     audio.muted = false; audio.volume = 1;
     audio.hidden = false;
-    audio.play().catch(() => { status.textContent = 'Listening connected. Press Play below to hear audio.'; });
+    audio.play().catch(() => {
+        status.textContent = 'Listening connected. Click anywhere to hear audio.';
+        const retry = () => {
+            window.removeEventListener('pointerdown', retry);
+            const started = audio.play();
+            if (started && typeof started.then === 'function') {
+                started.then(() => {
+                    if (status.textContent === 'Listening connected. Click anywhere to hear audio.') {
+                        status.textContent = 'Listening in browser. Use Stop to hang up.';
+                    }
+                }).catch(() => {});
+            }
+        };
+        window.addEventListener('pointerdown', retry);
+    });
 }
 function bindMedia(peerconnection) {
     if (!peerconnection) return;
