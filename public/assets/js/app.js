@@ -281,6 +281,26 @@
         });
     });
 
+    // ---- SIP transport state ----------------------------------------------
+    document.querySelectorAll('[data-transport-toggle]').forEach(function (toggle) {
+        var target = document.getElementById(toggle.getAttribute('data-transport-toggle'));
+        if (!target) return;
+        var field = target.closest('.field');
+        var syncTransport = function () {
+            var disabled = toggle.value === '0';
+            target.disabled = disabled;
+            target.setAttribute('aria-disabled', String(disabled));
+            if (field) field.classList.toggle('transport-disabled', disabled);
+        };
+        toggle.addEventListener('change', syncTransport);
+        syncTransport();
+
+        // Disabled controls are not submitted by browsers. Re-enable the port
+        // at submit time so switching a transport Off preserves its port.
+        var form = toggle.closest('form');
+        if (form) form.addEventListener('submit', function () { target.disabled = false; });
+    });
+
     // ---- Form instructions as accessible info tooltips ---------------------
     // Existing field hints remain in the DOM for translation and no-JS
     // fallback, but are presented beside their labels when JavaScript runs.

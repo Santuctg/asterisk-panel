@@ -665,6 +665,8 @@ input:autofill:focus {
 }
 textarea { min-height: 90px; resize: vertical; }
 input[readonly] { background: var(--surface-alt); color: var(--text-muted); }
+.field.transport-disabled { opacity:.58; }
+.field.transport-disabled input:disabled { cursor:not-allowed; background:var(--surface-alt); }
 [data-theme="dark"] input[type=time] { color-scheme:dark; }
 
 .check {

@@ -132,6 +132,15 @@ $check(str_contains($transportConfig, "[panel-transport-udp]\n")
     && str_contains($transportConfig, "[panel-transport-tls]\n")
     && str_contains($transportConfig, 'cert_file = /etc/asterisk/keys/asterisk-panel.crt'),
     'generated PJSIP configuration enables UDP, TCP and certificate-backed TLS transports');
+$db->insert('settings', ['tenant_id' => null, 'key' => 'sip_tcp_enabled', 'value' => '0']);
+$db->insert('settings', ['tenant_id' => null, 'key' => 'sip_tls_enabled', 'value' => '0']);
+$disabledTransportConfig = $gen->renderPjsipPort();
+$check(str_contains($disabledTransportConfig, "[panel-transport-udp]\n")
+    && !str_contains($disabledTransportConfig, '[panel-transport-tcp]')
+    && !str_contains($disabledTransportConfig, '[panel-transport-tls]'),
+    'generated PJSIP configuration omits SIP TCP and TLS transports when switched Off');
+$db->insert('settings', ['tenant_id' => null, 'key' => 'sip_tcp_enabled', 'value' => '1']);
+$db->insert('settings', ['tenant_id' => null, 'key' => 'sip_tls_enabled', 'value' => '1']);
 $sharedTrunk = $db->insert('trunks', [
     'tenant_id' => $other, 'name' => 'Shared provider tenant B', 'host' => 'sip.example.test',
     'username' => '09642105105', 'secret' => 'provider-secret-b', 'enabled' => 1,

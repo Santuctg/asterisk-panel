@@ -29,11 +29,17 @@ $s = static fn (string $k, string $d = '') => $settings[$k] ?? $d;
                 'type' => 'number', 'min' => 1024, 'max' => 65535,
                 'hint' => 'Standard connectionless SIP transport. UDP and TCP may share the same port number.',
             ]); ?>
-            <div><?= field_check('sip_tcp_enabled', 'Enable SIP TCP', (bool) ($sipTransports['tcp_enabled'] ?? true), 'Accept desk-phone and trunk registrations over TCP.') ?></div>
+            <?php echo field_select('sip_tcp_enabled', 'SIP TCP', ['1' => 'On', '0' => 'Off'], !empty($sipTransports['tcp_enabled']) ? '1' : '0', [
+                'attrs' => 'data-transport-toggle="sip_tcp_port"',
+                'hint' => 'Turn Off to stop accepting desk-phone and trunk registrations over TCP.',
+            ]); ?>
             <?php echo field_text('sip_tcp_port', 'SIP TCP port', (string) ($sipTransports['tcp_port'] ?? 5060), [
                 'type' => 'number', 'min' => 1024, 'max' => 65535,
             ]); ?>
-            <div><?= field_check('sip_tls_enabled', 'Enable SIP TLS', (bool) ($sipTransports['tls_enabled'] ?? true), 'Encrypt SIP signalling. Media encryption remains a separate phone setting.') ?></div>
+            <?php echo field_select('sip_tls_enabled', 'SIP TLS', ['1' => 'On', '0' => 'Off'], !empty($sipTransports['tls_enabled']) ? '1' : '0', [
+                'attrs' => 'data-transport-toggle="sip_tls_port"',
+                'hint' => 'Turn Off to stop encrypted SIP signalling. Media encryption remains separate.',
+            ]); ?>
             <?php echo field_text('sip_tls_port', 'SIP TLS port', (string) ($sipTransports['tls_port'] ?? 5061), [
                 'type' => 'number', 'min' => 1024, 'max' => 65535,
                 'hint' => 'TLS must use a different TCP port. The default is 5061.',
