@@ -14,6 +14,8 @@ enforces, without breaking the standalone Web Phone login flow.
   `contact.view`, `contact.manage`, and `call.hangup`.
 - Require `dashboard.view` on the Dashboard page, live-calls polling endpoint,
   and global search endpoint.
+- Send authenticated users to their first authorized destination, with
+  `/profile` as the safe fallback when no assignable page permission exists.
 - Show each System submenu link only when the user has the corresponding
   permission.
 - Keep `manage` implying the matching `view`, as implemented by `Auth::can()`.
@@ -45,5 +47,7 @@ Web Phone link; it will not replace the independent phone authentication flow.
 - A contract test compares every assignable ability against the role editor
   groups, allowing no omissions.
 - Route tests prove Dashboard and search require `dashboard.view`.
+- Behavioral authentication tests prove Dashboard-less roles neither land in
+  nor redirect back into a Dashboard authorization loop.
 - Layout tests prove System children carry and apply their own abilities.
 - Existing Web Phone authentication tests remain green.

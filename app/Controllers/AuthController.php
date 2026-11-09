@@ -23,7 +23,7 @@ final class AuthController extends BaseController
     public function showLogin(Request $request): Response
     {
         if (auth()->check()) {
-            return Response::redirect('/dashboard');
+            return Response::redirect(auth()->landingPath());
         }
 
         return $this->view('auth/login', [
@@ -88,7 +88,7 @@ final class AuthController extends BaseController
 
         $this->audit('auth.login', 'user', (int) $user['id']);
 
-        return Response::redirect('/dashboard');
+        return Response::redirect(auth()->landingPath());
     }
 
     /** POST /logout */

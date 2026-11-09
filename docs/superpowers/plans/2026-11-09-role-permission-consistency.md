@@ -22,6 +22,7 @@
 
 - Permission drift: every key from `Auth::assignableAbilities()` must appear exactly once in the role editor groups; pinned by the role consistency smoke test.
 - Direct URL bypass: `/`, `/dashboard`, `/dashboard/live-calls`, and `/search` must require `dashboard.view`; pinned by exact route assertions.
+- Restricted-role landing: login and authorization denial must choose the first authorized destination, falling back to `/profile`; pinned by behavioral tenant-auth coverage.
 - Settings-only roles: System parent must remain visible even without `system_status.view`, and link to the first permitted child; pinned by layout contract assertions.
 - No System access: users with no visible System child must not see an empty System group; pinned by the child-filtering assertion.
 - Public Web Phone compatibility: its routes must remain unauthenticated panel routes; pinned by unchanged-route assertions and the existing Web Phone smoke coverage.
@@ -77,3 +78,9 @@ Expected: all checks pass (25 smoke suites after adding this test).
 - [ ] **Step 7: Commit**
 
 Commit product files, test, spec, and plan as `fix: align role permission controls`.
+
+- [ ] **Step 8: Resolve restricted-role landing review finding**
+
+Add a behavioral regression test for settings-only and no-permission roles.
+Centralize authorized landing selection in `Auth`, and use it after successful
+login, when an authenticated user visits `/login`, and after permission denial.

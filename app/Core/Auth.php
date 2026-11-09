@@ -199,6 +199,42 @@ final class Auth
         return [];
     }
 
+    /** First panel destination the current user is allowed to open. */
+    public function landingPath(): string
+    {
+        $destinations = [
+            'dashboard.view' => '/dashboard',
+            'webphone.use' => '/web-phone',
+            'call.listen' => '/active-calls',
+            'extension.view' => '/extensions',
+            'contact.view' => '/contacts',
+            'voicemail.view' => '/voicemail',
+            'device.view' => '/devices',
+            'ringgroup.view' => '/ring-groups',
+            'parking.view' => '/parking',
+            'ivr.view' => '/ivr',
+            'route.view' => '/routes',
+            'moh.view' => '/moh',
+            'callcenter.view' => '/call-center',
+            'conference.view' => '/conferences',
+            'cdr.view' => '/cdr',
+            'user.view' => '/users',
+            'role.view' => '/roles',
+            'tenant_security.view' => '/tenant-security',
+            'system_status.view' => '/system/status',
+            'system_settings.view' => '/system/settings',
+            'audit.view' => '/system/audit',
+        ];
+
+        foreach ($destinations as $ability => $path) {
+            if ($this->can($ability)) {
+                return $path;
+            }
+        }
+
+        return '/profile';
+    }
+
     /**
      * Middleware factory: require login (and optionally an ability).
      * Tenant scoping is applied by the controllers via currentTenantId().
@@ -217,7 +253,7 @@ final class Auth
 
             if ($ability !== '' && !$auth->can($ability)) {
                 Flash::error('You do not have permission to perform that action.');
-                return Response::redirect('/dashboard');
+                return Response::redirect($auth->landingPath());
             }
 
             return $next($request);

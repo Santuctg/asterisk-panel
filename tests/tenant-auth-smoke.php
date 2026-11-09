@@ -198,12 +198,53 @@ $check((new App\Services\TenantSecurity())->isBlocked($tenantA, '203.0.113.77')
     && !(new App\Services\TenantSecurity())->isBlocked($tenantB, '203.0.113.77'),
     'tenant login block is isolated per tenant');
 
+// Restricted roles must land on a page they can access instead of bouncing
+// between the Dashboard and authorization middleware.
+$db->insert('roles', [
+    'tenant_id' => $tenantA, 'name' => 'Settings only', 'slug' => 'settings-only',
+    'permissions' => json_encode(['system_settings.view']),
+]);
+$db->insert('users', [
+    'tenant_id' => $tenantA, 'username' => 'settings-user', 'password' => $password,
+    'role' => 'settings-only', 'active' => 1,
+]);
+$db->insert('roles', [
+    'tenant_id' => $tenantA, 'name' => 'Profile only', 'slug' => 'profile-only',
+    'permissions' => '[]',
+]);
+$profileUser = $db->insert('users', [
+    'tenant_id' => $tenantA, 'username' => 'profile-user', 'password' => $password,
+    'role' => 'profile-only', 'active' => 1,
+]);
+$app->auth()->logout();
+$_SERVER['HTTP_HOST'] = 'a.example.test';
+$authController = new App\Controllers\AuthController();
+$settingsLogin = $authController->login(new App\Core\Request(
+    'POST', '/login', [], ['username' => 'settings-user', 'password' => 'correct-horse']
+));
+$check(($settingsLogin->headers()['Location'] ?? '') === '/system/settings',
+    'dashboard-less role login lands on its first authorized page');
+$dashboardDenial = App\Core\Auth::require('dashboard.view')(
+    new App\Core\Request('GET', '/dashboard'),
+    static fn (): App\Core\Response => App\Core\Response::text('unexpected')
+);
+$check(($dashboardDenial->headers()['Location'] ?? '') === '/system/settings',
+    'authorization denial redirects to an authorized page without looping');
+$app->auth()->logout();
+$profileLogin = $authController->login(new App\Core\Request(
+    'POST', '/login', [], ['username' => 'profile-user', 'password' => 'correct-horse']
+));
+$check(($profileLogin->headers()['Location'] ?? '') === '/profile',
+    'role with no assignable permissions falls back to profile');
+$check((int) $app->auth()->id() === $profileUser
+    && (($authController->showLogin(new App\Core\Request('GET', '/login'))->headers()['Location'] ?? '') === '/profile'),
+    'authenticated login page uses the same safe landing path');
+
 // Main-panel throttling must survive a replaced session cookie and must not
 // share reset state with successful Web Phone authentication from the same IP.
 $app->auth()->logout();
 $_SERVER['HTTP_HOST'] = 'a.example.test';
 $loginIp = '192.0.2.88';
-$authController = new App\Controllers\AuthController();
 for ($attempt = 1; $attempt <= 5; $attempt++) {
     $_SESSION = []; // Simulate replacing the panel session cookie each time.
     $failedPanelLogin = $authController->login(new App\Core\Request(
