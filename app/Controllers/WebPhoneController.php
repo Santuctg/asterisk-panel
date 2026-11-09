@@ -219,14 +219,13 @@ final class WebPhoneController extends BaseController
         }
         $history = array_map(static function (array $call) use ($extension): array {
             $outgoing = (string) ($call['src'] ?? '') === $extension;
-            $timestamp = strtotime((string) ($call['calldate'] ?? ''));
             return [
                 'id' => 'cdr:' . ((string) ($call['uniqueid'] ?: $call['id'])),
                 'number' => (string) ($outgoing ? $call['dst'] : $call['src']),
                 'direction' => $outgoing ? 'outgoing' : 'incoming',
                 'result' => (string) ($call['disposition'] ?: 'UNKNOWN'),
                 'duration' => (int) ($call['billsec'] ?? 0),
-                'time' => $timestamp ? date(DATE_ATOM, $timestamp) : (string) $call['calldate'],
+                'time' => format_cdr_date((string) ($call['calldate'] ?? ''), DATE_ATOM),
             ];
         }, $this->db()->all(
             'SELECT id, calldate, src, dst, disposition, billsec, uniqueid FROM cdr
