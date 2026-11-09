@@ -149,6 +149,8 @@ $controllerSource = file_get_contents(BASE_PATH . '/app/Controllers/SystemContro
 $check(!str_contains($controllerSource, "if (\$isGlobal) {\n                    \$version")
     && str_contains($controllerSource, '$version  = $mgr->version();'),
     'Asterisk version and uptime are fetched for tenant status viewers');
+$check(str_contains($controllerSource, '$contacts = $tenantId ? $mgr->tenantContacts($tenantId) : $mgr->contacts();'),
+    'an active tenant scopes status contacts even for Superadmin viewers');
 
 // 4) Every icon referenced anywhere in the theme must exist on disk.
 $missing = [];

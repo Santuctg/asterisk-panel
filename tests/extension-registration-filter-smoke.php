@@ -59,6 +59,15 @@ $db->insert('extensions', [
     'tenant_id' => $foreignTenant, 'extension' => '999', 'name' => 'Foreign Desk',
     'secret' => 'foreign-secret', 'enabled' => 0,
 ]);
+$db->insert('voicemail', [
+    'tenant_id' => $foreignTenant, 'extension_id' => $extensionIds[102], 'pin' => '9999',
+    'name' => 'Cross-tenant mailbox', 'email' => 'foreign-mailbox@example.test',
+]);
+$db->insert('devices', [
+    'tenant_id' => $foreignTenant, 'extension_id' => $extensionIds[101],
+    'mac' => 'AABBCCDDEEFF', 'vendor' => 'foreign-vendor',
+    'provision_token' => 'cross-tenant-device',
+]);
 foreach ([1, 2] as $suffix) {
     $db->insert('voicemail', [
         'tenant_id' => $tenant, 'extension_id' => $extensionIds[101], 'pin' => '12' . $suffix,
@@ -86,8 +95,12 @@ $firstPageHtml = (new App\Controllers\ExtensionController())->index(new App\Core
     'GET', '/extensions', ['registration' => 'disabled', 'page' => '1', 'per' => '5']
 ))->body();
 $check(substr_count($firstPageHtml, 'data-modal-open="extensionMonitor' . $extensionIds[101] . '"') === 1
-    && str_contains($firstPageHtml, '00:11:22:33:44:01'),
+    && str_contains($firstPageHtml, '00:11:22:33:44:01') && !str_contains($firstPageHtml, 'AA:BB:CC:DD:EE:FF'),
     'page hydration renders one extension row and deterministically selects its first related device');
+$desk102Start = strpos($firstPageHtml, '<strong class="mono">102</strong>');
+$desk102Row = $desk102Start === false ? '' : substr($firstPageHtml, $desk102Start, 900);
+$check(str_contains($desk102Row, '<span class="badge gray">Off</span>'),
+    'page hydration ignores a voicemail row whose tenant does not own the extension');
 
 $dashboard = file_get_contents(BASE_PATH . '/themes/default/views/dashboard/index.php');
 $extensions = file_get_contents(BASE_PATH . '/themes/default/views/extensions/index.php');

@@ -102,11 +102,11 @@ final class ExtensionController extends BaseController
             $ph = implode(',', array_fill(0, count($pageIds), '?'));
             $hydrated = $db->all(
                 "SELECT e.*,
-                        (SELECT v.id FROM voicemail v WHERE v.extension_id = e.id ORDER BY v.id LIMIT 1) AS vm_id,
-                        (SELECT v.email FROM voicemail v WHERE v.extension_id = e.id ORDER BY v.id LIMIT 1) AS vm_email,
-                        (SELECT v.attach FROM voicemail v WHERE v.extension_id = e.id ORDER BY v.id LIMIT 1) AS vm_attach,
-                        (SELECT d.mac FROM devices d WHERE d.extension_id = e.id ORDER BY d.id LIMIT 1) AS device_mac,
-                        (SELECT d.vendor FROM devices d WHERE d.extension_id = e.id ORDER BY d.id LIMIT 1) AS device_vendor,
+                        (SELECT v.id FROM voicemail v WHERE v.extension_id = e.id AND v.tenant_id = e.tenant_id ORDER BY v.id LIMIT 1) AS vm_id,
+                        (SELECT v.email FROM voicemail v WHERE v.extension_id = e.id AND v.tenant_id = e.tenant_id ORDER BY v.id LIMIT 1) AS vm_email,
+                        (SELECT v.attach FROM voicemail v WHERE v.extension_id = e.id AND v.tenant_id = e.tenant_id ORDER BY v.id LIMIT 1) AS vm_attach,
+                        (SELECT d.mac FROM devices d WHERE d.extension_id = e.id AND d.tenant_id = e.tenant_id ORDER BY d.id LIMIT 1) AS device_mac,
+                        (SELECT d.vendor FROM devices d WHERE d.extension_id = e.id AND d.tenant_id = e.tenant_id ORDER BY d.id LIMIT 1) AS device_vendor,
                         o.name AS outbound_route_name
                  FROM extensions e
                  LEFT JOIN outbound_routes o ON o.id = e.outbound_route_id AND o.tenant_id = e.tenant_id

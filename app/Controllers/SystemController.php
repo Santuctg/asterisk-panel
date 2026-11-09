@@ -40,7 +40,7 @@ final class SystemController extends BaseController
                 $version  = $mgr->version();
                 $uptime   = $mgr->uptime()['raw'] ?? '';
                 $channels = $tenantId ? $mgr->tenantChannels($tenantId, 30) : [];
-                $contacts = $tenantId && !$isGlobal ? $mgr->tenantContacts($tenantId) : $mgr->contacts();
+                $contacts = $tenantId ? $mgr->tenantContacts($tenantId) : $mgr->contacts();
                 $confs    = $this->tenantConferences($mgr->conferences());
                 $queues   = $this->tenantLiveRows($mgr->queueStatus(), 'name', 'queues', ['extension']);
 
