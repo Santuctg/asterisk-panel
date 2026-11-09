@@ -131,8 +131,9 @@ $user = $auth->user();
             </button>
 
             <div class="topbar-search">
-                <input type="search" id="globalSearch" placeholder="Search extensions, devices, queues…"
-                       autocomplete="off" aria-label="Search">
+                <input type="search" id="globalSearch" placeholder="Search extensions, contacts, devices, trunks…"
+                       autocomplete="off" aria-label="Search" aria-controls="globalSearchResults" aria-expanded="false">
+                <div class="global-search-results" id="globalSearchResults" role="listbox" hidden></div>
             </div>
 
             <div class="topbar-actions">

@@ -49,6 +49,17 @@ $check($import->status() === 302 && (int) $db->scalar('SELECT COUNT(*) FROM cont
 $template = $controller->template(new App\Core\Request('GET', '/contacts/import/template'));
 $check(str_starts_with($template->body(), "\xEF\xBB\xBFName,Phone") && str_contains($template->headers()['Content-Disposition'] ?? '', '.csv'), 'Excel-compatible UTF-8 CSV template downloads with a BOM');
 
+$extension = $db->insert('extensions', ['tenant_id' => $tenantA, 'extension' => '1001', 'name' => 'Alice Extension', 'secret' => 'secret', 'enabled' => 1]);
+$db->insert('extensions', ['tenant_id' => $tenantB, 'extension' => '9001', 'name' => 'Alice Other Tenant', 'secret' => 'secret', 'enabled' => 1]);
+$db->insert('devices', ['tenant_id' => $tenantA, 'extension_id' => $extension, 'mac' => '001565abcdef', 'vendor' => 'Alice Phone', 'provision_token' => bin2hex(random_bytes(32)), 'enabled' => 1]);
+$db->insert('trunks', ['tenant_id' => $tenantA, 'name' => 'Alice Trunk', 'host' => 'alice.sip.example.test', 'transport' => 'tcp', 'enabled' => 1]);
+$search = (new App\Controllers\SearchController())->index(new App\Core\Request('GET', '/search', ['q' => 'Alice']));
+$searchRows = json_decode($search->body(), true)['results'] ?? [];
+$searchKinds = array_column($searchRows, 'kind');
+$check($search->status() === 200 && in_array('Extension', $searchKinds, true) && in_array('Contact', $searchKinds, true)
+    && in_array('Device', $searchKinds, true) && in_array('Trunk', $searchKinds, true)
+    && !str_contains($search->body(), 'Other Tenant'), 'global search returns useful tenant-scoped entities without cross-tenant results');
+
 $db->insert('settings', ['tenant_id' => null, 'key' => 'panel_name', 'value' => 'Global Brand']);
 $db->insert('settings', ['tenant_id' => $tenantA, 'key' => 'panel_name', 'value' => 'Tenant A Brand']);
 $branding = App\Services\Branding::current($tenantA);

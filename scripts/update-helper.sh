@@ -51,7 +51,7 @@ update() {
     [[ -z "$(git -C "$REPO" status --porcelain --untracked-files=normal)" ]] \
         || { echo 'Update repository has local or untracked changes; refusing.' >&2; exit 3; }
     git -C "$REPO" merge-base --is-ancestor HEAD "origin/$BRANCH" || { echo 'Update is not a fast-forward; refusing.' >&2; exit 3; }
-    local repo_head remote_head app_version repo_version stamp backup
+    local repo_head remote_head app_version repo_version stamp backup sip_transport_upgrade=0
     repo_head="$(git -C "$REPO" rev-parse HEAD)"
     remote_head="$(git -C "$REPO" rev-parse "origin/$BRANCH")"
     app_version="$(version_from_file "$APP/resources/config/app.php")"
@@ -76,9 +76,38 @@ update() {
     find /var/lib/asterisk/sounds/asterisk-panel -mindepth 1 -maxdepth 1 -type d \
         -exec chown www-data:asterisk {} + -exec chmod 2775 {} +
     install -o root -g root -m 0644 "$APP/resources/deploy/nginx-recordings.conf" /etc/nginx/snippets/asterisk-panel-recordings.conf
+    if ! cmp -s "$APP/resources/deploy/asterisk/pjsip-base.conf" /etc/asterisk/asterisk_panel/pjsip_base.conf; then sip_transport_upgrade=1; fi
+    install -o root -g asterisk -m 0644 "$APP/resources/deploy/asterisk/pjsip-base.conf" /etc/asterisk/asterisk_panel/pjsip_base.conf
+    install -d -o root -g asterisk -m 0750 /etc/asterisk/keys
+    local app_url sip_domain
+    app_url="$(php -r '$env = @parse_ini_file($argv[1], false, INI_SCANNER_RAW); echo is_array($env) ? (string) ($env["APP_URL"] ?? "") : "";' "$APP/.env")"
+    sip_domain="$(php -r 'echo (string) parse_url($argv[1] ?? "", PHP_URL_HOST);' "$app_url")"
+    if [[ ! "$sip_domain" =~ ^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]]; then sip_domain=localhost; fi
+    if [[ -n "$sip_domain" && -f "/etc/letsencrypt/live/$sip_domain/fullchain.pem" && -f "/etc/letsencrypt/live/$sip_domain/privkey.pem" ]]; then
+        install -o root -g asterisk -m 0640 "/etc/letsencrypt/live/$sip_domain/fullchain.pem" /etc/asterisk/keys/asterisk-panel.crt
+        install -o root -g asterisk -m 0640 "/etc/letsencrypt/live/$sip_domain/privkey.pem" /etc/asterisk/keys/asterisk-panel.key
+    elif [[ ! -s /etc/asterisk/keys/asterisk-panel.crt || ! -s /etc/asterisk/keys/asterisk-panel.key ]]; then
+        openssl req -x509 -newkey rsa:2048 -sha256 -nodes -days 825 \
+            -subj "/CN=${sip_domain:-localhost}" \
+            -keyout /etc/asterisk/keys/asterisk-panel.key -out /etc/asterisk/keys/asterisk-panel.crt >/dev/null 2>&1
+        chown root:asterisk /etc/asterisk/keys/asterisk-panel.crt /etc/asterisk/keys/asterisk-panel.key
+        chmod 0640 /etc/asterisk/keys/asterisk-panel.crt /etc/asterisk/keys/asterisk-panel.key
+    fi
+    if [[ -f "/etc/letsencrypt/renewal/$sip_domain.conf" ]]; then
+        sed -i '/^[[:space:]]*deploy_hook[[:space:]]*=/d' "/etc/letsencrypt/renewal/$sip_domain.conf"
+        sed -i '/^\[renewalparams\]/a deploy_hook = /usr/local/lib/asterisk-panel/deploy-sip-tls-cert' "/etc/letsencrypt/renewal/$sip_domain.conf"
+    fi
+    if command -v ufw >/dev/null 2>&1 && ufw status | grep -q '^Status: active'; then
+        ufw allow 5060/tcp comment 'Asterisk PJSIP TCP' >/dev/null
+        ufw allow 5061/tcp comment 'Asterisk PJSIP TLS' >/dev/null
+    fi
     install -d -o root -g root -m 0755 /usr/local/lib/asterisk-panel
     install -o root -g root -m 0644 "$APP/resources/deploy/nginx-https.conf.template" /usr/local/lib/asterisk-panel/nginx-https.conf.template
     install -o root -g root -m 0644 "$APP/resources/deploy/nginx-tenant-https.conf.template" /usr/local/lib/asterisk-panel/nginx-tenant-https.conf.template
+    install -o root -g root -m 0755 "$APP/scripts/acme-dns-ssl-helper.sh" /usr/local/sbin/asterisk-panel-ssl
+    install -o root -g root -m 0755 "$APP/scripts/acme-dns-auth-hook.sh" /usr/local/lib/asterisk-panel/acme-dns-auth
+    install -o root -g root -m 0755 "$APP/scripts/acme-dns-cleanup-hook.sh" /usr/local/lib/asterisk-panel/acme-dns-cleanup
+    install -o root -g root -m 0755 "$APP/scripts/deploy-sip-tls-cert.sh" /usr/local/lib/asterisk-panel/deploy-sip-tls-cert
     local pool=/etc/php/8.3/fpm/pool.d/asterisk-panel.conf
     if [[ -f "$pool" ]]; then
         sed -i '/^php_admin_value\[upload_max_filesize\]/d; /^php_admin_value\[post_max_size\]/d' "$pool"
@@ -125,7 +154,7 @@ update() {
         done
     fi
     if systemctl is-active --quiet asterisk; then
-        if (( voicemail_modules_changed )); then
+        if (( voicemail_modules_changed || sip_transport_upgrade )); then
             systemctl restart asterisk
         else
             asterisk -rx 'pjsip reload'

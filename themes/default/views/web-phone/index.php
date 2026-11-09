@@ -45,7 +45,8 @@
             <button type="button" class="is-active" data-phone-section="all"><span><svg class="webphone-icon" aria-hidden="true"><use href="#wp-icon-users"></use></svg></span><strong>All Contacts</strong></button>
             <button type="button" data-phone-section="favorites"><span class="is-favorite"><svg class="webphone-icon" aria-hidden="true"><use href="#wp-icon-star"></use></svg></span><strong>Favorites</strong></button>
             <div class="webphone-menu-divider"></div>
-            <button type="button" data-phone-section="tenant"><span><svg class="webphone-icon" aria-hidden="true"><use href="#wp-icon-building"></use></svg></span><strong>Tenant Contacts</strong><small id="web-phone-contact-count">0</small></button>
+            <button type="button" data-phone-section="extensions"><span><svg class="webphone-icon" aria-hidden="true"><use href="#wp-icon-building"></use></svg></span><strong>Extensions</strong><small id="web-phone-extension-count">0</small></button>
+            <button type="button" data-phone-section="contacts"><span><svg class="webphone-icon" aria-hidden="true"><use href="#wp-icon-users"></use></svg></span><strong>Contacts</strong><small id="web-phone-contact-count">0</small></button>
         </div>
         <?php if ($browserReady): ?>
             <div class="webphone-dialer" id="web-phone-dialer" hidden>

@@ -54,14 +54,23 @@ EXPECTED="${FULLDOMAIN}."
 VISIBLE="$(dig +short CNAME "_acme-challenge.${DOMAIN}" | tail -n 1)"
 [[ "${VISIBLE,,}" == "${EXPECTED,,}" ]] || { echo "Required public CNAME is not visible." >&2; exit 1; }
 
+DEPLOY_HOOK='systemctl reload nginx'
+if [[ "$MODE" == issue ]]; then DEPLOY_HOOK=/usr/local/lib/asterisk-panel/deploy-sip-tls-cert; fi
 certbot certonly --manual --preferred-challenges dns \
     --manual-auth-hook "$AUTH_HOOK" \
     --manual-cleanup-hook "$CLEANUP_HOOK" \
-    --deploy-hook "systemctl reload nginx" \
+    --deploy-hook "$DEPLOY_HOOK" \
     --non-interactive --agree-tos --email "$EMAIL" \
     --cert-name "$DOMAIN" --force-renewal -d "$DOMAIN"
 
 [[ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]] || { echo "Certbot did not create the expected certificate." >&2; exit 1; }
+
+if [[ "$MODE" == issue ]]; then
+    install -d -o root -g asterisk -m 0750 /etc/asterisk/keys
+    install -o root -g asterisk -m 0640 "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" /etc/asterisk/keys/asterisk-panel.crt
+    install -o root -g asterisk -m 0640 "/etc/letsencrypt/live/${DOMAIN}/privkey.pem" /etc/asterisk/keys/asterisk-panel.key
+    if systemctl is-active --quiet asterisk; then asterisk -rx 'pjsip reload' >/dev/null || true; fi
+fi
 
 escape_sed() { printf '%s' "$1" | sed 's/[&|]/\\&/g'; }
 sed \

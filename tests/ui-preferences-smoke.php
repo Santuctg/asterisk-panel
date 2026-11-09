@@ -74,7 +74,13 @@ $checks = [
         && str_contains($phoneView, 'data-brand-phone-name'), 'panel name and uploaded logo drive panel, authentication and Web Phone branding'],
     [str_contains($phoneView, 'data-phone-section="recent"') && str_contains($phoneView, 'data-phone-section="voicemail"')
         && str_contains($phoneView, 'data-phone-section="all"') && str_contains($phoneView, 'data-phone-section="favorites"')
-        && str_contains($phoneView, 'data-phone-section="tenant"') && str_contains($phoneView, 'web-phone-contact-index'), 'calls expose Recent Calls and Voicemail while contacts expose all, favorites, tenant list, and alphabet navigation'],
+        && str_contains($phoneView, 'data-phone-section="extensions"') && str_contains($phoneView, 'data-phone-section="contacts"')
+        && str_contains($phoneJs, "item.kind === 'contact'") && str_contains($phoneView, 'web-phone-contact-index'), 'calls expose Recent Calls and Voicemail while extensions and saved panel contacts have separate searchable sections'],
+    [str_contains($routes, "get('/search'") && str_contains($appJs, "fetch('/search?q='")
+        && str_contains($appLayout, 'id="globalSearchResults"') && str_contains($css, '.global-search-results'), 'panel header search returns tenant-scoped interactive results'],
+    [!str_contains($settingsView, '<h2>Outbound caller ID</h2>') && !str_contains($settingsView, "field_text('outbound_cid_name'")
+        && str_contains($settingsView, "field_text('sip_tcp_port'") && str_contains($settingsView, "field_text('sip_tls_port'")
+        && str_contains($routesView, "field_select('transport'"), 'settings remove outbound caller ID and expose TCP/TLS listeners plus per-trunk transport'],
     [str_contains($phoneJs, 'config.voicemailEnabled === true')
         && str_contains($phoneJs, 'Voicemail has not been enabled.') && str_contains($phoneJs, "settings.href = '/voicemail'")
         && str_contains($phoneJs, "settings.target = '_blank'") && str_contains($css, '.webphone-voicemail-illustration'), 'disabled voicemail renders a centered settings state without bypassing panel authentication'],

@@ -19,7 +19,7 @@ use App\Controllers\{
     RouteController, MusicOnHoldController, AnnouncementController, CallCenterController,
     ConferenceController, CdrController, TenantController, UserController, RoleController, GlobalAdminController, Fail2banController,
     SystemController, SslController, ProvisionController, LiveListenController, WebPhoneController, TenantSslController, TenantSecurityController,
-    ContactController, BrandingController
+    ContactController, BrandingController, SearchController
 };
 use App\Core\Auth;
 use App\Core\Csrf;
@@ -46,6 +46,7 @@ $csrf    = [Csrf::middleware(...)];
 $router->get('/', [DashboardController::class, 'index'], $auth);
 $router->get('/dashboard', [DashboardController::class, 'index'], $auth);
 $router->get('/dashboard/live-calls', [DashboardController::class, 'liveCalls'], $auth);
+$router->get('/search', [SearchController::class, 'index'], $auth);
 $router->post('/dashboard/switch-tenant', [DashboardController::class, 'switchTenant'], array_merge($auth, $csrf));
 $router->get('/active-calls', [LiveListenController::class, 'index'], [Auth::require('call.listen')]);
 $router->get('/active-calls/feed', [LiveListenController::class, 'calls'], [Auth::require('call.listen')]);

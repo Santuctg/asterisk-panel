@@ -20,6 +20,7 @@ const contactIndex = $('#web-phone-contact-index');
 const callMenu = $('#web-phone-call-menu');
 const contactMenu = $('#web-phone-contact-menu');
 const contactCount = $('#web-phone-contact-count');
+const extensionCount = $('#web-phone-extension-count');
 const listWorkspace = $('#web-phone-list-workspace');
 const search = $('#web-phone-search');
 const listTitle = $('#web-phone-list-title');
@@ -321,6 +322,8 @@ function renderList() {
     contactsList.replaceChildren();
     let rows = contacts.filter(item => `${item.name} ${item.extension}`.toLowerCase().includes(query));
     if (currentSection === 'favorites') rows = rows.filter(item => favorites.has(item.extension));
+    if (currentSection === 'extensions') rows = rows.filter(item => item.kind !== 'contact');
+    if (currentSection === 'contacts') rows = rows.filter(item => item.kind === 'contact');
     rows.sort((left, right) => String(left.name || left.extension).localeCompare(String(right.name || right.extension), undefined, {sensitivity: 'base'}));
     const groups = new Map();
     rows.forEach(item => {
@@ -342,7 +345,7 @@ function renderList() {
     }
 }
 function switchSection(section) {
-    const allowed = currentView === 'contacts' ? ['all', 'favorites', 'tenant'] : ['recent', 'voicemail'];
+    const allowed = currentView === 'contacts' ? ['all', 'favorites', 'extensions', 'contacts'] : ['recent', 'voicemail'];
     currentSection = allowed.includes(section) ? section : allowed[0];
     document.querySelectorAll('[data-phone-section]').forEach(button => button.classList.toggle('is-active', button.dataset.phoneSection === currentSection));
     historyList.hidden = currentSection !== 'recent';
@@ -354,7 +357,8 @@ function switchSection(section) {
         voicemail: ['Voicemail', 'Your voicemail mailbox', 'Search voicemail'],
         all: ['All Contacts', 'All available tenant contacts', 'Search contacts'],
         favorites: ['Favorites', 'Contacts you call most often', 'Search favorites'],
-        tenant: ['Tenant Contacts', 'Extensions available in this tenant', 'Search tenant contacts'],
+        extensions: ['Extensions', 'PBX extensions available in this tenant', 'Search extensions'],
+        contacts: ['Contacts', 'Contacts saved from the main panel', 'Search saved contacts'],
     }[currentSection];
     [listTitle.textContent, listSummary.textContent, search.placeholder] = metadata;
     search.value = '';
@@ -680,7 +684,9 @@ function startPhone(config, password) {
     accountKey = `${config.realm}:${config.extension}`;
     contacts = Array.isArray(config.contacts) ? config.contacts : [];
     voicemailEnabled = config.voicemailEnabled === true;
-    loadFavorites(); contactCount.textContent = String(contacts.length);
+    loadFavorites();
+    extensionCount.textContent = String(contacts.filter(item => item.kind !== 'contact').length);
+    contactCount.textContent = String(contacts.filter(item => item.kind === 'contact').length);
     loadHistory(Array.isArray(config.history) ? config.history : []); renderList();
     const socket = new JsSIP.WebSocketInterface(`wss://${window.location.host}/ws`);
     ua = new JsSIP.UA({
@@ -865,7 +871,7 @@ disconnectButton.addEventListener('click', async () => {
         stopPresencePolling();
         if (ua) { ua.stop(); ua = null; }
         stopMicrophoneTest(); stopRingtone(); settingsModal.hidden = true; permissionModal.hidden = true;
-        setPresence('Offline'); dialer.hidden = true; listWorkspace.hidden = true; login.hidden = false; number.value = ''; contacts = []; favorites = new Set(); voicemailEnabled = false; contactCount.textContent = '0';
+        setPresence('Offline'); dialer.hidden = true; listWorkspace.hidden = true; login.hidden = false; number.value = ''; contacts = []; favorites = new Set(); voicemailEnabled = false; extensionCount.textContent = '0'; contactCount.textContent = '0';
         login.querySelector('[name="secret"]').value = ''; login.querySelector('[name="secret"]').type = 'password';
         setPhoneIcon(passwordToggle, 'eye');
         passwordToggle.title = 'Show password'; passwordToggle.setAttribute('aria-label', passwordToggle.title);

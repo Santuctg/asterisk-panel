@@ -281,6 +281,7 @@ final class SystemController extends BaseController
         return $this->view('system/settings', [
             'settings' => $settings,
             'sipPort'  => SipPort::configured(),
+            'sipTransports' => SipPort::settings(),
             'canChangeSipPort' => $this->app->auth()->isSuperAdmin(),
             'ami'      => [
                 'host'     => config('asterisk.ami.host', '127.0.0.1'),
@@ -329,15 +330,32 @@ final class SystemController extends BaseController
         $sipPort = null;
         if ($this->app->auth()->isSuperAdmin()) {
             $sipPort = $request->str('sip_udp_port', (string) SipPort::DEFAULT);
-            if (!SipPort::valid($sipPort)) {
-                Flash::error('SIP UDP port must be 1024–65535, excluding the RTP range 10000–20000.');
+            $tcpPort = $request->str('sip_tcp_port', (string) SipPort::TCP_DEFAULT);
+            $tlsPort = $request->str('sip_tls_port', (string) SipPort::TLS_DEFAULT);
+            if (!SipPort::valid($sipPort) || !SipPort::valid($tcpPort) || !SipPort::valid($tlsPort)) {
+                Flash::error('SIP ports must be 1024–65535, excluding the RTP range 10000–20000.');
+                return Response::redirect('/system/settings');
+            }
+            $tcpEnabled = $request->bool('sip_tcp_enabled', true);
+            $tlsEnabled = $request->bool('sip_tls_enabled', true);
+            if ($tcpEnabled && $tlsEnabled && $tcpPort === $tlsPort) {
+                Flash::error('SIP TCP and TLS must use different TCP ports.');
+                return Response::redirect('/system/settings');
+            }
+            if ((!$tcpEnabled && (int) $this->db()->scalar("SELECT COUNT(*) FROM trunks WHERE transport = 'tcp'") > 0)
+                || (!$tlsEnabled && (int) $this->db()->scalar("SELECT COUNT(*) FROM trunks WHERE transport = 'tls'") > 0)) {
+                Flash::error('A SIP trunk still uses the transport you are trying to disable. Change that trunk first.');
                 return Response::redirect('/system/settings');
             }
             $this->saveGlobalSetting('sip_udp_port', $sipPort);
+            $this->saveGlobalSetting('sip_tcp_enabled', $tcpEnabled ? '1' : '0');
+            $this->saveGlobalSetting('sip_tcp_port', $tcpPort);
+            $this->saveGlobalSetting('sip_tls_enabled', $tlsEnabled ? '1' : '0');
+            $this->saveGlobalSetting('sip_tls_port', $tlsPort);
         }
 
-        $keys = ['panel_name', 'company_name', 'company_email', 'company_phone', 'outbound_cid_name',
-                  'outbound_cid_number', 'voicemail_email_subject', 'voicemail_email_body',
+        $keys = ['panel_name', 'company_name', 'company_email', 'company_phone',
+                  'voicemail_email_subject', 'voicemail_email_body',
                    'provision_base_url', 'time_format', 'recording_mode', 'recording_start'];
 
         foreach ($keys as $key) {

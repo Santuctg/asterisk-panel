@@ -8,6 +8,7 @@ use App\Core\Flash;
 use App\Core\Request;
 use App\Core\Response;
 use App\Core\Validator;
+use App\Services\Asterisk\SipPort;
 use App\Services\Asterisk\TrunkStatusTracker;
 
 /**
@@ -396,6 +397,7 @@ final class RouteController extends BaseController
             'from_domain' => $request->str('from_domain'),
             'cid'         => $request->str('cid'),
             'register'    => $request->int('register', 300),
+            'transport'   => strtolower($request->str('transport', 'udp')),
             'enabled'     => $request->bool('enabled', true) ? 1 : 0,
         ];
 
@@ -406,6 +408,10 @@ final class RouteController extends BaseController
 
         if ($v->fails()) {
             Flash::error($v->firstError());
+            return Response::redirect('/routes?tab=trunks');
+        }
+        if (!$this->validSipTransport((string) $data['transport'])) {
+            Flash::error('Choose an enabled SIP transport.');
             return Response::redirect('/routes?tab=trunks');
         }
 
@@ -432,8 +438,14 @@ final class RouteController extends BaseController
             'from_domain' => $request->str('from_domain'),
             'cid'         => $request->str('cid'),
             'register'    => $request->int('register', 300),
+            'transport'   => strtolower($request->str('transport', 'udp')),
             'enabled'     => $request->bool('enabled', true) ? 1 : 0,
         ];
+
+        if (!$this->validSipTransport((string) $data['transport'])) {
+            Flash::error('Choose an enabled SIP transport.');
+            return Response::redirect('/routes?tab=trunks');
+        }
 
         // Allow leaving the secret blank to keep the existing one.
         if ($data['secret'] === '') {
@@ -461,6 +473,14 @@ final class RouteController extends BaseController
 
         Flash::success('Trunk deleted.');
         return Response::redirect('/routes?tab=trunks');
+    }
+
+    private function validSipTransport(string $transport): bool
+    {
+        if ($transport === 'udp') return true;
+        $settings = SipPort::settings();
+        return ($transport === 'tcp' && $settings['tcp_enabled'])
+            || ($transport === 'tls' && $settings['tls_enabled']);
     }
 
     /** POST /routes/trunks/{id}/reveal-secret — authenticated, tenant-scoped and never cached. */

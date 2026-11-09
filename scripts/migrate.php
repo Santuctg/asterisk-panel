@@ -131,6 +131,13 @@ if ($driver === 'sqlite') {
             $pdo->exec('ALTER TABLE outbound_routes ADD COLUMN time_condition_id INTEGER');
         }
     }
+    $hasTrunks = (int) $db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'trunks'");
+    if ($hasTrunks) {
+        $trunkColumns = array_column($db->all('PRAGMA table_info(trunks)'), 'name');
+        if (!in_array('transport', $trunkColumns, true)) {
+            $pdo->exec("ALTER TABLE trunks ADD COLUMN transport VARCHAR(10) DEFAULT 'udp'");
+        }
+    }
     foreach (['ring_groups', 'inbound_routes', 'queues'] as $table) {
         $exists = (int) $db->scalar("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?", [$table]);
         if (!$exists) { continue; }
@@ -204,6 +211,16 @@ if ($driver === 'sqlite') {
     );
     if (!$hasTimeCondition) {
         $pdo->exec('ALTER TABLE outbound_routes ADD COLUMN time_condition_id BIGINT NULL');
+    }
+    $hasTrunks = (int) $db->scalar(
+        'SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?', ['trunks']
+    );
+    $hasTrunkTransport = (int) $db->scalar(
+        'SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+        ['trunks', 'transport']
+    );
+    if ($hasTrunks && !$hasTrunkTransport) {
+        $pdo->exec("ALTER TABLE trunks ADD COLUMN transport VARCHAR(10) DEFAULT 'udp'");
     }
     foreach (['ring_groups', 'inbound_routes', 'queues'] as $table) {
         $hasAnnouncement = (int) $db->scalar(

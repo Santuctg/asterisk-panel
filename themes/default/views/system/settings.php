@@ -10,28 +10,40 @@ $s = static fn (string $k, string $d = '') => $settings[$k] ?? $d;
 <div class="page-head">
     <div>
         <h1>Settings</h1>
-        <div class="subtitle">Tenant details, outbound caller ID and defaults</div>
+        <div class="subtitle">Tenant details, SIP transports, branding and defaults</div>
     </div>
     <div class="page-actions">
         <a href="/system/status" class="btn"><?= $this->fragment('icons/pulse') ?> Status</a>
     </div>
 </div>
 
+<form method="post" action="/system/settings" enctype="multipart/form-data">
+    <?= csrf() ?>
+
 <?php if (!empty($canChangeSipPort)): ?>
 <div class="card">
-    <div class="card-head"><h2>SIP listener</h2></div>
+    <div class="card-head"><h2>SIP transports</h2></div>
     <div class="card-body">
-        <?php echo field_text('sip_udp_port', 'SIP UDP port', (string) ($sipPort ?? 5060), [
-            'type' => 'number', 'min' => 1024, 'max' => 65535,
-            'hint' => 'Global Asterisk PJSIP port. RTP uses 10000–20000, so that range is excluded. Existing phones must be updated after changing it.',
-        ]); ?>
-        <p class="hint mt-3 mb-0"><strong>Important:</strong> saving regenerates the configuration, but Asterisk must be restarted for a changed transport port to start listening. Update firewall rules and phone provisioning too.</p>
+        <div class="form-grid">
+            <?php echo field_text('sip_udp_port', 'SIP UDP port', (string) ($sipTransports['udp_port'] ?? $sipPort ?? 5060), [
+                'type' => 'number', 'min' => 1024, 'max' => 65535,
+                'hint' => 'Standard connectionless SIP transport. UDP and TCP may share the same port number.',
+            ]); ?>
+            <div><?= field_check('sip_tcp_enabled', 'Enable SIP TCP', (bool) ($sipTransports['tcp_enabled'] ?? true), 'Accept desk-phone and trunk registrations over TCP.') ?></div>
+            <?php echo field_text('sip_tcp_port', 'SIP TCP port', (string) ($sipTransports['tcp_port'] ?? 5060), [
+                'type' => 'number', 'min' => 1024, 'max' => 65535,
+            ]); ?>
+            <div><?= field_check('sip_tls_enabled', 'Enable SIP TLS', (bool) ($sipTransports['tls_enabled'] ?? true), 'Encrypt SIP signalling. Media encryption remains a separate phone setting.') ?></div>
+            <?php echo field_text('sip_tls_port', 'SIP TLS port', (string) ($sipTransports['tls_port'] ?? 5061), [
+                'type' => 'number', 'min' => 1024, 'max' => 65535,
+                'hint' => 'TLS must use a different TCP port. The default is 5061.',
+            ]); ?>
+            <div class="field"><label>TLS certificate</label><input type="text" value="<?= e((string) ($sipTransports['tls_cert'] ?? '/etc/asterisk/keys/asterisk-panel.crt')) ?>" readonly><span class="hint">The updater copies the panel HTTPS certificate when available; otherwise it creates a protected self-signed fallback.</span></div>
+        </div>
+        <p class="hint mt-3 mb-0"><strong>Important:</strong> changing a transport or port requires an Asterisk restart. Custom ports also require matching firewall and phone provisioning changes. RTP 10000–20000 is excluded.</p>
     </div>
 </div>
 <?php endif; ?>
-
-<form method="post" action="/system/settings" enctype="multipart/form-data">
-    <?= csrf() ?>
 
     <div class="card">
         <div class="card-head"><h2>Panel branding</h2></div>
@@ -62,20 +74,6 @@ $s = static fn (string $k, string $d = '') => $settings[$k] ?? $d;
                 <?php echo field_select('timezone', 'Timezone', timezone_options(), $s('timezone', 'UTC'), [
                     'span' => true,
                     'hint' => 'Controls timestamps shown in the panel. Current time: ' . date('M j, Y g:i:s A'),
-                ]); ?>
-            </div>
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="card-head"><h2>Outbound caller ID</h2></div>
-        <div class="card-body">
-            <div class="form-grid">
-                <?php echo field_text('outbound_cid_name', 'Caller ID name', $s('outbound_cid_name'), [
-                    'hint' => 'Presented on outbound calls when a route does not override it.',
-                ]); ?>
-                <?php echo field_text('outbound_cid_number', 'Caller ID number', $s('outbound_cid_number'), [
-                    'hint' => 'Should match a number your provider has authorized.',
                 ]); ?>
                 <?php echo field_select('time_format', 'Time format', [
                     '12' => '12-hour (3:04 PM)', '24' => '24-hour (15:04)',

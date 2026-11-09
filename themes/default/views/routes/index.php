@@ -250,12 +250,13 @@ $activeTab = $_GET['tab'] ?? 'inbound';
             <?php else: ?>
                 <div class="table-wrap">
                     <table class="compact-table route-table">
-                         <thead><tr><th>Name</th><th>Host</th><th>Username</th><th>From domain</th><th>Registration</th><th>Active calls</th><th>Uptime</th><th>Latency</th><th>Config</th><th class="actions">Actions</th></tr></thead>
+                         <thead><tr><th>Name</th><th>Host</th><th>Transport</th><th>Username</th><th>From domain</th><th>Registration</th><th>Active calls</th><th>Uptime</th><th>Latency</th><th>Config</th><th class="actions">Actions</th></tr></thead>
                         <tbody>
                             <?php foreach ($trunks as $t): ?>
                                 <tr>
                                     <td><strong><?= e($t['name']) ?></strong></td>
                                     <td class="mono"><?= e($t['host']) ?></td>
+                                    <td><span class="badge blue"><?= e(strtoupper((string) ($t['transport'] ?? 'udp'))) ?></span></td>
                                     <td class="mono"><?= e($t['username']) ?></td>
                                     <td class="mono"><?= e($t['from_domain'] ?: '—') ?></td>
                                     <td>
@@ -414,6 +415,7 @@ $activeTab = $_GET['tab'] ?? 'inbound';
                         <div class="form-grid">
                             <?php echo field_text('name', 'Trunk name', '', ['required' => true]); ?>
                             <?php echo field_text('host', 'SIP host / proxy', '', ['required' => true, 'placeholder' => 'sip.provider.com']); ?>
+                            <?php echo field_select('transport', 'SIP transport', ['udp' => 'UDP', 'tcp' => 'TCP', 'tls' => 'TLS'], 'udp', ['hint' => 'TCP or TLS must also be enabled under System Settings.']); ?>
                             <?php echo field_text('sip_trunk_auth_id', 'Username / auth ID', '', ['autocomplete' => 'off']); ?>
                             <div class="field">
                                 <label for="sip_trunk_auth_secret">SIP trunk password</label>

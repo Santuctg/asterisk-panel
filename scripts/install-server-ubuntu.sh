@@ -215,6 +215,17 @@ install -d -o www-data -g asterisk -m 2775 /var/lib/asterisk/moh
 install -d -o asterisk -g asterisk -m 2770 /var/spool/asterisk/monitor/asterisk-panel
 install -d -o asterisk -g asterisk -m 2775 /var/lib/asterisk/moh
 install -o root -g asterisk -m 0644 "$INSTALL_DIR/resources/deploy/asterisk/pjsip-base.conf" /etc/asterisk/asterisk_panel/pjsip_base.conf
+install -d -o root -g asterisk -m 0750 /etc/asterisk/keys
+if [[ -n "${DOMAIN:-}" && -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" && -f "/etc/letsencrypt/live/${DOMAIN}/privkey.pem" ]]; then
+    install -o root -g asterisk -m 0640 "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" /etc/asterisk/keys/asterisk-panel.crt
+    install -o root -g asterisk -m 0640 "/etc/letsencrypt/live/${DOMAIN}/privkey.pem" /etc/asterisk/keys/asterisk-panel.key
+else
+    openssl req -x509 -newkey rsa:2048 -sha256 -nodes -days 825 \
+        -subj "/CN=${DOMAIN:-localhost}" \
+        -keyout /etc/asterisk/keys/asterisk-panel.key -out /etc/asterisk/keys/asterisk-panel.crt >/dev/null 2>&1
+    chown root:asterisk /etc/asterisk/keys/asterisk-panel.crt /etc/asterisk/keys/asterisk-panel.key
+    chmod 0640 /etc/asterisk/keys/asterisk-panel.crt /etc/asterisk/keys/asterisk-panel.key
+fi
 install -d -o root -g asterisk -m 0750 /etc/asterisk/manager.d
 cat >/etc/asterisk/manager.d/asterisk-panel.conf <<EOF
 [general](+)
@@ -511,6 +522,7 @@ if ((FIREWALL_RULES)) && ufw status | grep -q '^Status: active'; then
     ufw allow 443/tcp comment 'Asterisk Panel HTTPS'
     ufw allow 5060/udp comment 'Asterisk PJSIP'
     ufw allow 5060/tcp comment 'Asterisk PJSIP TCP'
+    ufw allow 5061/tcp comment 'Asterisk PJSIP TLS'
     ufw allow 10000:20000/udp comment 'Asterisk RTP'
 fi
 

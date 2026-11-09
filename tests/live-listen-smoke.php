@@ -117,13 +117,21 @@ $registrations = App\Services\Asterisk\AsteriskManager::parseOutboundRegistratio
 $check(($registrations['trunk-1'] ?? '') === 'Registered' && ($registrations['trunk-2'] ?? '') === 'Rejected', 'outbound trunk registration parsing');
 $trackedTrunk = $db->insert('trunks', [
     'tenant_id' => $tid, 'name' => 'Tracked', 'host' => 'sip.example.test',
-    'username' => '09642359359', 'secret' => 'provider-secret', 'enabled' => 1,
+    'username' => '09642359359', 'secret' => 'provider-secret', 'transport' => 'tls', 'enabled' => 1,
 ]);
 $trunkConfig = $gen->renderPjsipTrunks();
 $check(str_contains($trunkConfig, "contact_user = 09642359359\nline = yes\nendpoint = trunk-{$trackedTrunk}\n")
+    && str_contains($trunkConfig, "transport = panel-transport-tls")
+    && str_contains($trunkConfig, "contact = sip:sip.example.test;transport=tls")
     && str_contains($trunkConfig, "context = tenant_a-inbound\ntrust_id_inbound = yes")
     && str_contains($trunkConfig, "[trunk-{$trackedTrunk}-identify]\ntype = identify\nendpoint = trunk-{$trackedTrunk}\nmatch = sip.example.test"),
     'registration line and unique provider host identify inbound traffic for its tenant');
+$transportConfig = $gen->renderPjsipPort();
+$check(str_contains($transportConfig, "[panel-transport-udp]\n")
+    && str_contains($transportConfig, "[panel-transport-tcp]\n")
+    && str_contains($transportConfig, "[panel-transport-tls]\n")
+    && str_contains($transportConfig, 'cert_file = /etc/asterisk/keys/asterisk-panel.crt'),
+    'generated PJSIP configuration enables UDP, TCP and certificate-backed TLS transports');
 $sharedTrunk = $db->insert('trunks', [
     'tenant_id' => $other, 'name' => 'Shared provider tenant B', 'host' => 'sip.example.test',
     'username' => '09642105105', 'secret' => 'provider-secret-b', 'enabled' => 1,

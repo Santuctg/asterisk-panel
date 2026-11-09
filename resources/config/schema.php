@@ -142,6 +142,7 @@ return [
             from_domain VARCHAR(160),
             cid         VARCHAR(60),
             register    INTEGER DEFAULT 300,
+            transport   VARCHAR(10) DEFAULT "udp",
             enabled     INTEGER DEFAULT 1,
             created_at  DATETIME,
             updated_at  DATETIME

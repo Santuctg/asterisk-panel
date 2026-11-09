@@ -132,7 +132,19 @@ final class ConfigGenerator
 
     public function renderPjsipPort(): string
     {
-        return 'bind = 0.0.0.0:' . SipPort::configured() . "\n";
+        $settings = SipPort::settings();
+        $out = ";; Generated SIP transports - do not edit by hand.\n\n";
+        $out .= "[panel-transport-udp]\ntype = transport\nprotocol = udp\nbind = 0.0.0.0:{$settings['udp_port']}\n\n";
+        if ($settings['tcp_enabled']) {
+            $out .= "[panel-transport-tcp]\ntype = transport\nprotocol = tcp\nbind = 0.0.0.0:{$settings['tcp_port']}\n\n";
+        }
+        if ($settings['tls_enabled']) {
+            $out .= "[panel-transport-tls]\ntype = transport\nprotocol = tls\nbind = 0.0.0.0:{$settings['tls_port']}\n";
+            $out .= "cert_file = {$settings['tls_cert']}\npriv_key_file = {$settings['tls_key']}\n";
+            $out .= "method = tlsv1_2\nverify_client = no\nverify_server = yes\n";
+            $out .= "ca_list_file = /etc/ssl/certs/ca-certificates.crt\nallow_reload = yes\n\n";
+        }
+        return $out;
     }
 
     public function renderPjsipEndpoints(): string
@@ -256,6 +268,7 @@ final class ConfigGenerator
             $trunkName = $this->esc((string) $t['name']);
             $host = $this->sipValue((string) $t['host']);
             $username = $this->sipValue((string) $t['username']);
+            $transport = in_array((string) ($t['transport'] ?? 'udp'), ['udp', 'tcp', 'tls'], true) ? (string) $t['transport'] : 'udp';
             $out .= "; ---- {$trunkName} ({$host}) ----\n";
 
             // Registration (outbound auth) block.
@@ -263,6 +276,7 @@ final class ConfigGenerator
             $out .= "outbound_auth = trunk-{$t['id']}-auth\n";
             $out .= "client_uri = sip:{$username}@{$host}\n";
             $out .= "server_uri = sip:{$host}\n";
+            $out .= "transport = panel-transport-{$transport}\n";
             if ($username !== '') {
                 // Registrars that strip the opaque line parameter still route
                 // calls to this Contact user, giving the shared DID dispatcher
@@ -288,13 +302,15 @@ final class ConfigGenerator
             // AoR pointing at the provider.
             $out .= "[trunk-{$t['id']}-aor]\n";
             $out .= "type = aor\n";
-            $out .= "contact = sip:{$host}\n";
+            $uriTransport = $transport === 'udp' ? '' : ';transport=' . $transport;
+            $out .= "contact = sip:{$host}{$uriTransport}\n";
             // Qualify the provider so RTT/latency and reachability are visible.
             $out .= "qualify_frequency = 60\n";
             $out .= "qualify_timeout = 3\n\n";
 
             // The endpoint itself.
             $out .= "[trunk-{$t['id']}](trunk-basic)\n";
+            $out .= "transport = panel-transport-{$transport}\n";
             $fromDomain = $this->sipValue((string) ($t['from_domain'] ?: $host));
             $out .= "from_domain = {$fromDomain}\n";
             $out .= "context = {$this->contextName((string) $t['ctx'])}-inbound\n";

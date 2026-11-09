@@ -54,6 +54,7 @@ install -d -o "$WEB_USER" -g "$(id -gn "$WEB_USER")" -m 0700 "$APP_ROOT/storage/
 install -o root -g root -m 0755 "$SCRIPT_DIR/acme-dns-ssl-helper.sh" /usr/local/sbin/asterisk-panel-ssl
 install -o root -g root -m 0755 "$SCRIPT_DIR/acme-dns-auth-hook.sh" /usr/local/lib/asterisk-panel/acme-dns-auth
 install -o root -g root -m 0755 "$SCRIPT_DIR/acme-dns-cleanup-hook.sh" /usr/local/lib/asterisk-panel/acme-dns-cleanup
+install -o root -g root -m 0755 "$SCRIPT_DIR/deploy-sip-tls-cert.sh" /usr/local/lib/asterisk-panel/deploy-sip-tls-cert
 install -o root -g root -m 0644 "$APP_ROOT/resources/deploy/nginx-https.conf.template" /usr/local/lib/asterisk-panel/nginx-https.conf.template
 install -o root -g root -m 0644 "$APP_ROOT/resources/deploy/nginx-tenant-https.conf.template" /usr/local/lib/asterisk-panel/nginx-tenant-https.conf.template
 install -o root -g root -m 0644 "$APP_ROOT/resources/deploy/nginx-recordings.conf" /etc/nginx/snippets/asterisk-panel-recordings.conf
