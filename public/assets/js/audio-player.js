@@ -117,6 +117,7 @@
 
         toggle.addEventListener('click', function () {
             if (audio.paused) {
+                clearError();
                 var started = audio.play();
                 if (started && typeof started.catch === 'function') started.catch(showError);
             } else {

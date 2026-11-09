@@ -55,6 +55,10 @@ try {
     await tick();
     const errorStatus = dynamicWrapper.querySelector('[data-ap-status]');
     check(errorStatus && !errorStatus.hidden, 'rejected playback exposes an accessible error');
+    dynamic.play = () => Promise.resolve();
+    dynamicWrapper.querySelector('[data-ap-toggle]').click();
+    await tick();
+    check(errorStatus.hidden, 'a later successful play clears the previous error');
     dynamic.dispatchEvent(new Event('loadstart'));
     check(errorStatus.hidden, 'source reload clears the previous playback error');
 
@@ -79,10 +83,17 @@ try {
     target.dispatchEvent(new Event('pointerdown'));
     await tick();
     check(target.removes === 1 && playCalls === 2 && started === 1, 'pointer retry removes itself and starts once');
-    retry.cancel();
+    let cancelledCalls = 0;
+    const pendingRetry = createPlaybackRetry({
+        target,
+        play: () => { cancelledCalls++; return Promise.reject(new Error('blocked')); }
+    });
+    pendingRetry.attempt();
+    await tick();
+    pendingRetry.cancel();
     target.dispatchEvent(new Event('pointerdown'));
     await tick();
-    check(playCalls === 2, 'cancel leaves no stale pointer retry');
+    check(cancelledCalls === 1, 'cancel removes a pending pointer retry');
 
     lines.push('All browser behavior checks passed.');
     document.getElementById('results').textContent = lines.join('\n');
