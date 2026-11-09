@@ -230,5 +230,6 @@ $user = $auth->user();
 
 <script src="<?= e(asset('assets/js/i18n.js')) ?>"></script>
 <script src="<?= e(asset('assets/js/app.js')) ?>"></script>
+<script src="<?= e(asset('assets/js/audio-player.js')) ?>"></script>
 </body>
 </html>

@@ -1124,3 +1124,20 @@ th.col-check input:indeterminate::after, td.col-check input:indeterminate::after
 .tl-legend i.down { background: var(--danger-500); }
 .tl-legend i.off { background: var(--gray-400); }
 @media (max-width: 1100px) { .tl-row { grid-template-columns: 1fr; } .tl-meta { text-align: left; } }
+
+/* ---- Material audio player ---- */
+.audio-player { display:flex; align-items:center; gap:12px; padding:8px 14px; border:1px solid var(--border); border-radius:999px; background:var(--surface); box-shadow:0 1px 2px rgba(15,23,42,.06); }
+.audio-player[hidden] { display:none; }
+.audio-player > audio { flex:0 0 auto; width:1px; height:1px; margin:0; padding:0; border:0; opacity:0; overflow:hidden; pointer-events:none; }
+.ap-toggle { flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; padding:0; border:0; border-radius:50%; background:linear-gradient(180deg,var(--brand-500),var(--brand-600)); color:#fff; cursor:pointer; }
+.ap-toggle:hover { background:linear-gradient(180deg,var(--brand-600),var(--brand-700)); }
+.ap-toggle svg { width:16px; height:16px; fill:currentColor; }
+.ap-seek { flex:1 1 auto; min-width:60px; height:6px; margin:0; appearance:none; -webkit-appearance:none; border-radius:999px; background:linear-gradient(to right, var(--brand-500) var(--ap-progress,0%), var(--gray-200) var(--ap-progress,0%)); cursor:pointer; }
+.ap-seek::-webkit-slider-thumb { -webkit-appearance:none; width:13px; height:13px; border:2px solid var(--brand-500); border-radius:50%; background:var(--surface); cursor:pointer; }
+.ap-seek::-moz-range-thumb { width:11px; height:11px; border:2px solid var(--brand-500); border-radius:50%; background:var(--surface); cursor:pointer; }
+.ap-seek:disabled { cursor:default; opacity:.55; }
+.ap-time { flex:0 0 auto; font:12px var(--mono); color:var(--text-muted); white-space:nowrap; }
+.ap-mute { flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; padding:0; border:0; border-radius:50%; background:transparent; color:var(--text-muted); cursor:pointer; }
+.ap-mute:hover { background:var(--surface-alt); color:var(--text); }
+.ap-mute svg { width:16px; height:16px; fill:currentColor; }
+@media (max-width: 560px) { .audio-player { gap:9px; padding:7px 11px; } .ap-time { font-size:11px; } }
