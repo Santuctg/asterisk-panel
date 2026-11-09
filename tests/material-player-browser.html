@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Material player browser behavior test</title>
+</head>
+<body>
+<pre id="results">RUNNING</pre>
+<audio id="initial" controls hidden></audio>
+<script src="/public/assets/js/audio-player.js"></script>
+<script type="module">
+import { createPlaybackRetry } from '/public/assets/js/playback-retry.js';
+
+const lines = [];
+function check(value, message) {
+    if (!value) throw new Error(message);
+    lines.push(`PASS: ${message}`);
+}
+const tick = () => new Promise(resolve => setTimeout(resolve, 0));
+
+try {
+    if (document.readyState === 'loading') {
+        await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve, { once: true }));
+    }
+    await tick();
+    const initial = document.getElementById('initial');
+    const wrapper = initial.closest('.audio-player');
+    check(wrapper && wrapper.hidden, 'initial hidden state is mirrored');
+    window.initAudioPlayers(document);
+    check(document.querySelectorAll('.audio-player').length === 1, 'repeat initialization does not duplicate wrappers');
+
+    initial.hidden = false;
+    await tick();
+    check(!wrapper.hidden, 'hidden mutations are mirrored');
+
+    const dynamic = document.createElement('audio');
+    dynamic.controls = true;
+    document.body.appendChild(dynamic);
+    await tick();
+    check(dynamic.closest('.audio-player'), 'dynamically inserted controlled audio is enhanced');
+    const dynamicWrapper = dynamic.closest('.audio-player');
+    check(dynamicWrapper.querySelector('[data-ap-time]').textContent === '0:00 / --:--',
+        'unknown duration renders without NaN');
+
+    Object.defineProperty(dynamic, 'duration', { value: 120, configurable: true });
+    Object.defineProperty(dynamic, 'currentTime', { value: 30, writable: true, configurable: true });
+    dynamic.dispatchEvent(new Event('durationchange'));
+    const seek = dynamicWrapper.querySelector('[data-ap-seek]');
+    check(seek.getAttribute('aria-valuetext') === '0:30 of 2:00', 'seek exposes elapsed and total time');
+    dynamicWrapper.querySelector('[data-ap-mute]').click();
+    check(dynamic.muted, 'mute control updates the media engine');
+
+    dynamic.play = () => Promise.reject(new DOMException('blocked', 'NotAllowedError'));
+    dynamicWrapper.querySelector('[data-ap-toggle]').click();
+    await tick();
+    const errorStatus = dynamicWrapper.querySelector('[data-ap-status]');
+    check(errorStatus && !errorStatus.hidden, 'rejected playback exposes an accessible error');
+    dynamic.play = () => Promise.resolve();
+    dynamicWrapper.querySelector('[data-ap-toggle]').click();
+    await tick();
+    check(errorStatus.hidden, 'a later successful play clears the previous error');
+    dynamic.dispatchEvent(new Event('loadstart'));
+    check(errorStatus.hidden, 'source reload clears the previous playback error');
+
+    class CountingTarget extends EventTarget {
+        adds = 0;
+        removes = 0;
+        addEventListener(type, listener, options) { this.adds++; super.addEventListener(type, listener, options); }
+        removeEventListener(type, listener, options) { this.removes++; super.removeEventListener(type, listener, options); }
+    }
+    const target = new CountingTarget();
+    let playCalls = 0;
+    let started = 0;
+    const retry = createPlaybackRetry({
+        target,
+        play: () => ++playCalls === 1 ? Promise.reject(new Error('blocked')) : Promise.resolve(),
+        onStarted: () => started++
+    });
+    retry.attempt();
+    retry.attempt();
+    await tick();
+    check(target.adds === 1 && playCalls === 1, 'repeated blocked attempts keep one pointer listener');
+    target.dispatchEvent(new Event('pointerdown'));
+    await tick();
+    check(target.removes === 1 && playCalls === 2 && started === 1, 'pointer retry removes itself and starts once');
+    let cancelledCalls = 0;
+    const pendingRetry = createPlaybackRetry({
+        target,
+        play: () => { cancelledCalls++; return Promise.reject(new Error('blocked')); }
+    });
+    pendingRetry.attempt();
+    await tick();
+    pendingRetry.cancel();
+    target.dispatchEvent(new Event('pointerdown'));
+    await tick();
+    check(cancelledCalls === 1, 'cancel removes a pending pointer retry');
+
+    lines.push('All browser behavior checks passed.');
+    document.getElementById('results').textContent = lines.join('\n');
+    document.documentElement.dataset.testResult = 'pass';
+} catch (error) {
+    document.getElementById('results').textContent = `${lines.join('\n')}\nFAIL: ${error.message}`;
+    document.documentElement.dataset.testResult = 'fail';
+    throw error;
+}
+</script>
+</body>
+</html>

@@ -179,7 +179,7 @@ final class DashboardController extends BaseController
         }
         return array_map(static function (array $call): array {
             return [
-                'time' => format_date($call['calldate'] ?? null, 'M j, g:i A'),
+                'time' => format_cdr_date($call['calldate'] ?? null, 'M j, g:i A'),
                 'src' => (string) ($call['src'] ?? ''),
                 'dst' => (string) ($call['dst'] ?? ''),
                 'disposition' => (string) ($call['disposition'] ?? ''),

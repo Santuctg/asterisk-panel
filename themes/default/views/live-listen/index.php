@@ -10,7 +10,7 @@
 
 <div class="active-calls-listen-bar mb-4"><div><strong>Listen-only monitoring</strong><small>Browser Listen connects directly with a restricted panel identity. Whisper and barge are disabled.</small></div><div><span id="listen-refresh-status" class="muted text-sm" role="status" aria-live="polite">Calls update automatically.</span><button id="listen-stop" type="button" class="btn btn-sm" hidden>Stop listening</button></div></div>
 <p id="listen-status" class="active-calls-message" role="status" aria-live="polite"></p>
-<audio id="listen-audio" class="mb-4" autoplay playsinline controls hidden></audio>
+<audio id="listen-audio" class="mb-4" autoplay playsinline hidden></audio>
 
 <div id="listen-extension-dialog" class="card mb-4" hidden><div class="card-body">
     <h3>Listen on an extension</h3>

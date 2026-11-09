@@ -329,7 +329,7 @@ $tile = function (string $icon, string $tone, int|string $value, string $label, 
         'count' => \App\Controllers\DashboardController::activeCallCount($channels),
         'channels' => array_values($channels),
         'recent_calls' => array_map(static fn (array $call): array => [
-            'time' => format_date($call['calldate'], 'M j, g:i A'),
+            'time' => format_cdr_date($call['calldate'], 'M j, g:i A'),
             'src' => (string) $call['src'], 'dst' => (string) $call['dst'],
             'disposition' => (string) $call['disposition'],
             'duration' => format_duration((int) $call['billsec']),
