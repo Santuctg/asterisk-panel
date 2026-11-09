@@ -23,6 +23,12 @@ final class CdrController extends BaseController
         $per   = $request->perPage();
         $q     = $request->str('q');
         $disp  = $request->str('disposition');
+        $range = self::dateRange(
+            $request->str('from'),
+            $request->str('to'),
+            new \DateTimeZone(date_default_timezone_get()),
+            new \DateTimeZone((string) config('asterisk.cdr_timezone', 'UTC'))
+        );
 
         $where  = 'tenant_id = ?';
         $params = [$tid];
@@ -37,6 +43,8 @@ final class CdrController extends BaseController
             $where .= ' AND disposition = ?';
             $params[] = $disp;
         }
+        if ($range['start'] !== null) { $where .= ' AND calldate >= ?'; $params[] = $range['start']; }
+        if ($range['end'] !== null) { $where .= ' AND calldate < ?'; $params[] = $range['end']; }
 
         $db     = $this->db();
         $total  = (int) $db->scalar("SELECT COUNT(*) FROM cdr WHERE {$where}", $params);
@@ -70,8 +78,28 @@ final class CdrController extends BaseController
         return $this->view('cdr/index', [
             'rows' => $rows, 'page' => $page, 'pages' => $pages,
             'total' => $total, 'q' => $q, 'disposition' => $disp,
+            'from' => $range['from'], 'to' => $range['to'],
             'stats' => $stats ?: ['total' => 0, 'answered' => 0, 'talktime' => 0],
         ]);
+    }
+
+    /** Normalize tenant-local dates and return boundaries in the CDR storage timezone. */
+    public static function dateRange(string $from, string $to, \DateTimeZone $tenantTimezone, \DateTimeZone $cdrTimezone): array
+    {
+        $parse = static function (string $value) use ($tenantTimezone): ?\DateTimeImmutable {
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) return null;
+            $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $value, $tenantTimezone);
+            return $date && $date->format('Y-m-d') === $value ? $date : null;
+        };
+        $fromDate = $parse($from);
+        $toDate = $parse($to);
+        if ($fromDate && $toDate && $fromDate > $toDate) [$fromDate, $toDate] = [$toDate, $fromDate];
+        return [
+            'from' => $fromDate?->format('Y-m-d') ?? '',
+            'to' => $toDate?->format('Y-m-d') ?? '',
+            'start' => $fromDate?->setTimezone($cdrTimezone)->format('Y-m-d H:i:s'),
+            'end' => $toDate?->modify('+1 day')->setTimezone($cdrTimezone)->format('Y-m-d H:i:s'),
+        ];
     }
 
     /** GET /cdr/{id}/recording — authorize, then delegate the file to Nginx. */

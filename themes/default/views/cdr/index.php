@@ -1,9 +1,10 @@
 <?php
 /**
  * Call detail records (CDR). Expects: $rows, $page, $pages, $total, $q,
- * $disposition, $stats
+ * $disposition, $from, $to, $stats
  */
 require dirname(__DIR__) . '/partials/fields.php';
+$from ??= ''; $to ??= '';
 
 $dispositions = ['' => 'All results', 'ANSWERED' => 'Answered', 'NO ANSWER' => 'No answer',
                  'BUSY' => 'Busy', 'FAILED' => 'Failed', 'CONGESTION' => 'Congestion'];
@@ -66,6 +67,8 @@ $answeredRate = ($stats['total'] ?? 0) > 0
                     <option value="<?= e($val) ?>" <?= $disposition === $val ? 'selected' : '' ?>><?= e($lab) ?></option>
                 <?php endforeach; ?>
             </select>
+            <input type="date" name="from" value="<?= e($from) ?>" aria-label="From date">
+            <input type="date" name="to" value="<?= e($to) ?>" aria-label="To date">
             <button type="submit" class="btn">Filter</button>
             <span class="spacer"></span>
             <span class="muted text-sm"><?= (int) $total ?> record(s)</span>
@@ -148,7 +151,10 @@ $answeredRate = ($stats['total'] ?? 0) > 0
         <div class="card-foot">
             <?= \App\Core\View::fragment('partials/pagination', [
                 'page' => $page, 'pages' => $pages,
-                'base' => '/cdr' . ($q ? '?q=' . urlencode($q) : '') . ($disposition ? '&disposition=' . urlencode($disposition) : ''),
+                'base' => '/cdr' . (($query = http_build_query(array_filter([
+                    'q' => $q, 'disposition' => $disposition, 'from' => $from, 'to' => $to,
+                    'per' => ($_GET['per'] ?? null),
+                ], static fn ($value): bool => $value !== '' && $value !== null))) !== '' ? '?' . $query : ''),
             ]) ?>
             <span class="muted text-sm">Page <?= $page ?> of <?= $pages ?></span>
         </div>
