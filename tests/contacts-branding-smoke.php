@@ -67,13 +67,15 @@ $tlsSetting = array_values(array_filter($tlsRows, static fn (array $row): bool =
 $check($tlsSetting === [], 'global search hides Super Admin SIP settings from tenant administrators');
 $brandingSearch = $searchController->index(new App\Core\Request('GET', '/search', ['q' => 'branding']));
 $check(str_contains($brandingSearch->body(), '/system/settings#panel-branding'), 'global search links permitted users directly to matching Settings sections case-insensitively');
+$connectionSearch = $searchController->index(new App\Core\Request('GET', '/search', ['q' => 'AMI']));
+$check(str_contains($connectionSearch->body(), '/system/settings#connection'), 'global search includes the Connection and AMI Settings section');
 $db->insert('settings', ['tenant_id' => $tenantA, 'key' => 'voicemail_email_subject', 'value' => 'PrivateNeedleValue']);
 $privateSearch = $searchController->index(new App\Core\Request('GET', '/search', ['q' => 'PrivateNeedleValue']));
 $check(!str_contains($privateSearch->body(), 'PrivateNeedleValue') && !str_contains($privateSearch->body(), 'Setting'), 'global search never indexes stored Settings values');
 $settingsView = file_get_contents(BASE_PATH . '/themes/default/views/system/settings.php');
 $check(str_contains($settingsView, 'id="sip-transports"') && str_contains($settingsView, 'id="panel-branding"')
     && str_contains($settingsView, 'id="business-details"') && str_contains($settingsView, 'id="voicemail-email"')
-    && str_contains($settingsView, 'id="call-recording"'), 'Settings search targets stable section anchors');
+    && str_contains($settingsView, 'id="call-recording"') && str_contains($settingsView, 'id="connection"'), 'Settings search targets stable section anchors');
 
 $restrictedUser = $db->insert('users', ['tenant_id' => $tenantA, 'username' => 'restricted', 'password' => password_hash('pass', PASSWORD_DEFAULT), 'role' => 'user', 'active' => 1]);
 $app->auth()->login($restrictedUser);

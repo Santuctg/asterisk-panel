@@ -82,6 +82,7 @@ final class SearchController extends BaseController
             ['Business details', 'Configure company details, timezone, time format and provisioning URL.', 'business company email phone timezone time format provisioning url settings configuration', 'business-details', false],
             ['Voicemail email', 'Configure voicemail notification email subject and body.', 'voicemail email notification subject body settings configuration', 'voicemail-email', false],
             ['Automatic call recording', 'Configure call recording mode and start point.', 'automatic call recording mode inbound outbound answered settings configuration', 'call-recording', false],
+            ['Connection', 'View the Asterisk Manager Interface connection configuration.', 'connection ami asterisk manager interface host port username environment settings configuration', 'connection', false],
         ];
 
         $results = [];

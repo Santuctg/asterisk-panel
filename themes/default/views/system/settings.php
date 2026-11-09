@@ -132,7 +132,7 @@ $s = static fn (string $k, string $d = '') => $settings[$k] ?? $d;
         </div>
     </div>
 
-    <div class="card">
+    <div class="card" id="connection">
         <div class="card-head"><h2>Connection</h2></div>
         <div class="card-body">
             <div class="form-grid">
