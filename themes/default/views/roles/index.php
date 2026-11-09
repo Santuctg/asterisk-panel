@@ -2,9 +2,9 @@
 $permissionGroups = [
     'Core panel' => ['dashboard.view', 'webphone.use'],
     'Telephony' => ['extension.view','extension.manage','voicemail.view','voicemail.manage','device.view','device.manage','ringgroup.view','ringgroup.manage','parking.view','parking.manage','ivr.view','ivr.manage','route.view','route.manage','moh.view','moh.manage','callcenter.view','callcenter.manage','conference.view','conference.manage'],
-    'Reports & tools' => ['cdr.view','cdr.delete','call.listen'],
-    'People & access' => ['user.view','user.manage','role.view','role.manage','tenant_security.view','tenant_security.manage'],
-    'System' => ['system_status.view','system.apply','system_settings.view','system_settings.manage','audit.view'],
+    'Reports & tools' => ['cdr.view','cdr.delete','call.listen','call.hangup'],
+    'People & access' => ['contact.view','contact.manage','user.view','user.manage','role.view','role.manage','tenant_security.view','tenant_security.manage'],
+    'System' => ['system_status.view','system_settings.view','system_settings.manage','audit.view'],
 ];
 $groups = [];
 foreach ($permissionGroups as $group => $keys) {

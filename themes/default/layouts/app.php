@@ -36,7 +36,7 @@ $user = $auth->user();
     <?php
     // Navigation structure: [label, href|children, ability|null, icon]
     $nav = [
-        ['label' => 'Dashboard',    'href' => '/dashboard',      'icon' => 'grid',    'ability' => null],
+        ['label' => 'Dashboard',    'href' => '/dashboard',      'icon' => 'grid',    'ability' => 'dashboard.view'],
         ['label' => 'Web Phone',    'href' => '/web-phone',       'icon' => 'phone',   'ability' => 'webphone.use', 'standalone' => true],
         ['label' => 'Active Calls', 'href' => '/active-calls',     'icon' => 'pulse',   'ability' => 'call.listen'],
         ['label' => 'Extensions',   'href' => '/extensions',     'icon' => 'phone',   'ability' => 'extension.view'],
@@ -59,10 +59,10 @@ $user = $auth->user();
         ['label' => 'Fail2ban',      'href' => '/fail2ban',       'icon' => 'shield',  'ability' => 'security.fail2ban'],
         ['label' => 'System',       'href' => '/system/status',  'icon' => 'cog',     'ability' => null,
             'children' => [
-                ['label' => 'Status',      'href' => '/system/status'],
-                ['label' => 'Settings',    'href' => '/system/settings'],
-                ['label' => 'SSL / HTTPS', 'href' => '/system/ssl'],
-                ['label' => 'Audit Log',   'href' => '/system/audit'],
+                ['label' => 'Status',      'href' => '/system/status',   'ability' => 'system_status.view'],
+                ['label' => 'Settings',    'href' => '/system/settings', 'ability' => 'system_settings.view'],
+                ['label' => 'SSL / HTTPS', 'href' => '/system/ssl',      'ability' => 'tenant.manage'],
+                ['label' => 'Audit Log',   'href' => '/system/audit',    'ability' => 'audit.view'],
             ],
         ],
         ['label' => 'System Update', 'href' => '/system/update', 'icon' => 'refresh', 'ability' => 'system.update'],
@@ -86,6 +86,12 @@ $user = $auth->user();
                 <?php if (!$canSee($item)) continue; ?>
                 <?php
                 $hasChildren = !empty($item['children']);
+                if ($hasChildren) {
+                    $visibleChildren = array_values(array_filter($item['children'], $canSee));
+                    if (!$visibleChildren) continue;
+                    $item['children'] = $visibleChildren;
+                    $item['href'] = $visibleChildren[0]['href'];
+                }
                 $active = str_starts_with($currentPage, $item['href']);
                 if ($hasChildren) {
                     foreach ($item['children'] as $child) {
