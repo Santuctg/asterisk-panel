@@ -7,7 +7,7 @@ define('BASE_PATH', dirname(__DIR__));
 
 $config = require BASE_PATH . '/resources/config/app.php';
 $actual = (string) ($config['version'] ?? '');
-$expected = '1.4.5';
+$expected = '1.4.6';
 
 if ($actual !== $expected) {
     throw new RuntimeException("FAIL: application version is {$actual}; expected {$expected}");
