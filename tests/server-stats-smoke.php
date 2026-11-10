@@ -224,6 +224,36 @@ $check((int) $db->scalar(
     "SELECT COUNT(*) FROM server_stats_history WHERE cpu_percent = ?", [22.5]
 ) === 1, 'record() wrote exactly one row');
 
+$originalTimezone = date_default_timezone_get();
+date_default_timezone_set('Asia/Dhaka');
+$utcProbe = $fullSample;
+$utcProbe['cpu'] = 33.3;
+$history->record($utcProbe, 0);
+$storedUtc = (string) $db->scalar(
+    'SELECT sampled_at FROM server_stats_history WHERE cpu_percent = ? ORDER BY id DESC LIMIT 1',
+    [33.3]
+);
+$parsedUtc = \DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $storedUtc, new \DateTimeZone('UTC'));
+$check($parsedUtc !== false && abs($parsedUtc->getTimestamp() - time()) <= 2,
+    'record() stores UTC independently of the active PHP timezone');
+$db->run('DELETE FROM server_stats_history WHERE cpu_percent = ?', [33.3]);
+date_default_timezone_set($originalTimezone);
+
+$db->run('DELETE FROM server_stats_history WHERE cpu_percent = ?', [22.5]);
+$db->insert('server_stats_history', [
+    'sampled_at' => gmdate('Y-m-d H:i:s', time() + 6 * 3600),
+    'cpu_percent' => 44.4,
+]);
+$legacyProbe = $fullSample;
+$legacyProbe['cpu'] = 55.5;
+$check($history->record($legacyProbe) === true,
+    'a legacy future timestamp cannot block a current UTC sample');
+$check(count(array_filter(
+    $history->rows(24),
+    static fn (array $row): bool => (float) ($row['cpu_percent'] ?? 0) === 44.4
+)) === 0, 'future legacy samples stay hidden until their timestamp is reached');
+$db->run('DELETE FROM server_stats_history WHERE cpu_percent IN (?, ?)', [44.4, 55.5]);
+
 $db->insert('server_stats_history', [
     'sampled_at' => date('Y-m-d H:i:s', time() - 3 * 86400),
     'cpu_percent' => 5.0,
@@ -257,6 +287,20 @@ $check(str_contains(server_resource_chart([
     ['t' => $baseTs, 'cpu' => 10.0, 'mem' => null, 'disk' => null],
     ['t' => $baseTs + 60, 'cpu' => 20.0, 'mem' => null, 'disk' => null],
 ]), '<path '), 'a series with only one usable metric still renders');
+$continuousChart = server_resource_chart([
+    ['t' => $baseTs, 'cpu' => 10.0],
+    ['t' => $baseTs + App\Services\ServerStatsHistory::GAP_SECONDS, 'cpu' => 20.0],
+]);
+$gappedChart = server_resource_chart([
+    ['t' => $baseTs, 'cpu' => 10.0],
+    ['t' => $baseTs + 60, 'cpu' => 11.0],
+    ['t' => $baseTs + App\Services\ServerStatsHistory::GAP_SECONDS + 61, 'cpu' => 20.0],
+    ['t' => $baseTs + App\Services\ServerStatsHistory::GAP_SECONDS + 121, 'cpu' => 21.0],
+]);
+$check(substr_count($continuousChart, 'M') === 1,
+    'an interval exactly at the history gap threshold remains connected');
+$check(substr_count($gappedChart, 'M') === 2,
+    'the server-rendered resource line breaks across a missing interval');
 
 // ---------------------------------------------------------------------
 // The realtime endpoint the status page polls.
@@ -317,6 +361,10 @@ $check(str_contains($full, 'id="srvChart"') && str_contains($full, 'Resource his
 $check(str_contains($full, 'chart-tooltip') && str_contains($full, 'bindChartTooltip')
     && str_contains($full, "toLocaleString()"),
     'resource history hover shows the sample time and metric values');
+$check(str_contains($full, 'GAP_SECONDS = 1200')
+    && str_contains($full, 'function isMissingSampleTime')
+    && str_contains($full, 'No sample data'),
+    'polled resource charts preserve gaps and label missing hover intervals');
 $check(str_contains($full, '/system/server-stats') && str_contains($full, 'INTERVAL = 10000')
     && str_contains($full, 'setInterval(poll'),
     'status page wires up the realtime resource poller');

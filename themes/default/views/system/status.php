@@ -312,6 +312,7 @@ $meterWidth = static function (float $percent): int {
 
     var ENDPOINT = '/system/server-stats';
     var INTERVAL = 10000;
+    var GAP_SECONDS = <?= \App\Services\ServerStatsHistory::GAP_SECONDS ?>;
     var INITIAL_SERIES = <?= json_encode(array_values($serverSeries), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?: '[]' ?>;
     var timer = null;
     var busy = false;
@@ -383,6 +384,16 @@ $meterWidth = static function (float $percent): int {
         if (sub) { sub.hidden = !net; }
     }
 
+    function isMissingSampleTime(points, wanted) {
+        for (var i = 1; i < points.length; i++) {
+            if ((points[i].t - points[i - 1].t) > GAP_SECONDS
+                && wanted > points[i - 1].t && wanted < points[i].t) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     function bindChartTooltip(host, svg, points, geometry) {
         var ns = 'http://www.w3.org/2000/svg';
         var guide = document.createElementNS(ns, 'line');
@@ -404,13 +415,19 @@ $meterWidth = static function (float $percent): int {
             var sample = points.reduce(function (best, point) {
                 return Math.abs(point.t - wanted) < Math.abs(best.t - wanted) ? point : best;
             }, points[0]);
-            var x = geometry.x0 + (sample.t - geometry.t0) / (geometry.t1 - geometry.t0) * (geometry.x1 - geometry.x0);
+            var missing = isMissingSampleTime(points, wanted);
+            var markerTime = missing ? wanted : sample.t;
+            var x = geometry.x0 + (markerTime - geometry.t0) / (geometry.t1 - geometry.t0) * (geometry.x1 - geometry.x0);
             guide.setAttribute('x1', x);
             guide.setAttribute('x2', x);
             guide.hidden = false;
-            var value = function (key) { return typeof sample[key] === 'number' ? sample[key].toFixed(1) + '%' : '—'; };
-            tooltip.textContent = new Date(sample.t * 1000).toLocaleString()
-                + ' · CPU ' + value('cpu') + ' · Memory ' + value('mem') + ' · Disk ' + value('disk');
+            if (missing) {
+                tooltip.textContent = new Date(wanted * 1000).toLocaleString() + ' · No sample data';
+            } else {
+                var value = function (key) { return typeof sample[key] === 'number' ? sample[key].toFixed(1) + '%' : '—'; };
+                tooltip.textContent = new Date(sample.t * 1000).toLocaleString()
+                    + ' · CPU ' + value('cpu') + ' · Memory ' + value('mem') + ' · Disk ' + value('disk');
+            }
             tooltip.hidden = false;
             var left = (x / geometry.width) * rect.width;
             tooltip.style.left = Math.max(8, Math.min(rect.width - tooltip.offsetWidth - 8, left - tooltip.offsetWidth / 2)) + 'px';
@@ -472,12 +489,15 @@ $meterWidth = static function (float $percent): int {
             var d = '';
             var open = false;
             var plotted = 0;
+            var previousTime = null;
             points.forEach(function (p) {
+                if (previousTime !== null && (p.t - previousTime) > GAP_SECONDS) { open = false; }
                 var v = p[line[0]];
-                if (typeof v !== 'number' || !isFinite(v)) { open = false; return; }
+                if (typeof v !== 'number' || !isFinite(v)) { open = false; previousTime = p.t; return; }
                 d += (open ? 'L' : 'M') + r1(px(p.t)) + ' ' + r1(py(v)) + ' ';
                 open = true;
                 plotted++;
+                previousTime = p.t;
             });
             d = d.replace(/\s+$/, '');
             if (plotted < 2 || !d) { return; }

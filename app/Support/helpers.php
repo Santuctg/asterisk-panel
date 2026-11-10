@@ -463,18 +463,26 @@ if (!function_exists('server_resource_chart')) {
             $path  = '';
             $open  = false;
             $point = 0;
+            $previousTime = null;
 
             foreach ($series as $sample) {
+                $sampleTime = (int) ($sample['t'] ?? 0);
+                if ($previousTime !== null
+                    && ($sampleTime - $previousTime) > \App\Services\ServerStatsHistory::GAP_SECONDS) {
+                    $open = false;
+                }
                 $value = $sample[$line['key']] ?? null;
                 if ($value === null || !is_numeric($value)) {
                     $open = false;
+                    $previousTime = $sampleTime;
                     continue;
                 }
                 $path .= ($open ? 'L' : 'M')
-                    . round($px((int) $sample['t']), 1) . ' '
+                    . round($px($sampleTime), 1) . ' '
                     . round($py((float) $value), 1) . ' ';
                 $open = true;
                 $point++;
+                $previousTime = $sampleTime;
             }
 
             $path = trim($path);

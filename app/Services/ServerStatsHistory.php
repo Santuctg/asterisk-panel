@@ -18,6 +18,7 @@ use App\Core\App;
 final class ServerStatsHistory
 {
     public const TABLE = 'server_stats_history';
+    public const GAP_SECONDS = 1200;
 
     /**
      * Persist one sample. Returns false when a fresher row already exists
@@ -26,12 +27,20 @@ final class ServerStatsHistory
     public function record(array $stats, int $minIntervalSeconds = 60): bool
     {
         $db = App::getInstance()->db();
+        $now = time();
+        $nowUtc = self::utcDate($now);
 
         if ($minIntervalSeconds > 0) {
-            $last = $db->scalar('SELECT MAX(sampled_at) FROM ' . self::TABLE);
+            // A legacy row written in a tenant-local timezone can be dated in
+            // the future relative to UTC. Ignore such rows for throttling so
+            // they cannot suppress sampling until wall-clock time catches up.
+            $last = $db->scalar(
+                'SELECT MAX(sampled_at) FROM ' . self::TABLE . ' WHERE sampled_at <= ?',
+                [$nowUtc]
+            );
             if (is_string($last) && $last !== '') {
-                $ts = strtotime($last);
-                if ($ts !== false && (time() - $ts) < $minIntervalSeconds) {
+                $ts = self::utcTimestamp($last);
+                if ($ts !== null && ($now - $ts) < $minIntervalSeconds) {
                     return false;
                 }
             }
@@ -42,7 +51,7 @@ final class ServerStatsHistory
         $net    = is_array($stats['network'] ?? null) ? $stats['network'] : null;
 
         $db->insert(self::TABLE, [
-            'sampled_at'  => date('Y-m-d H:i:s'),
+            'sampled_at'  => self::utcDate(time()),
             'cpu_percent' => is_numeric($stats['cpu'] ?? null) ? (float) $stats['cpu'] : null,
             'mem_used'    => $memory !== null ? (int) ($memory['used'] ?? 0) : null,
             'mem_total'   => $memory !== null ? (int) ($memory['total'] ?? 0) : null,
@@ -58,14 +67,16 @@ final class ServerStatsHistory
     /** @return array<int, array<string, mixed>> raw rows, oldest first */
     public function rows(int $hours = 24): array
     {
-        $since = date('Y-m-d H:i:s', time() - $hours * 3600);
+        $now = time();
+        $since = self::utcDate($now - $hours * 3600);
+        $until = self::utcDate($now);
 
         return App::getInstance()->db()->all(
             'SELECT sampled_at, cpu_percent, mem_used, mem_total, disk_used, disk_total, net_rx, net_tx
              FROM ' . self::TABLE . '
-             WHERE sampled_at >= ?
+             WHERE sampled_at >= ? AND sampled_at <= ?
              ORDER BY sampled_at ASC',
-            [$since]
+            [$since, $until]
         );
     }
 
@@ -82,9 +93,9 @@ final class ServerStatsHistory
             return [];
         }
 
-        $start = strtotime((string) $rows[0]['sampled_at']);
-        $end   = strtotime((string) $rows[count($rows) - 1]['sampled_at']);
-        if ($start === false || $end === false) {
+        $start = self::utcTimestamp((string) $rows[0]['sampled_at']);
+        $end   = self::utcTimestamp((string) $rows[count($rows) - 1]['sampled_at']);
+        if ($start === null || $end === null) {
             return [];
         }
 
@@ -93,8 +104,8 @@ final class ServerStatsHistory
         $acc     = [];
 
         foreach ($rows as $row) {
-            $ts = strtotime((string) $row['sampled_at']);
-            if ($ts === false) {
+            $ts = self::utcTimestamp((string) $row['sampled_at']);
+            if ($ts === null) {
                 continue;
             }
 
@@ -144,9 +155,24 @@ final class ServerStatsHistory
     /** Drop samples older than `$keepHours`; returns the number removed. */
     public function prune(int $keepHours = 48): int
     {
-        $before = date('Y-m-d H:i:s', time() - $keepHours * 3600);
+        $before = self::utcDate(time() - $keepHours * 3600);
         $stmt   = App::getInstance()->db()->run('DELETE FROM ' . self::TABLE . ' WHERE sampled_at < ?', [$before]);
 
         return $stmt->rowCount();
+    }
+
+    private static function utcDate(int $timestamp): string
+    {
+        return gmdate('Y-m-d H:i:s', $timestamp);
+    }
+
+    private static function utcTimestamp(string $value): ?int
+    {
+        $date = \DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $value, new \DateTimeZone('UTC'));
+        $errors = \DateTimeImmutable::getLastErrors();
+        if ($date === false || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))) {
+            return null;
+        }
+        return $date->getTimestamp();
     }
 }
