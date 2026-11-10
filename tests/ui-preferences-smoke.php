@@ -34,6 +34,10 @@ $checks = [
     [str_contains($appLayout, 'id="languageSelect"') && str_contains($authLayout, 'id="languageSelect"'), 'English/Bangla controls render in app and auth layouts'],
     [str_contains($appLayout, 'assets/js/i18n.js') && str_contains($authLayout, 'assets/js/i18n.js'), 'translation runtime loads in both layouts'],
     [str_contains($css, 'select:not([multiple])') && str_contains($css, 'background-image:url'), 'all single-select controls use the shared dropdown arrow'],
+    [str_contains($css, 'input[type=date], input[type=time], select, textarea')
+        && str_contains($css, '[data-theme="dark"] input[type=date], [data-theme="dark"] input[type=time]')
+        && str_contains($css, '.toolbar input[type=search], .toolbar input[type=date], .toolbar select'),
+        'date filters use shared control, dark-theme, and toolbar sizing styles'],
     [str_contains($css, '@media (max-width: 560px)') && str_contains($css, '.repeat-row') && str_contains($css, '.modal-foot .btn'), 'shared mobile rules cover forms, repeat rows, and modals'],
     [str_contains($appJs, "localStorage.setItem('panel-theme'") && str_contains($i18nJs, "localStorage.setItem('panel-language'"), 'theme and language preferences persist'],
     [str_contains($phoneLayout, "localStorage.getItem('webphone-theme')") && !str_contains($phoneLayout, 'assets/js/app.js')

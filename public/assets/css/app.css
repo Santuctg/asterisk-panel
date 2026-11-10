@@ -619,7 +619,7 @@ code, .mono { font-family: var(--mono); font-size: 12.5px; }
 [data-theme="dark"] .form-help-popover::after { background:var(--surface-alt); }
 
 input[type=text], input[type=password], input[type=email], input[type=number],
-input[type=search], input[type=url], input[type=tel], input[type=time], select, textarea {
+input[type=search], input[type=url], input[type=tel], input[type=date], input[type=time], select, textarea {
     width: 100%; padding: 8px 11px;
     border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
     background: var(--surface); color: var(--text); font-size: 13.5px; font-family: inherit;
@@ -667,7 +667,7 @@ textarea { min-height: 90px; resize: vertical; }
 input[readonly] { background: var(--surface-alt); color: var(--text-muted); }
 .field.transport-disabled { opacity:.58; }
 .field.transport-disabled input:disabled { cursor:not-allowed; background:var(--surface-alt); }
-[data-theme="dark"] input[type=time] { color-scheme:dark; }
+[data-theme="dark"] input[type=date], [data-theme="dark"] input[type=time] { color-scheme:dark; }
 
 .check {
     display: flex; align-items: flex-start; gap: 9px;
@@ -849,7 +849,7 @@ th.col-check input:indeterminate::after, td.col-check input:indeterminate::after
     padding: 12px 18px; border-bottom: 1px solid var(--border);
 }
 .toolbar .spacer { flex: 1; }
-.toolbar input[type=search], .toolbar select { max-width: 240px; }
+.toolbar input[type=search], .toolbar input[type=date], .toolbar select { max-width: 240px; }
 
 /* ---------- Tabs ---------- */
 .tabs { display: flex; gap: 3px; border-bottom: 1px solid var(--border); padding: 0 18px; overflow-x: auto; }
